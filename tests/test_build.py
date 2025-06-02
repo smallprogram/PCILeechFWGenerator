@@ -154,10 +154,9 @@ class TestDriverRegisterScraping:
 class TestBehaviorProfiling:
     """Test behavior profiling integration."""
 
-    @patch("sys.path.append")
     @patch("builtins.__import__")
     def test_integrate_behavior_profile_success(
-        self, mock_import, mock_path_append, mock_register_data, mock_behavior_profile
+        self, mock_import, mock_register_data, mock_behavior_profile
     ):
         """Test successful behavior profile integration."""
         # Mock the behavior profiler module
@@ -187,10 +186,9 @@ class TestBehaviorProfiling:
 
         mock_profiler_instance.capture_behavior_profile.assert_called_once_with(5.0)
 
-    @patch("sys.path.append")
     @patch("builtins.__import__")
     def test_integrate_behavior_profile_import_error(
-        self, mock_import, mock_path_append, mock_register_data
+        self, mock_import, mock_register_data
     ):
         """Test behavior profile integration when import fails."""
         mock_import.side_effect = ImportError("Module not found")
@@ -202,10 +200,9 @@ class TestBehaviorProfiling:
         # Should return original registers unchanged
         assert enhanced_regs == mock_register_data
 
-    @patch("sys.path.append")
     @patch("builtins.__import__")
     def test_integrate_behavior_profile_profiling_error(
-        self, mock_import, mock_path_append, mock_register_data
+        self, mock_import, mock_register_data
     ):
         """Test behavior profile integration when profiling fails."""
         mock_profiler_class = Mock()

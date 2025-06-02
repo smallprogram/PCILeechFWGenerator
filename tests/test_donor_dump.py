@@ -650,10 +650,42 @@ class TestMakefileValidation:
 
     def _log_kernel_feature_support(self, message: str) -> None:
         """Log kernel feature support information."""
-        # In a real implementation, this could log to test output
-        # For now, we just verify the message is valid
+        # Verify the message is valid
         assert isinstance(message, str)
         assert len(message) > 0
+
+        # Enhanced logging functionality for better test diagnostics
+        import logging
+        import sys
+
+        # Create a test-specific logger if it doesn't exist
+        logger = logging.getLogger(f"{__name__}.kernel_features")
+
+        # Configure logger for test output if not already configured
+        if not logger.handlers:
+            handler = logging.StreamHandler(sys.stdout)
+            formatter = logging.Formatter(
+                "[TEST] %(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
+            handler.setFormatter(formatter)
+            logger.addHandler(handler)
+            logger.setLevel(logging.INFO)
+
+        # Log the kernel feature support information
+        logger.info(f"Kernel Feature Support: {message}")
+
+        # Also capture for pytest output if running under pytest
+        try:
+            import pytest
+
+            # Use pytest's built-in logging capture
+            pytest.current_test_info = getattr(pytest, "current_test_info", {})
+            pytest.current_test_info[
+                f"kernel_feature_{len(pytest.current_test_info)}"
+            ] = message
+        except (ImportError, AttributeError):
+            # pytest not available or not in test context, continue with standard logging
+            pass
 
 
 # Test markers for different test categories

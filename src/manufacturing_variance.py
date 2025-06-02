@@ -364,7 +364,11 @@ class ManufacturingVarianceSimulator:
         return max(0.1, adjusted_timing)
 
     def generate_systemverilog_timing_code(
-        self, register_name: str, base_delay_cycles: int, variance_model: VarianceModel
+        self,
+        register_name: str,
+        base_delay_cycles: int,
+        variance_model: VarianceModel,
+        offset: int,
     ) -> str:
         """
         Generate SystemVerilog code with variance-aware timing.
@@ -415,10 +419,10 @@ class ManufacturingVarianceSimulator:
         if (!reset_n) begin
             {register_name}_delay_counter <= 0;
             {register_name}_write_pending <= 0;
-        end else if (bar_wr_en && bar_addr == 32'h{{offset:08X}}) begin
+        end else if (bar_wr_en && bar_addr == 32'h{offset:08X}) begin
             {register_name}_write_pending <= 1;
             // Apply base delay with manufacturing variance
-            {register_name}_delay_counter <= {adjusted_base_cycles} + 
+            {register_name}_delay_counter <= {adjusted_base_cycles} +
                                            ({register_name}_jitter_lfsr % {max_jitter_cycles + 1});
         end else if ({register_name}_write_pending && {register_name}_delay_counter > 0) begin
             {register_name}_delay_counter <= {register_name}_delay_counter - 1;

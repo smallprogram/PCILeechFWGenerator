@@ -159,7 +159,7 @@ def get_donor_info(bdf: str) -> dict:
     return info
 
 
-def scrape_driver_regs(vendor: str, device: str) -> tuple[list, dict]:
+def scrape_driver_regs(vendor: str, device: str) -> list:
     """Scrape driver registers for the given vendor/device ID."""
     try:
         output = subprocess.check_output(
@@ -169,22 +169,24 @@ def scrape_driver_regs(vendor: str, device: str) -> tuple[list, dict]:
 
         # Handle new format with state machine analysis
         if isinstance(data, dict) and "registers" in data:
-            return data["registers"], data.get("state_machine_analysis", {})
+            return data["registers"]
         else:
             # Backward compatibility with old format - ensure data is a list
             if isinstance(data, list):
-                return data, {}
+                return data
             else:
-                return [], {}
+                return []
     except subprocess.CalledProcessError:
-        return [], {}
+        return []
 
 
 def integrate_behavior_profile(bdf: str, regs: list, duration: float = 10.0) -> list:
     """Integrate behavior profiling data with register definitions."""
     try:
         # Import behavior profiler
-        sys.path.append(str(ROOT / "src"))
+        src_path = str(ROOT / "src")
+        if src_path not in sys.path:
+            sys.path.append(src_path)
         from behavior_profiler import BehaviorProfiler
 
         print(f"[*] Capturing device behavior profile for {duration}s...")
@@ -197,7 +199,8 @@ def integrate_behavior_profile(bdf: str, regs: list, duration: float = 10.0) -> 
         # Enhance register definitions with behavioral data
         enhanced_regs = []
         for reg in regs:
-            enhanced_reg = reg.copy()
+            # Ensure we're working with a mutable copy
+            enhanced_reg = dict(reg) if isinstance(reg, dict) else reg.copy()
 
             # Add behavioral timing information
             reg_name = reg["name"].upper()
@@ -328,16 +331,17 @@ def build_sv(
                         register_name=name,
                         base_delay_cycles=delay_cycles,
                         variance_model=variance_model,
+                        offset=offset,
                     )
                 )
 
-                # Extract declarations from variance code
+                # Add register declaration (variance code includes its own timing declarations)
                 declarations.append(
                     f"    logic [31:0] {name}_reg = 32'h{initial_value:08X};"
                 )
 
-                # Add the variance-aware timing logic
-                timing_logic.append(variance_timing_code.format(offset=offset))
+                # Add the variance-aware timing logic (already includes all necessary declarations)
+                timing_logic.append(variance_timing_code)
             else:
                 # Standard timing logic (backward compatibility)
                 declarations.append(
@@ -370,9 +374,13 @@ def build_sv(
 
             source = f"{name}_reg"
         else:
-            # Read-only register with potential dynamic behavior
+            # Read-only register - always create a register declaration
+            declarations.append(
+                f"    logic [31:0] {name}_reg = 32'h{initial_value:08X};"
+            )
+
+            # Add read tracking for frequently read registers
             if access_pattern == "read_heavy":
-                # Add read counter for frequently read registers
                 declarations.append(f"    logic [31:0] {name}_read_count = 0;")
                 timing_logic.append(
                     f"""
@@ -386,7 +394,7 @@ def build_sv(
     end"""
                 )
 
-            source = f"32'h{initial_value:08X}"
+            source = f"{name}_reg"
 
         read_cases.append(f"      32'h{offset:08X}: bar_rd_data <= {source};")
 
@@ -640,9 +648,10 @@ def generate_register_state_machine(
             if isinstance(sm_data, dict):
                 # Check if this register is involved in the state machine
                 sm_registers = sm_data.get("registers", [])
+                offset_hex = f"{offset:08x}"
                 if (
                     reg_name.lower() in [r.lower() for r in sm_registers]
-                    or f"reg_0x{offset:08x}" in sm_registers
+                    or f"reg_0x{offset_hex}" in sm_registers
                 ):
 
                     # Generate SystemVerilog from extracted state machine
@@ -806,6 +815,18 @@ def generate_device_state_machine(regs: list) -> str:
         else:
             runtime_regs.append(reg["name"])
 
+    # Define hex prefix to avoid backslash in f-string
+    hex_prefix = "32'h"
+
+    # Create init register conditions outside f-string to avoid backslash issues
+    init_conditions = []
+    for reg in regs:
+        if reg["name"] in init_regs[:3]:
+            offset_hex = f"{int(reg['offset']):08X}"
+            init_conditions.append(f"bar_addr == {hex_prefix}{offset_hex}")
+
+    init_condition_str = " || ".join(init_conditions) if init_conditions else "1'b0"
+
     return f"""
     // Device-level state machine
     typedef enum logic [2:0] {{
@@ -838,7 +859,7 @@ def generate_device_state_machine(regs: list) -> str:
             end
             DEVICE_INIT: begin
                 // Transition to ready after initialization registers are accessed
-                if (bar_wr_en && ({"||".join([f'bar_addr == 32\'h{int(reg["offset"]):08X}' for reg in regs if reg["name"] in init_regs[:3]])})) begin
+                if (bar_wr_en && ({init_condition_str})) begin
                     next_state = DEVICE_READY;
                 end
             end
@@ -901,7 +922,7 @@ save_project
             pass
         raise
 
-    return gen_tcl, tmp_path
+    return patch_content, tmp_path
 
 
 def vivado_run(board_root: pathlib.Path, gen_tcl_path: str, patch_tcl: str) -> None:

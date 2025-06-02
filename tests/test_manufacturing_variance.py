@@ -106,7 +106,10 @@ class TestManufacturingVarianceSimulator:
         )
 
         sv_code = simulator.generate_systemverilog_timing_code(
-            register_name="test_reg", base_delay_cycles=5, variance_model=model
+            register_name="test_reg",
+            base_delay_cycles=5,
+            variance_model=model,
+            offset=0x400,
         )
 
         assert "test_reg" in sv_code

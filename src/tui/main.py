@@ -7,10 +7,23 @@ The main entry point for the PCILeech Firmware Generator TUI.
 import asyncio
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Header, Footer, Static, Button, DataTable, ProgressBar, Log
+from textual.widgets import (
+    Header,
+    Footer,
+    Static,
+    Button,
+    DataTable,
+    ProgressBar,
+    Log,
+    Select,
+    Switch,
+    Input,
+    Label,
+)
 from textual.reactive import reactive
 from textual.message import Message
 from textual import events
+from textual.screen import ModalScreen
 from typing import Optional
 
 from .core.device_manager import DeviceManager
@@ -20,6 +33,188 @@ from .core.status_monitor import StatusMonitor
 from .models.device import PCIDevice
 from .models.config import BuildConfiguration
 from .models.progress import BuildProgress
+
+
+class ConfigurationDialog(ModalScreen[BuildConfiguration]):
+    """Modal dialog for configuring build settings"""
+
+    def compose(self) -> ComposeResult:
+        """Create the configuration dialog layout"""
+        with Container(id="config-dialog"):
+            yield Static("⚙️ Build Configuration", id="dialog-title")
+
+            with Vertical(id="config-form"):
+                # Board Type Selection
+                yield Label("Board Type:")
+                yield Select(
+                    [("35t", "35t"), ("75t", "75t"), ("100t", "100t")],
+                    value="75t",
+                    id="board-type-select",
+                )
+
+                # Device Type Selection
+                yield Label("Device Type:")
+                yield Select(
+                    [
+                        ("generic", "Generic"),
+                        ("network", "Network"),
+                        ("storage", "Storage"),
+                        ("graphics", "Graphics"),
+                        ("audio", "Audio"),
+                    ],
+                    value="generic",
+                    id="device-type-select",
+                )
+
+                # Configuration Name
+                yield Label("Configuration Name:")
+                yield Input(
+                    placeholder="Enter configuration name",
+                    value="Default Configuration",
+                    id="config-name-input",
+                )
+
+                # Description
+                yield Label("Description:")
+                yield Input(
+                    placeholder="Enter configuration description",
+                    value="Standard configuration for PCIe devices",
+                    id="config-description-input",
+                )
+
+                # Feature Toggles
+                yield Label("Advanced Features:")
+                with Horizontal(classes="switch-row"):
+                    yield Switch(value=True, id="advanced-sv-switch")
+                    yield Static("Advanced SystemVerilog")
+
+                with Horizontal(classes="switch-row"):
+                    yield Switch(value=True, id="variance-switch")
+                    yield Static("Manufacturing Variance")
+
+                with Horizontal(classes="switch-row"):
+                    yield Switch(value=False, id="profiling-switch")
+                    yield Static("Behavior Profiling")
+
+                with Horizontal(classes="switch-row"):
+                    yield Switch(value=True, id="power-mgmt-switch")
+                    yield Static("Power Management")
+
+                with Horizontal(classes="switch-row"):
+                    yield Switch(value=True, id="error-handling-switch")
+                    yield Static("Error Handling")
+
+                with Horizontal(classes="switch-row"):
+                    yield Switch(value=True, id="perf-counters-switch")
+                    yield Static("Performance Counters")
+
+                with Horizontal(classes="switch-row"):
+                    yield Switch(value=False, id="flash-after-switch")
+                    yield Static("Flash After Build")
+
+                # Profile Duration (only shown when profiling is enabled)
+                yield Label("Profile Duration (seconds):")
+                yield Input(
+                    placeholder="30.0", value="30.0", id="profile-duration-input"
+                )
+
+            # Dialog Buttons
+            with Horizontal(id="dialog-buttons"):
+                yield Button("Cancel", id="cancel-config", variant="default")
+                yield Button("Apply", id="apply-config", variant="primary")
+                yield Button("Save as Profile", id="save-config", variant="success")
+
+    def on_mount(self) -> None:
+        """Initialize dialog with current configuration"""
+        # Get current configuration from parent app
+        app = self.app
+        if hasattr(app, "current_config"):
+            config = app.current_config
+            self._populate_form(config)
+
+    def _populate_form(self, config: BuildConfiguration) -> None:
+        """Populate form fields with configuration values"""
+        try:
+            self.query_one("#board-type-select", Select).value = config.board_type
+            self.query_one("#device-type-select", Select).value = config.device_type
+            self.query_one("#config-name-input", Input).value = config.name
+            self.query_one("#config-description-input", Input).value = (
+                config.description
+            )
+            self.query_one("#advanced-sv-switch", Switch).value = config.advanced_sv
+            self.query_one("#variance-switch", Switch).value = config.enable_variance
+            self.query_one("#profiling-switch", Switch).value = (
+                config.behavior_profiling
+            )
+            self.query_one("#power-mgmt-switch", Switch).value = config.power_management
+            self.query_one("#error-handling-switch", Switch).value = (
+                config.error_handling
+            )
+            self.query_one("#perf-counters-switch", Switch).value = (
+                config.performance_counters
+            )
+            self.query_one("#flash-after-switch", Switch).value = (
+                config.flash_after_build
+            )
+            self.query_one("#profile-duration-input", Input).value = str(
+                config.profile_duration
+            )
+        except Exception:
+            # If any field fails to populate, continue with defaults
+            pass
+
+    def _create_config_from_form(self) -> BuildConfiguration:
+        """Create BuildConfiguration from form values"""
+        try:
+            return BuildConfiguration(
+                board_type=self.query_one("#board-type-select", Select).value,
+                device_type=self.query_one("#device-type-select", Select).value,
+                name=self.query_one("#config-name-input", Input).value,
+                description=self.query_one("#config-description-input", Input).value,
+                advanced_sv=self.query_one("#advanced-sv-switch", Switch).value,
+                enable_variance=self.query_one("#variance-switch", Switch).value,
+                behavior_profiling=self.query_one("#profiling-switch", Switch).value,
+                power_management=self.query_one("#power-mgmt-switch", Switch).value,
+                error_handling=self.query_one("#error-handling-switch", Switch).value,
+                performance_counters=self.query_one(
+                    "#perf-counters-switch", Switch
+                ).value,
+                flash_after_build=self.query_one("#flash-after-switch", Switch).value,
+                profile_duration=float(
+                    self.query_one("#profile-duration-input", Input).value or "30.0"
+                ),
+            )
+        except (ValueError, TypeError) as e:
+            # Return current config if form has invalid values
+            app = self.app
+            if hasattr(app, "current_config"):
+                return app.current_config
+            return BuildConfiguration()
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle dialog button presses"""
+        button_id = event.button.id
+
+        if button_id == "cancel-config":
+            self.dismiss(None)
+
+        elif button_id == "apply-config":
+            config = self._create_config_from_form()
+            self.dismiss(config)
+
+        elif button_id == "save-config":
+            config = self._create_config_from_form()
+            # Save as profile through config manager
+            app = self.app
+            if hasattr(app, "config_manager"):
+                try:
+                    app.config_manager.save_profile(config.name, config)
+                    app.notify(
+                        f"Configuration saved as '{config.name}'", severity="success"
+                    )
+                except Exception as e:
+                    app.notify(f"Failed to save profile: {e}", severity="error")
+            self.dismiss(config)
 
 
 class PCILeechTUI(App):
@@ -276,7 +471,7 @@ class PCILeechTUI(App):
             await self._stop_build()
 
         elif button_id == "configure":
-            self.notify("Configuration dialog not yet implemented", severity="info")
+            await self._open_configuration_dialog()
 
         elif button_id == "open-output":
             import subprocess
@@ -350,6 +545,18 @@ class PCILeechTUI(App):
         """Handle build progress updates"""
         self.build_progress = progress
         self.call_after_refresh(self._update_build_progress)
+
+    async def _open_configuration_dialog(self) -> None:
+        """Open the configuration dialog"""
+        try:
+            result = await self.push_screen(ConfigurationDialog())
+            if result is not None:
+                # Update current configuration
+                self.current_config = result
+                self._update_config_display()
+                self.notify("Configuration updated successfully", severity="success")
+        except Exception as e:
+            self.notify(f"Failed to open configuration dialog: {e}", severity="error")
 
     # Reactive watchers
     def watch_selected_device(self, device: Optional[PCIDevice]) -> None:
