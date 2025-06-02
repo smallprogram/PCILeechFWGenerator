@@ -1,0 +1,299 @@
+/* donor_dump.c  – expose donor PCI-e device parameters via /proc/donor_dump
+ *
+ * Build:  make         (in donor_dump directory)
+ * Load :  insmod donor_dump.ko bdf=0000:03:00.0
+ *
+ * Fields exported (one "key:value" per line):
+ *   mpc               – 3-bit Max-Payload-Capable  (0-5)
+ *   mpr               – 3-bit Max-ReadReq-InEffect (0-5)
+ *   vendor_id, device_id, subvendor_id, subsystem_id, revision_id
+ *   class_code        – 24-bit (class<<16 | subclass<<8 | progIF)
+ *   bar_size          – byte length of BAR0
+ *   dsn_hi / dsn_lo   – 64-bit Device Serial Number (0 if absent)
+ *
+ * Kernel ≥ 5.x, GPL-compatible.
+ */
+#include <linux/module.h>
+#include <linux/pci.h>
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+
+static char *bdf = "";          /* passed as 0000:03:00.0 */
+module_param(bdf, charp, 000);
+
+static struct pci_dev        *pdev;
+static struct proc_dir_entry *pe;
+
+/* ───── /proc show ─────────────────────────────────────────────────────── */
+static int show(struct seq_file *m, void *v)
+{
+    u16 vid, did, svid, ssid;  u8 rev;  u32 cls;
+    int ret;
+    
+    /* Comprehensive device state validation before operations */
+    if (!pdev) {
+        seq_printf(m, "error:device_null\n");
+        return 0;
+    }
+    
+    if (pdev->error_state != pci_channel_io_normal) {
+        seq_printf(m, "error:device_unavailable\n");
+        return 0;
+    }
+    
+    /* Check if device is still enabled */
+    if (!pci_is_enabled(pdev)) {
+        seq_printf(m, "error:device_disabled\n");
+        return 0;
+    }
+    
+    /* Validate device is still present on the bus */
+    if (!pci_device_is_present(pdev)) {
+        seq_printf(m, "error:device_not_present\n");
+        return 0;
+    }
+    
+    /* Safe PCI config space reads with error checking */
+    ret = pci_read_config_word(pdev, PCI_VENDOR_ID, &vid);
+    if (ret != PCIBIOS_SUCCESSFUL) {
+        seq_printf(m, "error:config_read_failed\n");
+        return 0;
+    }
+    
+    /* Validate vendor ID is not 0xFFFF (indicates device removal) */
+    if (vid == 0xFFFF) {
+        seq_printf(m, "error:device_removed\n");
+        return 0;
+    }
+    
+    pci_read_config_word (pdev, PCI_DEVICE_ID,            &did);
+    pci_read_config_word (pdev, PCI_SUBSYSTEM_VENDOR_ID,  &svid);
+    pci_read_config_word (pdev, PCI_SUBSYSTEM_ID,         &ssid);
+    pci_read_config_byte (pdev, PCI_REVISION_ID,          &rev);
+    pci_read_config_dword(pdev, PCI_CLASS_REVISION,       &cls);
+
+    /* ── walk legacy capability list for PCI-Express cap (ID 0x10) with bounds checking ── */
+    u8 cap_ptr;
+    ret = pci_read_config_byte(pdev, PCI_CAPABILITY_LIST, &cap_ptr);
+    if (ret != PCIBIOS_SUCCESSFUL) {
+        seq_printf(m, "error:capability_read_failed\n");
+        return 0;
+    }
+    
+    u8 mpc = 0, mpr = 0;
+    int cap_count = 0;  /* Prevent infinite loops */
+    while (cap_ptr && cap_count < 64) {  /* Max 64 capabilities to prevent infinite loop */
+        /* Validate capability pointer is within config space bounds */
+        if (cap_ptr < 0x40 || cap_ptr > 0xFC || (cap_ptr & 0x3)) {
+            pr_debug("donor_dump: Invalid capability pointer 0x%02x\n", cap_ptr);
+            break;  /* Invalid capability pointer */
+        }
+        
+        u8 cap_id;
+        ret = pci_read_config_byte(pdev, cap_ptr, &cap_id);
+        if (ret != PCIBIOS_SUCCESSFUL) {
+            pr_debug("donor_dump: Failed to read capability ID at 0x%02x\n", cap_ptr);
+            break;
+        }
+        
+        if (cap_id == PCI_CAP_ID_EXP) {
+            /* Validate we have enough space for PCIe capability structure */
+            if (cap_ptr + 0x8 <= 0xFF) {
+                u32 devcap, devctl;
+                ret = pci_read_config_dword(pdev, cap_ptr + 0x4, &devcap);
+                if (ret != PCIBIOS_SUCCESSFUL) break;
+                ret = pci_read_config_dword(pdev, cap_ptr + 0x8, &devctl);
+                if (ret != PCIBIOS_SUCCESSFUL) break;
+                mpc =  devcap & 0x7;
+                mpr = (devctl >> 5) & 0x7;
+            }
+            break;
+        }
+        
+        ret = pci_read_config_byte(pdev, cap_ptr + 1, &cap_ptr);  /* next ptr */
+        if (ret != PCIBIOS_SUCCESSFUL) {
+            pr_debug("donor_dump: Failed to read next capability pointer\n");
+            break;
+        }
+        cap_count++;
+    }
+
+    /* ── optional: extended cap 0x03 = Device Serial Number with bounds checking ── */
+    u32 dsn_lo = 0, dsn_hi = 0;
+    u32 ecap_ptr = 0x100;   /* extended caps start at 0x100 */
+    int ecap_count = 0;     /* Prevent infinite loops */
+    
+    while (ecap_ptr && ecap_count < 64) {  /* Max 64 extended capabilities */
+        /* Validate extended capability pointer bounds */
+        if (ecap_ptr < 0x100 || ecap_ptr > 0xFFC || (ecap_ptr & 0x3)) {
+            break;  /* Invalid extended capability pointer */
+        }
+        
+        u32 hdr;
+        ret = pci_read_config_dword(pdev, ecap_ptr, &hdr);
+        if (ret != PCIBIOS_SUCCESSFUL || !hdr) {
+            pr_debug("donor_dump: Failed to read extended capability header at 0x%03x\n", ecap_ptr);
+            break;
+        }
+        
+        u16 cap_id = hdr & 0xffff;
+        u16 next   = hdr >> 20;
+        
+        if (cap_id == PCI_EXT_CAP_ID_DSN) {            /* 0x0003 */
+            /* Validate we have enough space for DSN capability */
+            if (ecap_ptr + 0x8 <= 0xFFF) {
+                ret = pci_read_config_dword(pdev, ecap_ptr + 0x4, &dsn_lo);
+                if (ret != PCIBIOS_SUCCESSFUL) break;
+                ret = pci_read_config_dword(pdev, ecap_ptr + 0x8, &dsn_hi);
+                if (ret != PCIBIOS_SUCCESSFUL) break;
+            }
+            break;
+        }
+        ecap_ptr = next;
+        ecap_count++;
+    }
+
+    /* ── size of BAR0 (bytes) with validation ── */
+    resource_size_t bar_size = 0;
+    if (pci_resource_flags(pdev, 0) & IORESOURCE_MEM) {
+        bar_size = pci_resource_len(pdev, 0);
+    }
+
+    /* ── print one key:value per line (no leading spaces) ── */
+    seq_printf(m,
+        "mpc:0x%X\n"
+        "mpr:0x%X\n"
+        "vendor_id:0x%04X\n"
+        "device_id:0x%04X\n"
+        "subvendor_id:0x%04X\n"
+        "subsystem_id:0x%04X\n"
+        "revision_id:0x%02X\n"
+        "class_code:0x%06X\n"
+        "bar_size:0x%llX\n"
+        "dsn_hi:0x%08X\n"
+        "dsn_lo:0x%08X\n",
+        mpc, mpr,
+        vid, did, svid, ssid, rev, cls >> 8,
+        (unsigned long long)bar_size,
+        dsn_hi, dsn_lo);
+
+    return 0;
+}
+
+/* ───── seq_file boilerplate ───────────────────────────────────────────── */
+static int open_proc(struct inode *i, struct file *f)
+{ return single_open(f, show, NULL); }
+
+static const struct proc_ops fops = {
+    .proc_open    = open_proc,
+    .proc_read    = seq_read,
+    .proc_lseek   = seq_lseek,
+    .proc_release = single_release,
+};
+
+/* ───── module init/exit with comprehensive error handling ───────────────────────────────────────────────── */
+static int __init mod_init(void)
+{
+    unsigned dom, bus, dev, fn;
+    int ret = 0;
+
+    /* Validate BDF parameter format */
+    if (!bdf || strlen(bdf) == 0) {
+        pr_err("donor_dump: BDF parameter is required (format: 0000:03:00.0)\n");
+        return -EINVAL;
+    }
+
+    if (sscanf(bdf, "%x:%x:%x.%x", &dom, &bus, &dev, &fn) != 4) {
+        pr_err("donor_dump: Invalid BDF format '%s' (expected: 0000:03:00.0)\n", bdf);
+        return -EINVAL;
+    }
+
+    /* Validate BDF component ranges */
+    if (dom > 0xFFFF || bus > 0xFF || dev > 0x1F || fn > 0x7) {
+        pr_err("donor_dump: BDF components out of range: %04x:%02x:%02x.%x\n", dom, bus, dev, fn);
+        return -EINVAL;
+    }
+
+    pdev = pci_get_domain_bus_and_slot(dom, bus, PCI_DEVFN(dev, fn));
+    if (!pdev) {
+        pr_err("donor_dump: PCI device %s not found\n", bdf);
+        return -ENODEV;
+    }
+
+    /* Comprehensive device state validation */
+    if (!pci_is_enabled(pdev)) {
+        pr_err("donor_dump: PCI device %s is not enabled\n", bdf);
+        ret = -ENODEV;
+        goto err_put_device;
+    }
+
+    /* Check if device is still present (not removed during operation) */
+    if (pdev->error_state != pci_channel_io_normal) {
+        pr_err("donor_dump: PCI device %s is in error state\n", bdf);
+        ret = -EIO;
+        goto err_put_device;
+    }
+
+    /* Verify device is actually present on the bus */
+    if (!pci_device_is_present(pdev)) {
+        pr_err("donor_dump: PCI device %s is not present on bus\n", bdf);
+        ret = -ENODEV;
+        goto err_put_device;
+    }
+
+    /* Test basic config space access */
+    u16 vendor_id;
+    if (pci_read_config_word(pdev, PCI_VENDOR_ID, &vendor_id) != PCIBIOS_SUCCESSFUL || vendor_id == 0xFFFF) {
+        pr_err("donor_dump: Cannot read config space from device %s\n", bdf);
+        ret = -EIO;
+        goto err_put_device;
+    }
+
+    /* Create proc entry */
+    pe = proc_create("donor_dump", 0444, NULL, &fops);
+    if (!pe) {
+        pr_err("donor_dump: Failed to create /proc/donor_dump\n");
+        ret = -ENOMEM;
+        goto err_put_device;
+    }
+    
+    pr_info("donor_dump: Successfully loaded for device %s (VID:0x%04x)\n", bdf, vendor_id);
+    return 0;
+
+err_put_device:
+    if (pdev) {
+        pci_dev_put(pdev);
+        pdev = NULL;
+    }
+    return ret;
+}
+
+static void __exit mod_exit(void)
+{
+    /* Safe cleanup with proper ordering and error handling */
+    if (pe) {
+        proc_remove(pe);
+        pe = NULL;
+        pr_debug("donor_dump: Removed /proc/donor_dump entry\n");
+    }
+    
+    /* Properly release device reference to prevent memory leaks */
+    if (pdev) {
+        /* Verify device is still valid before logging */
+        if (pci_device_is_present(pdev) && pdev->error_state == pci_channel_io_normal) {
+            pr_info("donor_dump: Releasing device %s\n", bdf);
+        } else {
+            pr_info("donor_dump: Releasing device reference (device may have been removed)\n");
+        }
+        pci_dev_put(pdev);
+        pdev = NULL;
+    }
+    
+    pr_info("donor_dump: Module unloaded successfully\n");
+}
+
+module_init(mod_init);
+module_exit(mod_exit);
+MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("Dump selected PCIe device parameters for DMA-FW builder");
+MODULE_AUTHOR("Ramsey McGrath <ramseymcgrath@gmail.com>");

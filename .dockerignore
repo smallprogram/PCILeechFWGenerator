@@ -1,0 +1,125 @@
+# Git files and version control
+.git/
+.gitignore
+.gitattributes
+.gitmodules
+
+# Documentation and markdown files
+README.md
+*.md
+docs/
+CHANGELOG*
+CONTRIBUTING*
+AUTHORS*
+
+# Build artifacts and output
+output/
+build/
+dist/
+*.bin
+*.bit
+*.log
+*.out
+*.exe
+*.dll
+*.dylib
+*.a
+*.lib
+
+# Python cache and bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg-info/
+.pytest_cache/
+.coverage
+.tox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.vim/
+.emacs.d/
+*.sublime-*
+
+# OS-specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Temporary and cache files
+*.tmp
+*.temp
+*.cache
+/tmp/
+.cache/
+node_modules/
+
+# Container and deployment files
+Containerfile
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+.env
+.env.*
+
+# Installation and setup scripts (not needed in container)
+install.sh
+setup.sh
+configure.sh
+
+# License and legal files (not needed for runtime)
+LICENSE*
+COPYING*
+COPYRIGHT*
+
+# Test files and directories
+tests/
+test/
+*_test.py
+test_*.py
+*.test
+
+# Configuration files that shouldn't be in container
+.editorconfig
+.pre-commit-config.yaml
+pyproject.toml
+setup.cfg
+tox.ini
+
+# Backup files
+*.bak
+*.backup
+*.orig
+*.rej
+
+# Archive files
+*.tar
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.zip
+*.rar
+*.7z
+
+# Security and secrets (extra safety)
+*.key
+*.pem
+*.crt
+*.p12
+secrets/
+.secrets/
