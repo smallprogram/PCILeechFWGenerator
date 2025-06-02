@@ -91,8 +91,7 @@ def mock_register_data():
 @pytest.fixture
 def mock_behavior_profile():
     """Mock behavior profile data."""
-    from src.behavior_profiler import (BehaviorProfile, RegisterAccess,
-                                       TimingPattern)
+    from src.behavior_profiler import BehaviorProfile, RegisterAccess, TimingPattern
 
     return BehaviorProfile(
         device_bdf="0000:03:00.0",
@@ -127,9 +126,10 @@ def mock_behavior_profile():
 @pytest.fixture
 def mock_subprocess():
     """Mock subprocess calls."""
-    with patch("subprocess.run") as mock_run, patch(
-        "subprocess.check_output"
-    ) as mock_output:
+    with (
+        patch("subprocess.run") as mock_run,
+        patch("subprocess.check_output") as mock_output,
+    ):
         mock_run.return_value = Mock(returncode=0, stdout="", stderr="")
         mock_output.return_value = ""
         yield mock_run, mock_output
@@ -138,11 +138,12 @@ def mock_subprocess():
 @pytest.fixture
 def mock_file_system():
     """Mock file system operations."""
-    with patch("os.path.exists") as mock_exists, patch(
-        "pathlib.Path.exists"
-    ) as mock_path_exists, patch("pathlib.Path.read_text") as mock_read_text, patch(
-        "pathlib.Path.write_text"
-    ) as mock_write_text:
+    with (
+        patch("os.path.exists") as mock_exists,
+        patch("pathlib.Path.exists") as mock_path_exists,
+        patch("pathlib.Path.read_text") as mock_read_text,
+        patch("pathlib.Path.write_text") as mock_write_text,
+    ):
         mock_exists.return_value = True
         mock_path_exists.return_value = True
         mock_read_text.return_value = ""

@@ -15,8 +15,12 @@ import pytest
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from behavior_profiler import (BehaviorProfile, BehaviorProfiler,
-                               RegisterAccess, TimingPattern)
+from behavior_profiler import (
+    BehaviorProfile,
+    BehaviorProfiler,
+    RegisterAccess,
+    TimingPattern,
+)
 
 
 class TestDataClasses:

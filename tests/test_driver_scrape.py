@@ -104,8 +104,9 @@ class TestModuleResolution:
         mock_run.return_value = "e1000e\nsnd_hda_intel\n"
 
         # Mock the global variables
-        with patch("driver_scrape.VENDOR", "8086"), patch(
-            "driver_scrape.DEVICE", "1533"
+        with (
+            patch("driver_scrape.VENDOR", "8086"),
+            patch("driver_scrape.DEVICE", "1533"),
         ):
             result = driver_scrape.ko_name_from_alias()
 
@@ -119,8 +120,9 @@ class TestModuleResolution:
         """Test module name resolution when no module found."""
         mock_run.return_value = ""
 
-        with patch("driver_scrape.VENDOR", "8086"), patch(
-            "driver_scrape.DEVICE", "1533"
+        with (
+            patch("driver_scrape.VENDOR", "8086"),
+            patch("driver_scrape.DEVICE", "1533"),
         ):
             with pytest.raises(SystemExit, match="No driver module found"):
                 driver_scrape.ko_name_from_alias()
