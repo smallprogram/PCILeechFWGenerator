@@ -9,8 +9,24 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-# Import pytest-asyncio for async test support
-import pytest_asyncio
+# Import pytest-asyncio for async test support if available
+try:
+    import pytest_asyncio
+
+    # Use the real asyncio marker
+    asyncio_mark = pytest.mark.asyncio
+except ImportError:
+    # If pytest_asyncio is not available, create a dummy marker
+    # that will be ignored by pytest
+    class DummyModule:
+        @staticmethod
+        def fixture(*args, **kwargs):
+            return lambda f: f
+
+    pytest_asyncio = DummyModule()
+    # Create a dummy asyncio marker that just returns the function
+    asyncio_mark = lambda f: f
+
 from textual.app import App
 from textual.widgets import Button, DataTable, ProgressBar, Static
 
@@ -161,7 +177,7 @@ class TestPCILeechTUI:
         assert hasattr(app, "build_progress")
 
     @pytest.mark.unit
-    @pytest.mark.asyncio
+    @asyncio_mark
     @patch("src.tui.main.PCILeechTUI._scan_devices")
     @patch("src.tui.main.PCILeechTUI._monitor_system_status")
     async def test_initialize_app(self, mock_monitor, mock_scan):
@@ -181,7 +197,7 @@ class TestPCILeechTUI:
             mock_scan.assert_called_once()
 
     @pytest.mark.unit
-    @pytest.mark.asyncio
+    @asyncio_mark
     @patch("src.tui.main.PCILeechTUI._update_device_table")
     async def test_scan_devices(self, mock_update_table):
         """Test device scanning"""
@@ -364,7 +380,7 @@ class TestPCILeechTUI:
             mock_widgets["#resource-usage"].update.assert_called()
 
     @pytest.mark.unit
-    @pytest.mark.asyncio
+    @asyncio_mark
     @patch("src.tui.main.PCILeechTUI._scan_devices")
     @patch("src.tui.main.PCILeechTUI._start_build")
     @patch("src.tui.main.PCILeechTUI._stop_build")
@@ -406,7 +422,7 @@ class TestPCILeechTUI:
         mock_config.assert_called_once()
 
     @pytest.mark.unit
-    @pytest.mark.asyncio
+    @asyncio_mark
     async def test_data_table_row_selection(self):
         """Test device table row selection"""
         app = PCILeechTUI()
@@ -444,7 +460,7 @@ class TestPCILeechTUI:
             assert mock_button.disabled is False
 
     @pytest.mark.unit
-    @pytest.mark.asyncio
+    @asyncio_mark
     @patch("src.tui.main.PCILeechTUI._update_build_progress")
     async def test_start_build(self, mock_update_progress):
         """Test build start process"""
@@ -482,7 +498,7 @@ class TestPCILeechTUI:
                 )
 
     @pytest.mark.unit
-    @pytest.mark.asyncio
+    @asyncio_mark
     async def test_stop_build(self):
         """Test build stop process"""
         app = PCILeechTUI()
@@ -571,7 +587,7 @@ class TestPCILeechTUI:
             mock_update.assert_called_once()
 
     @pytest.mark.unit
-    @pytest.mark.asyncio
+    @asyncio_mark
     async def test_open_configuration_dialog(self):
         """Test configuration dialog opening"""
         app = PCILeechTUI()
@@ -587,7 +603,7 @@ class TestPCILeechTUI:
             mock_push.assert_called_once()
 
     @pytest.mark.unit
-    @pytest.mark.asyncio
+    @asyncio_mark
     async def test_monitor_system_status(self):
         """Test system status monitoring"""
         app = PCILeechTUI()
