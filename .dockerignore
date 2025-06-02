@@ -123,3 +123,9 @@ tox.ini
 *.p12
 secrets/
 .secrets/
+
+flash_fpga.py
+requirements-test.txt
+.github/
+.pytest_cache/
+.benchmarks/

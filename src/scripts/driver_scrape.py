@@ -22,6 +22,10 @@ import sys
 import tarfile
 import tempfile
 
+# Import state machine extractor
+sys.path.append(str(pathlib.Path(__file__).parent.parent))
+from state_machine_extractor import StateMachineExtractor
+
 # Module-level variables will be set in main()
 VENDOR = None
 DEVICE = None
@@ -124,8 +128,9 @@ def analyze_function_context(file_content, reg_name):
 
 
 def analyze_register_sequences(file_content, registers):
-    """Analyze register access sequences and timing dependencies."""
+    """Analyze register access sequences, timing dependencies, and state patterns."""
     sequences = {}
+    state_patterns = {}
 
     # Find sequences of register accesses within functions
     func_pattern = re.compile(r"(\w+)\s*\([^)]*\)\s*\{([^}]*)\}", re.DOTALL)
@@ -149,7 +154,100 @@ def analyze_register_sequences(file_content, registers):
         if len(accesses) > 1:
             sequences[func_name] = accesses
 
-    return sequences
+            # Analyze for state machine patterns
+            state_info = analyze_state_patterns(func_body, accesses, registers)
+            if state_info:
+                state_patterns[func_name] = state_info
+
+    return sequences, state_patterns
+
+
+def analyze_state_patterns(func_body, accesses, registers):
+    """Analyze function body for state machine patterns."""
+    state_info = {
+        "has_state_variable": False,
+        "has_conditional_logic": False,
+        "has_loops": False,
+        "state_transitions": [],
+        "complexity_indicators": [],
+    }
+
+    # Look for state variables
+    state_var_pattern = re.compile(
+        r"\b(\w*state\w*|\w*mode\w*|\w*status\w*)\s*=", re.IGNORECASE
+    )
+    if state_var_pattern.search(func_body):
+        state_info["has_state_variable"] = True
+        state_info["complexity_indicators"].append("explicit_state_variable")
+
+    # Look for switch statements (strong indicator of state machine)
+    switch_pattern = re.compile(r"switch\s*\([^)]+\)\s*\{", re.IGNORECASE)
+    if switch_pattern.search(func_body):
+        state_info["has_conditional_logic"] = True
+        state_info["complexity_indicators"].append("switch_statement")
+
+    # Look for if-else chains
+    if_else_pattern = re.compile(r"if\s*\([^)]+\)[^}]*else\s+if", re.IGNORECASE)
+    if if_else_pattern.search(func_body):
+        state_info["has_conditional_logic"] = True
+        state_info["complexity_indicators"].append("if_else_chain")
+
+    # Look for loops
+    loop_pattern = re.compile(r"\b(for|while|do)\s*\(", re.IGNORECASE)
+    if loop_pattern.search(func_body):
+        state_info["has_loops"] = True
+        state_info["complexity_indicators"].append("loops")
+
+    # Analyze register access patterns for state transitions
+    if len(accesses) >= 2:
+        for i in range(len(accesses) - 1):
+            current_access = accesses[i]
+            next_access = accesses[i + 1]
+
+            # Look for delays between accesses (indicates state transition timing)
+            section = func_body[current_access[2] : next_access[2]]
+            delay_pattern = re.compile(
+                r"(udelay|mdelay|msleep|usleep_range)\s*\(\s*(\d+)", re.IGNORECASE
+            )
+            delay_match = delay_pattern.search(section)
+
+            transition = {
+                "from_register": current_access[1],
+                "to_register": next_access[1],
+                "from_operation": current_access[0],
+                "to_operation": next_access[0],
+                "has_delay": bool(delay_match),
+                "delay_us": None,
+            }
+
+            if delay_match:
+                delay_type = delay_match.group(1).lower()
+                delay_value = int(delay_match.group(2))
+
+                # Convert to microseconds
+                if delay_type in ["mdelay", "msleep"]:
+                    transition["delay_us"] = delay_value * 1000
+                elif delay_type == "udelay":
+                    transition["delay_us"] = delay_value
+                else:  # usleep_range
+                    transition["delay_us"] = delay_value
+
+            state_info["state_transitions"].append(transition)
+
+    # Calculate complexity score
+    complexity_score = 0
+    if state_info["has_state_variable"]:
+        complexity_score += 2
+    if state_info["has_conditional_logic"]:
+        complexity_score += 3
+    if state_info["has_loops"]:
+        complexity_score += 1
+    complexity_score += len(state_info["state_transitions"]) * 0.5
+
+    state_info["complexity_score"] = complexity_score
+
+    # Only return if there are meaningful state patterns
+    return state_info if complexity_score > 1.0 else None
 
 
 def extract_timing_constraints(file_content):
@@ -239,9 +337,16 @@ def main():
             if len(reads) > 64:
                 break
 
-    # Analyze register sequences and timing
-    sequences = analyze_register_sequences(all_content, regs.keys())
+    # Analyze register sequences, state patterns, and timing
+    sequences, state_patterns = analyze_register_sequences(all_content, regs.keys())
     timing_info = extract_timing_constraints(all_content)
+
+    # Extract state machines using the new state machine extractor
+    state_machine_extractor = StateMachineExtractor(debug=False)
+    extracted_state_machines = state_machine_extractor.extract_state_machines(
+        all_content, regs
+    )
+    optimized_state_machines = state_machine_extractor.optimize_state_machines()
 
     items = []
     for sym, off in regs.items():
@@ -291,6 +396,46 @@ def main():
 
                     context["sequences"].append(sequence_context)
 
+        # Add state pattern information
+        context["state_patterns"] = {}
+        for func_name, pattern_info in state_patterns.items():
+            # Check if this register is involved in state patterns
+            register_involved = False
+            for transition in pattern_info.get("state_transitions", []):
+                if (
+                    transition["from_register"] == sym
+                    or transition["to_register"] == sym
+                ):
+                    register_involved = True
+                    break
+
+            if register_involved:
+                context["state_patterns"][func_name] = {
+                    "complexity_score": pattern_info["complexity_score"],
+                    "complexity_indicators": pattern_info["complexity_indicators"],
+                    "has_state_variable": pattern_info["has_state_variable"],
+                    "has_conditional_logic": pattern_info["has_conditional_logic"],
+                    "transitions_count": len(pattern_info["state_transitions"]),
+                }
+
+        # Add state machine information
+        context["state_machines"] = []
+        for sm in optimized_state_machines:
+            if (
+                sym.lower() in [reg.lower() for reg in sm.registers]
+                or f"reg_0x{off:08x}" in sm.registers
+            ):
+                sm_info = {
+                    "name": sm.name,
+                    "states_count": len(sm.states),
+                    "transitions_count": len(sm.transitions),
+                    "complexity_score": sm.complexity_score,
+                    "type": sm.context.get("type", "unknown"),
+                    "initial_state": sm.initial_state,
+                    "final_states": list(sm.final_states),
+                }
+                context["state_machines"].append(sm_info)
+
         items.append(
             dict(
                 offset=off,
@@ -301,7 +446,19 @@ def main():
             )
         )
 
-    print(json.dumps(items, indent=2))
+    # Create comprehensive output with state machine metadata
+    output = {
+        "registers": items,
+        "state_machine_analysis": {
+            "extracted_state_machines": len(extracted_state_machines),
+            "optimized_state_machines": len(optimized_state_machines),
+            "functions_with_state_patterns": len(state_patterns),
+            "state_machines": [sm.to_dict() for sm in optimized_state_machines],
+            "analysis_report": state_machine_extractor.generate_analysis_report(),
+        },
+    }
+
+    print(json.dumps(output, indent=2))
 
 
 if __name__ == "__main__":

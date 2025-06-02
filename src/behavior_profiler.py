@@ -24,6 +24,21 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+# Import manufacturing variance simulation
+try:
+    from .manufacturing_variance import (
+        ManufacturingVarianceSimulator,
+        VarianceModel,
+        DeviceClass,
+    )
+except ImportError:
+    # Fallback for direct execution
+    from manufacturing_variance import (
+        ManufacturingVarianceSimulator,
+        VarianceModel,
+        DeviceClass,
+    )
+
 
 @dataclass
 class RegisterAccess:
@@ -61,24 +76,33 @@ class BehaviorProfile:
     state_transitions: Dict[str, List[str]]
     power_states: List[str]
     interrupt_patterns: Dict[str, Any]
+    variance_metadata: Optional[Dict[str, Any]] = None
 
 
 class BehaviorProfiler:
     """Main class for device behavior profiling."""
 
-    def __init__(self, bdf: str, debug: bool = False):
+    def __init__(self, bdf: str, debug: bool = False, enable_variance: bool = True):
         """
         Initialize the behavior profiler.
 
         Args:
             bdf: PCIe Bus:Device.Function identifier (e.g., "0000:03:00.0")
             debug: Enable debug logging
+            enable_variance: Enable manufacturing variance simulation
         """
         self.bdf = bdf
         self.debug = debug
         self.monitoring = False
         self.access_queue = queue.Queue()
         self.monitor_thread = None
+
+        # Initialize manufacturing variance simulator
+        self.enable_variance = enable_variance
+        if enable_variance:
+            self.variance_simulator = ManufacturingVarianceSimulator()
+        else:
+            self.variance_simulator = None
 
         # Validate BDF format
         if not re.match(r"^[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-7]$", bdf):
@@ -542,6 +566,12 @@ class BehaviorProfiler:
             ),
         }
 
+        # Manufacturing variance analysis (if enabled)
+        if self.enable_variance and self.variance_simulator:
+            analysis["variance_analysis"] = self._analyze_manufacturing_variance(
+                profile
+            )
+
         # Generate recommendations
         analysis["recommendations"] = self._generate_recommendations(profile, analysis)
 
@@ -635,6 +665,112 @@ class BehaviorProfiler:
 
         self._log(f"Profile loaded from {filepath}")
         return profile
+
+    def _analyze_manufacturing_variance(
+        self, profile: BehaviorProfile
+    ) -> Dict[str, Any]:
+        """
+        Analyze manufacturing variance patterns in the behavior profile.
+
+        Args:
+            profile: BehaviorProfile to analyze for variance patterns
+
+        Returns:
+            Dictionary containing variance analysis results
+        """
+        if not self.variance_simulator:
+            return {"variance_enabled": False}
+
+        # Extract timing data for variance analysis
+        timing_data = []
+        for access in profile.register_accesses:
+            if access.duration_us is not None:
+                timing_data.append(
+                    {
+                        "interval_us": access.duration_us,
+                        "register": access.register,
+                        "operation": access.operation,
+                    }
+                )
+
+        # Add timing pattern data
+        for pattern in profile.timing_patterns:
+            timing_data.append(
+                {
+                    "interval_us": pattern.avg_interval_us,
+                    "pattern_type": pattern.pattern_type,
+                    "std_deviation_us": pattern.std_deviation_us,
+                }
+            )
+
+        # Perform variance analysis
+        variance_analysis = self.variance_simulator.analyze_timing_patterns(timing_data)
+
+        # Determine appropriate device class based on analysis
+        device_class = self._determine_device_class(profile, variance_analysis)
+
+        # Generate variance model for this device
+        variance_model = self.variance_simulator.generate_variance_model(
+            device_id=profile.device_bdf,
+            device_class=device_class,
+            base_frequency_mhz=100.0,  # Default 100MHz, could be determined from analysis
+        )
+
+        # Get variance metadata
+        variance_metadata = self.variance_simulator.get_variance_metadata(
+            variance_model
+        )
+
+        # Store variance metadata in profile for later use
+        profile.variance_metadata = variance_metadata
+
+        return {
+            "variance_enabled": True,
+            "timing_analysis": variance_analysis,
+            "device_class": device_class.value,
+            "variance_model": variance_metadata,
+            "recommendations": variance_analysis.get("recommendations", []),
+        }
+
+    def _determine_device_class(
+        self, profile: BehaviorProfile, variance_analysis: Dict[str, Any]
+    ) -> DeviceClass:
+        """
+        Determine the appropriate device class based on behavior profile analysis.
+
+        Args:
+            profile: BehaviorProfile to analyze
+            variance_analysis: Results from variance analysis
+
+        Returns:
+            DeviceClass enum value
+        """
+        # Calculate access frequency
+        access_freq = (
+            profile.total_accesses / profile.capture_duration
+            if profile.capture_duration > 0
+            else 0
+        )
+
+        # Get coefficient of variation from variance analysis
+        cv = variance_analysis.get("coefficient_of_variation", 0.1)
+
+        # Determine device class based on characteristics
+        if access_freq > 10000 and cv < 0.02:
+            # High frequency, low variance = enterprise/server grade
+            return DeviceClass.ENTERPRISE
+        elif access_freq > 1000 and cv < 0.05:
+            # Medium-high frequency, low variance = industrial grade
+            return DeviceClass.INDUSTRIAL
+        elif cv > 0.15:
+            # High variance = consumer grade
+            return DeviceClass.CONSUMER
+        elif "automotive" in profile.device_bdf.lower():
+            # BDF suggests automotive context
+            return DeviceClass.AUTOMOTIVE
+        else:
+            # Default to consumer for unknown patterns
+            return DeviceClass.CONSUMER
 
 
 def main():

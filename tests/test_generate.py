@@ -345,7 +345,17 @@ class TestContainerExecution:
         mock_exists.return_value = True
         mock_run.return_value = Mock(returncode=0)
 
-        generate.run_build_container("0000:03:00.0", "75t", "/dev/vfio/15")
+        # Create mock args with default values
+        mock_args = Mock()
+        mock_args.advanced_sv = False
+        mock_args.device_type = "generic"
+        mock_args.enable_variance = False
+        mock_args.disable_power_management = False
+        mock_args.disable_error_handling = False
+        mock_args.disable_performance_counters = False
+        mock_args.behavior_profile_duration = 30
+
+        generate.run_build_container("0000:03:00.0", "75t", "/dev/vfio/15", mock_args)
 
         mock_makedirs.assert_called_once_with("output", exist_ok=True)
         mock_run.assert_called_once()
@@ -363,13 +373,74 @@ class TestContainerExecution:
         """Test container execution when VFIO device doesn't exist."""
         mock_exists.return_value = False
 
+        # Create mock args with default values
+        mock_args = Mock()
+        mock_args.advanced_sv = False
+        mock_args.device_type = "generic"
+        mock_args.enable_variance = False
+        mock_args.disable_power_management = False
+        mock_args.disable_error_handling = False
+        mock_args.disable_performance_counters = False
+        mock_args.behavior_profile_duration = 30
+
         with pytest.raises(RuntimeError, match="VFIO device .* not found"):
-            generate.run_build_container("0000:03:00.0", "75t", "/dev/vfio/15")
+            generate.run_build_container(
+                "0000:03:00.0", "75t", "/dev/vfio/15", mock_args
+            )
 
     def test_run_build_container_invalid_bdf(self):
         """Test container execution with invalid BDF."""
+        # Create mock args with default values
+        mock_args = Mock()
+        mock_args.advanced_sv = False
+        mock_args.device_type = "generic"
+        mock_args.enable_variance = False
+        mock_args.disable_power_management = False
+        mock_args.disable_error_handling = False
+        mock_args.disable_performance_counters = False
+        mock_args.behavior_profile_duration = 30
+
         with pytest.raises(ValueError, match="Invalid BDF format"):
-            generate.run_build_container("invalid-bdf", "75t", "/dev/vfio/15")
+            generate.run_build_container(
+                "invalid-bdf", "75t", "/dev/vfio/15", mock_args
+            )
+
+    @patch("subprocess.run")
+    @patch("os.path.exists")
+    @patch("os.makedirs")
+    def test_run_build_container_with_advanced_features(
+        self, mock_makedirs, mock_exists, mock_run
+    ):
+        """Test container execution with advanced features enabled."""
+        mock_exists.return_value = True
+        mock_run.return_value = Mock(returncode=0)
+
+        # Create mock args with advanced features enabled
+        mock_args = Mock()
+        mock_args.advanced_sv = True
+        mock_args.device_type = "network"
+        mock_args.enable_variance = True
+        mock_args.disable_power_management = True
+        mock_args.disable_error_handling = False
+        mock_args.disable_performance_counters = True
+        mock_args.behavior_profile_duration = 60
+
+        generate.run_build_container("0000:03:00.0", "75t", "/dev/vfio/15", mock_args)
+
+        mock_makedirs.assert_called_once_with("output", exist_ok=True)
+        mock_run.assert_called_once()
+
+        # Check that the command contains expected advanced feature arguments
+        call_args = mock_run.call_args[0][0]
+        assert "podman run" in call_args
+        assert "--advanced-sv" in call_args
+        assert "--device-type network" in call_args
+        assert "--enable-variance" in call_args
+        assert "--disable-power-management" in call_args
+        assert "--disable-performance-counters" in call_args
+        assert "--behavior-profile-duration 60" in call_args
+        # Should not contain disabled error handling since it's False
+        assert "--disable-error-handling" not in call_args
 
 
 class TestEnvironmentValidation:

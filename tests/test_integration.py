@@ -273,9 +273,19 @@ class TestContainerIntegration:
         board = "75t"
         vfio_device = "/dev/vfio/15"
 
+        # Create mock args with default values
+        mock_args = Mock()
+        mock_args.advanced_sv = False
+        mock_args.device_type = "generic"
+        mock_args.enable_variance = False
+        mock_args.disable_power_management = False
+        mock_args.disable_error_handling = False
+        mock_args.disable_performance_counters = False
+        mock_args.behavior_profile_duration = 30
+
         # This would be called by generate.py
         with patch("os.makedirs"):
-            generate.run_build_container(bdf, board, vfio_device)
+            generate.run_build_container(bdf, board, vfio_device, mock_args)
 
         # Verify container command was executed
         mock_run.assert_called_once()
@@ -293,8 +303,20 @@ class TestContainerIntegration:
         mock_exists.return_value = True
         mock_run.return_value = Mock(returncode=0)
 
+        # Create mock args with default values
+        mock_args = Mock()
+        mock_args.advanced_sv = False
+        mock_args.device_type = "generic"
+        mock_args.enable_variance = False
+        mock_args.disable_power_management = False
+        mock_args.disable_error_handling = False
+        mock_args.disable_performance_counters = False
+        mock_args.behavior_profile_duration = 30
+
         with patch("os.makedirs") as mock_makedirs:
-            generate.run_build_container("0000:03:00.0", "75t", "/dev/vfio/15")
+            generate.run_build_container(
+                "0000:03:00.0", "75t", "/dev/vfio/15", mock_args
+            )
 
         # Verify output directory creation
         mock_makedirs.assert_called_once_with("output", exist_ok=True)

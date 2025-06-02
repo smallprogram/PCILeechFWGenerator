@@ -22,6 +22,30 @@ import tempfile
 import textwrap
 import time
 from pathlib import Path
+from typing import Optional
+
+# Import manufacturing variance simulation and advanced SystemVerilog generation
+try:
+    from .manufacturing_variance import ManufacturingVarianceSimulator, DeviceClass
+    from .advanced_sv_main import (
+        AdvancedSVGenerator,
+        PowerManagementConfig,
+        ErrorHandlingConfig,
+        PerformanceCounterConfig,
+        DeviceSpecificLogic,
+        DeviceType,
+    )
+except ImportError:
+    # Fallback for direct execution
+    from manufacturing_variance import ManufacturingVarianceSimulator, DeviceClass
+    from advanced_sv_main import (
+        AdvancedSVGenerator,
+        PowerManagementConfig,
+        ErrorHandlingConfig,
+        PerformanceCounterConfig,
+        DeviceSpecificLogic,
+        DeviceType,
+    )
 
 # Configuration constants
 ROOT = Path(__file__).parent.parent.resolve()  # Get project root directory
@@ -53,14 +77,20 @@ BOARD_INFO = {
     "35t": {
         "root": ROOT / "pcileech-fpga" / "PCIeSquirrel",
         "gen": "vivado_generate_project_35t.tcl",
+        "base_frequency_mhz": 100.0,
+        "device_class": "consumer",
     },
     "75t": {
         "root": ROOT / "pcileech-fpga" / "PCIeEnigmaX1",
         "gen": "vivado_generate_project_75t.tcl",
+        "base_frequency_mhz": 125.0,
+        "device_class": "industrial",
     },
     "100t": {
         "root": ROOT / "pcileech-fpga" / "XilinxZDMA",
         "gen": "vivado_generate_project_100t.tcl",
+        "base_frequency_mhz": 150.0,
+        "device_class": "enterprise",
     },
 }
 
@@ -129,15 +159,25 @@ def get_donor_info(bdf: str) -> dict:
     return info
 
 
-def scrape_driver_regs(vendor: str, device: str) -> list:
+def scrape_driver_regs(vendor: str, device: str) -> tuple[list, dict]:
     """Scrape driver registers for the given vendor/device ID."""
     try:
         output = subprocess.check_output(
             f"python3 scripts/driver_scrape.py {vendor} {device}", shell=True, text=True
         )
-        return json.loads(output)
+        data = json.loads(output)
+
+        # Handle new format with state machine analysis
+        if isinstance(data, dict) and "registers" in data:
+            return data["registers"], data.get("state_machine_analysis", {})
+        else:
+            # Backward compatibility with old format - ensure data is a list
+            if isinstance(data, list):
+                return data, {}
+            else:
+                return [], {}
     except subprocess.CalledProcessError:
-        return []
+        return [], {}
 
 
 def integrate_behavior_profile(bdf: str, regs: list, duration: float = 10.0) -> list:
@@ -204,8 +244,14 @@ def integrate_behavior_profile(bdf: str, regs: list, duration: float = 10.0) -> 
         return regs
 
 
-def build_sv(regs: list, target_src: pathlib.Path) -> None:
-    """Generate enhanced SystemVerilog BAR controller from register definitions."""
+def build_sv(
+    regs: list,
+    target_src: pathlib.Path,
+    board_type: str = "75t",
+    enable_variance: bool = True,
+    variance_metadata: Optional[dict] = None,
+) -> None:
+    """Generate enhanced SystemVerilog BAR controller from register definitions with variance simulation."""
     if not regs:
         sys.exit("No registers scraped – aborting build")
 
@@ -214,6 +260,44 @@ def build_sv(regs: list, target_src: pathlib.Path) -> None:
     read_cases = []
     timing_logic = []
     state_machines = []
+
+    # Initialize variance simulator if enabled
+    variance_simulator = None
+    variance_model = None
+    if enable_variance:
+        variance_simulator = ManufacturingVarianceSimulator()
+
+        # Get board configuration
+        board_config = BOARD_INFO.get(board_type, BOARD_INFO["75t"])
+        device_class_str = board_config.get("device_class", "consumer")
+        base_freq = board_config.get("base_frequency_mhz", 100.0)
+
+        # Map string to DeviceClass enum
+        device_class_map = {
+            "consumer": DeviceClass.CONSUMER,
+            "enterprise": DeviceClass.ENTERPRISE,
+            "industrial": DeviceClass.INDUSTRIAL,
+            "automotive": DeviceClass.AUTOMOTIVE,
+        }
+        device_class = device_class_map.get(device_class_str, DeviceClass.CONSUMER)
+
+        # Generate or use existing variance model
+        if variance_metadata and "device_id" in variance_metadata:
+            device_id = variance_metadata["device_id"]
+        else:
+            device_id = f"board_{board_type}"
+
+        variance_model = variance_simulator.generate_variance_model(
+            device_id=device_id, device_class=device_class, base_frequency_mhz=base_freq
+        )
+
+        print(
+            f"[*] Manufacturing variance simulation enabled for {device_class.value} class device"
+        )
+        print(
+            f"[*] Variance parameters: jitter={variance_model.clock_jitter_percent:.2f}%, "
+            f"temp={variance_model.operating_temp_c:.1f}°C"
+        )
 
     # Enhanced register analysis with timing and context
     for reg in regs:
@@ -236,18 +320,38 @@ def build_sv(regs: list, target_src: pathlib.Path) -> None:
                 ) / len(timing_constraints)
                 delay_cycles = max(1, int(avg_delay_us * 100))  # 100MHz = 10ns period
 
-            declarations.append(
-                f"    logic [31:0] {name}_reg = 32'h{initial_value:08X};"
-            )
-            declarations.append(
-                f"    logic [{max(1, delay_cycles.bit_length()-1)}:0] {name}_delay_counter = 0;"
-            )
-            declarations.append(f"    logic {name}_write_pending = 0;")
+            # Apply manufacturing variance to timing if enabled
+            if variance_simulator and variance_model:
+                # Use variance-aware timing generation
+                variance_timing_code = (
+                    variance_simulator.generate_systemverilog_timing_code(
+                        register_name=name,
+                        base_delay_cycles=delay_cycles,
+                        variance_model=variance_model,
+                    )
+                )
 
-            # Enhanced write logic with timing
-            timing_logic.append(
-                f"""
-    // Timing logic for {name}
+                # Extract declarations from variance code
+                declarations.append(
+                    f"    logic [31:0] {name}_reg = 32'h{initial_value:08X};"
+                )
+
+                # Add the variance-aware timing logic
+                timing_logic.append(variance_timing_code.format(offset=offset))
+            else:
+                # Standard timing logic (backward compatibility)
+                declarations.append(
+                    f"    logic [31:0] {name}_reg = 32'h{initial_value:08X};"
+                )
+                declarations.append(
+                    f"    logic [{max(1, delay_cycles.bit_length()-1)}:0] {name}_delay_counter = 0;"
+                )
+                declarations.append(f"    logic {name}_write_pending = 0;")
+
+                # Standard write logic with timing
+                timing_logic.append(
+                    f"""
+    // Standard timing logic for {name}
     always_ff @(posedge clk) begin
         if (!reset_n) begin
             {name}_delay_counter <= 0;
@@ -262,7 +366,7 @@ def build_sv(regs: list, target_src: pathlib.Path) -> None:
             {name}_write_pending <= 0;
         end
     end"""
-            )
+                )
 
             source = f"{name}_reg"
         else:
@@ -370,8 +474,187 @@ endmodule
     shutil.copyfile(OUT / "bar_controller.sv", target_src)
 
 
-def generate_register_state_machine(reg_name: str, sequences: list, offset: int) -> str:
+def build_advanced_sv(
+    regs: list,
+    target_src: pathlib.Path,
+    board_type: str = "75t",
+    enable_variance: bool = True,
+    variance_metadata: Optional[dict] = None,
+    advanced_features: Optional[dict] = None,
+) -> None:
+    """Generate advanced SystemVerilog BAR controller with comprehensive features."""
+
+    if not regs:
+        sys.exit("No registers scraped – aborting advanced build")
+
+    # Configure advanced features based on board type and requirements
+    board_config = BOARD_INFO.get(board_type, BOARD_INFO["75t"])
+    device_class_str = board_config.get("device_class", "consumer")
+    base_freq = board_config.get("base_frequency_mhz", 100.0)
+
+    # Map string to DeviceClass enum
+    device_class_map = {
+        "consumer": DeviceClass.CONSUMER,
+        "enterprise": DeviceClass.ENTERPRISE,
+        "industrial": DeviceClass.INDUSTRIAL,
+        "automotive": DeviceClass.AUTOMOTIVE,
+    }
+    device_class = device_class_map.get(device_class_str, DeviceClass.CONSUMER)
+
+    # Configure advanced features with sensible defaults
+    power_config = PowerManagementConfig(
+        enable_clock_gating=True,
+        enable_aspm=True,
+        enable_power_domains=True,
+        d0_to_d1_cycles=100,
+        d1_to_d0_cycles=50,
+        d0_to_d3_cycles=1000,
+        d3_to_d0_cycles=10000,
+    )
+
+    error_config = ErrorHandlingConfig(
+        enable_ecc=True,
+        enable_parity_check=True,
+        enable_crc_check=True,
+        enable_timeout_detection=True,
+        enable_auto_retry=True,
+        max_retry_count=3,
+        enable_error_logging=True,
+    )
+
+    perf_config = PerformanceCounterConfig(
+        enable_transaction_counters=True,
+        enable_bandwidth_monitoring=True,
+        enable_latency_measurement=True,
+        enable_error_rate_tracking=True,
+        enable_device_specific_counters=True,
+        counter_width_bits=32,
+    )
+
+    # Determine device type based on register patterns
+    device_type = DeviceType.GENERIC
+    if any("tx" in reg["name"].lower() or "rx" in reg["name"].lower() for reg in regs):
+        device_type = DeviceType.NETWORK_CONTROLLER
+    elif any(
+        "read" in reg["name"].lower() or "write" in reg["name"].lower() for reg in regs
+    ):
+        device_type = DeviceType.STORAGE_CONTROLLER
+    elif any(
+        "frame" in reg["name"].lower() or "pixel" in reg["name"].lower() for reg in regs
+    ):
+        device_type = DeviceType.GRAPHICS_CONTROLLER
+
+    device_config = DeviceSpecificLogic(
+        device_type=device_type,
+        device_class=device_class,
+        base_frequency_mhz=base_freq,
+        max_payload_size=256,
+        msi_vectors=1,
+        enable_dma=device_type != DeviceType.GENERIC,
+        enable_interrupt_coalescing=device_type == DeviceType.NETWORK_CONTROLLER,
+    )
+
+    # Override with user-provided advanced features
+    if advanced_features:
+        if "device_type" in advanced_features:
+            try:
+                device_config.device_type = DeviceType(advanced_features["device_type"])
+            except ValueError:
+                print(
+                    f"[!] Invalid device type: {advanced_features['device_type']}, using {device_type.value}"
+                )
+
+        if "enable_power_management" in advanced_features:
+            power_config.enable_clock_gating = advanced_features[
+                "enable_power_management"
+            ]
+            power_config.enable_aspm = advanced_features["enable_power_management"]
+
+        if "enable_error_handling" in advanced_features:
+            error_config.enable_auto_retry = advanced_features["enable_error_handling"]
+            error_config.enable_error_logging = advanced_features[
+                "enable_error_handling"
+            ]
+
+        if "enable_performance_counters" in advanced_features:
+            perf_config.enable_transaction_counters = advanced_features[
+                "enable_performance_counters"
+            ]
+            perf_config.enable_bandwidth_monitoring = advanced_features[
+                "enable_performance_counters"
+            ]
+
+        if "counter_width" in advanced_features:
+            perf_config.counter_width_bits = advanced_features["counter_width"]
+
+    # Initialize variance simulator if enabled
+    variance_model = None
+    if enable_variance:
+        variance_simulator = ManufacturingVarianceSimulator()
+        device_id = (
+            variance_metadata.get("device_id", f"board_{board_type}")
+            if variance_metadata
+            else f"board_{board_type}"
+        )
+        variance_model = variance_simulator.generate_variance_model(
+            device_id=device_id, device_class=device_class, base_frequency_mhz=base_freq
+        )
+        print(
+            f"[*] Advanced variance simulation enabled for {device_class.value} class device"
+        )
+        print(
+            f"[*] Variance parameters: jitter={variance_model.clock_jitter_percent:.2f}%, temp={variance_model.operating_temp_c:.1f}°C"
+        )
+
+    # Generate advanced SystemVerilog
+    print(f"[*] Generating advanced SystemVerilog with {len(regs)} registers")
+    generator = AdvancedSVGenerator(
+        power_config, error_config, perf_config, device_config
+    )
+    sv_content = generator.generate_advanced_systemverilog(regs, variance_model)
+
+    # Write to output and target locations
+    (OUT / "advanced_bar_controller.sv").write_text(sv_content)
+    shutil.copyfile(OUT / "advanced_bar_controller.sv", target_src)
+
+    print(f"[✓] Advanced SystemVerilog generation complete!")
+    print(f"[*] Advanced Features Summary:")
+    print(f"    - Device type: {device_config.device_type.value}")
+    print(f"    - Device class: {device_config.device_class.value}")
+    print(f"    - Power management: {'✓' if power_config.enable_clock_gating else '✗'}")
+    print(f"    - Error handling: {'✓' if error_config.enable_auto_retry else '✗'}")
+    print(
+        f"    - Performance counters: {'✓' if perf_config.enable_transaction_counters else '✗'}"
+    )
+    print(f"    - Manufacturing variance: {'✓' if variance_model else '✗'}")
+    print(f"    - Register count: {len(regs)}")
+
+
+def generate_register_state_machine(
+    reg_name: str, sequences: list, offset: int, state_machines: Optional[list] = None
+) -> str:
     """Generate a state machine for complex register access sequences."""
+    # First try to use extracted state machines if available
+    if state_machines:
+        for sm_data in state_machines:
+            if isinstance(sm_data, dict):
+                # Check if this register is involved in the state machine
+                sm_registers = sm_data.get("registers", [])
+                if (
+                    reg_name.lower() in [r.lower() for r in sm_registers]
+                    or f"reg_0x{offset:08x}" in sm_registers
+                ):
+
+                    # Generate SystemVerilog from extracted state machine
+                    states = sm_data.get("states", [])
+                    transitions = sm_data.get("transitions", [])
+
+                    if len(states) >= 2:
+                        return generate_extracted_state_machine_sv(
+                            sm_data, reg_name, offset
+                        )
+
+    # Fallback to original sequence-based generation
     if len(sequences) < 2:
         return ""
 
@@ -412,6 +695,96 @@ def generate_register_state_machine(reg_name: str, sequences: list, offset: int)
                 default: {reg_name}_current_state <= {states[0]};
             endcase
         end
+    end"""
+
+
+def generate_extracted_state_machine_sv(
+    sm_data: dict, reg_name: str, offset: int
+) -> str:
+    """Generate SystemVerilog from extracted state machine data."""
+    sm_name = sm_data.get("name", f"{reg_name}_sm")
+    states = sm_data.get("states", [])
+    transitions = sm_data.get("transitions", [])
+    initial_state = sm_data.get("initial_state", states[0] if states else "IDLE")
+
+    if not states:
+        return ""
+
+    # Generate state enumeration
+    state_bits = max(1, (len(states) - 1).bit_length())
+    state_enum = f"typedef enum logic [{state_bits-1}:0] {{\n"
+    for i, state in enumerate(states):
+        state_enum += f"        {state.upper()} = {i}"
+        if i < len(states) - 1:
+            state_enum += ","
+        state_enum += "\n"
+    state_enum += f"    }} {sm_name}_state_t;\n"
+
+    # Generate transition logic
+    transition_cases = []
+    transitions_by_state = {}
+
+    for transition in transitions:
+        from_state = transition.get("from_state", "").upper()
+        to_state = transition.get("to_state", "").upper()
+        trigger = transition.get("trigger", "")
+        condition = transition.get("condition", "")
+        transition_type = transition.get("transition_type", "condition")
+
+        if from_state not in transitions_by_state:
+            transitions_by_state[from_state] = []
+
+        # Generate condition based on transition type
+        sv_condition = ""
+        if transition_type == "register_write":
+            sv_condition = f"bar_wr_en && bar_addr == 32'h{offset:08X}"
+        elif transition_type == "register_read":
+            sv_condition = f"bar_rd_en && bar_addr == 32'h{offset:08X}"
+        elif transition_type == "timeout":
+            sv_condition = "timeout_expired"
+        elif condition:
+            sv_condition = condition
+        else:
+            sv_condition = "1'b1"  # Unconditional
+
+        transitions_by_state[from_state].append((to_state, sv_condition))
+
+    # Generate case statements
+    for state in states:
+        state_upper = state.upper()
+        case_content = f"            {state_upper}: begin\n"
+
+        if state_upper in transitions_by_state:
+            for to_state, condition in transitions_by_state[state_upper]:
+                case_content += f"                if ({condition}) {sm_name}_next_state = {to_state};\n"
+
+        case_content += "            end"
+        transition_cases.append(case_content)
+
+    return f"""
+    // Enhanced state machine: {sm_name}
+    {state_enum}
+    
+    {sm_name}_state_t {sm_name}_current_state = {initial_state.upper()};
+    {sm_name}_state_t {sm_name}_next_state;
+    logic timeout_expired;
+    
+    // State transition logic for {sm_name}
+    always_ff @(posedge clk) begin
+        if (!reset_n) begin
+            {sm_name}_current_state <= {initial_state.upper()};
+        end else begin
+            {sm_name}_current_state <= {sm_name}_next_state;
+        end
+    end
+    
+    // Next state combinational logic for {sm_name}
+    always_comb begin
+        {sm_name}_next_state = {sm_name}_current_state;
+        case ({sm_name}_current_state)
+{chr(10).join(transition_cases)}
+            default: {sm_name}_next_state = {initial_state.upper()};
+        endcase
     end"""
 
 
@@ -595,6 +968,32 @@ def main() -> None:
         "--save-analysis", help="Save detailed analysis to specified file"
     )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
+    parser.add_argument(
+        "--advanced-sv",
+        action="store_true",
+        help="Enable advanced SystemVerilog generation with comprehensive features",
+    )
+    parser.add_argument(
+        "--device-type",
+        choices=["generic", "network", "storage", "graphics", "audio"],
+        default="generic",
+        help="Specify device type for advanced generation (default: generic)",
+    )
+    parser.add_argument(
+        "--disable-power-management",
+        action="store_true",
+        help="Disable power management features in advanced generation",
+    )
+    parser.add_argument(
+        "--disable-error-handling",
+        action="store_true",
+        help="Disable error handling features in advanced generation",
+    )
+    parser.add_argument(
+        "--disable-performance-counters",
+        action="store_true",
+        help="Disable performance counters in advanced generation",
+    )
     args = parser.parse_args()
 
     # Get board configuration
@@ -622,11 +1021,19 @@ def main() -> None:
     print(
         f"[*] Performing enhanced register analysis for {info['vendor_id']}:{info['device_id']}"
     )
-    regs = scrape_driver_regs(info["vendor_id"], info["device_id"])
+    regs, state_machine_analysis = scrape_driver_regs(
+        info["vendor_id"], info["device_id"]
+    )
     if not regs:
         sys.exit("Driver scrape returned no registers")
 
     print(f"[*] Found {len(regs)} registers with context analysis")
+
+    # Print state machine analysis summary
+    if state_machine_analysis:
+        sm_count = state_machine_analysis.get("extracted_state_machines", 0)
+        opt_sm_count = state_machine_analysis.get("optimized_state_machines", 0)
+        print(f"[*] Extracted {sm_count} state machines, optimized to {opt_sm_count}")
 
     # Optional behavior profiling
     if args.enable_behavior_profiling:
@@ -654,9 +1061,50 @@ def main() -> None:
             json.dump(analysis_data, f, indent=2, default=str)
         print(f"[*] Analysis saved to {args.save_analysis}")
 
-    # Build enhanced SystemVerilog controller
-    print("[*] Generating enhanced BAR controller with timing models")
-    build_sv(regs, target_src)
+    # Extract variance metadata from behavior profiling if available
+    variance_metadata = None
+    if args.enable_behavior_profiling:
+        # Check if any register has variance metadata
+        for reg in regs:
+            if "context" in reg and "variance_metadata" in reg["context"]:
+                variance_metadata = reg["context"]["variance_metadata"]
+                break
+
+    # Enable variance simulation by default, can be disabled via command line
+    enable_variance = getattr(args, "enable_variance", True)
+
+    # Choose SystemVerilog generation method
+    if args.advanced_sv:
+        print(
+            "[*] Generating advanced SystemVerilog controller with comprehensive features"
+        )
+
+        # Configure advanced features based on command line arguments
+        advanced_features = {
+            "device_type": args.device_type,
+            "enable_power_management": not args.disable_power_management,
+            "enable_error_handling": not args.disable_error_handling,
+            "enable_performance_counters": not args.disable_performance_counters,
+        }
+
+        build_advanced_sv(
+            regs,
+            target_src,
+            board_type=args.board,
+            enable_variance=enable_variance,
+            variance_metadata=variance_metadata,
+            advanced_features=advanced_features,
+        )
+    else:
+        print("[*] Generating enhanced BAR controller with timing models")
+
+        build_sv(
+            regs,
+            target_src,
+            board_type=args.board,
+            enable_variance=enable_variance,
+            variance_metadata=variance_metadata,
+        )
 
     # Generate TCL configuration with extended capabilities
     print("[*] Generating Vivado configuration")

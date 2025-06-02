@@ -276,12 +276,27 @@ def restore_original_driver(bdf: str, original_driver: Optional[str]) -> None:
         print(f"Warning: Unexpected error during driver restore: {e}")
 
 
-def run_build_container(bdf: str, board: str, vfio_device: str) -> None:
+def run_build_container(
+    bdf: str, board: str, vfio_device: str, args: argparse.Namespace
+) -> None:
     """Run the firmware build in a Podman container"""
     if not validate_bdf_format(bdf):
         raise ValueError(
             f"Invalid BDF format: {bdf}. Expected format: DDDD:BB:DD.F (e.g., 0000:03:00.0)"
         )
+
+    # Log advanced features being used
+    advanced_features = []
+    if args.advanced_sv:
+        advanced_features.append("Advanced SystemVerilog Generation")
+    if args.enable_variance:
+        advanced_features.append("Manufacturing Variance Simulation")
+    if args.device_type != "generic":
+        advanced_features.append(f"Device-specific optimizations ({args.device_type})")
+
+    if advanced_features:
+        logger.info(f"Advanced features enabled: {', '.join(advanced_features)}")
+        print(f"[*] Advanced features: {', '.join(advanced_features)}")
 
     logger.info(f"Starting container build for device {bdf} on board {board}")
 
@@ -294,6 +309,35 @@ def run_build_container(bdf: str, board: str, vfio_device: str) -> None:
         logger.error(error_msg)
         raise RuntimeError(error_msg)
 
+    # Build the build.py command with all arguments
+    build_cmd_parts = [f"sudo python3 /app/build.py --bdf {bdf} --board {board}"]
+
+    # Add advanced features arguments
+    if args.advanced_sv:
+        build_cmd_parts.append("--advanced-sv")
+
+    if args.device_type != "generic":
+        build_cmd_parts.append(f"--device-type {args.device_type}")
+
+    if args.enable_variance:
+        build_cmd_parts.append("--enable-variance")
+
+    if args.disable_power_management:
+        build_cmd_parts.append("--disable-power-management")
+
+    if args.disable_error_handling:
+        build_cmd_parts.append("--disable-error-handling")
+
+    if args.disable_performance_counters:
+        build_cmd_parts.append("--disable-performance-counters")
+
+    if args.behavior_profile_duration != 30:
+        build_cmd_parts.append(
+            f"--behavior-profile-duration {args.behavior_profile_duration}"
+        )
+
+    build_cmd = " ".join(build_cmd_parts)
+
     # Construct Podman command
     container_cmd = textwrap.dedent(
         f"""
@@ -302,7 +346,7 @@ def run_build_container(bdf: str, board: str, vfio_device: str) -> None:
           --device=/dev/vfio/vfio \
           -v {os.getcwd()}/output:/app/output \
           dma-fw \
-          sudo python3 /app/build.py --bdf {bdf} --board {board}
+          {build_cmd}
     """
     ).strip()
 
@@ -358,12 +402,26 @@ def main() -> int:
             epilog=textwrap.dedent(
                 """
                 Examples:
+                  # Basic usage
                   sudo python3 generate.py --board 75t
                   sudo python3 generate.py --board 100t --flash
+                  
+                  # Advanced SystemVerilog generation
+                  sudo python3 generate.py --board 75t --advanced-sv --device-type network
+                  
+                  # Manufacturing variance simulation
+                  sudo python3 generate.py --board 100t --enable-variance --behavior-profile-duration 60
+                  
+                  # Advanced features with selective disabling
+                  sudo python3 generate.py --board 75t --advanced-sv --disable-power-management --disable-error-handling
+                  
+                  # Full advanced configuration
+                  sudo python3 generate.py --board 100t --advanced-sv --device-type storage --enable-variance --behavior-profile-duration 45 --flash
             """
             ),
         )
 
+        # Basic options
         parser.add_argument(
             "--flash",
             action="store_true",
@@ -377,8 +435,74 @@ def main() -> int:
             help="Target FPGA board type (default: 35t/Squirrel)",
         )
 
+        # Advanced SystemVerilog Generation
+        parser.add_argument(
+            "--advanced-sv",
+            action="store_true",
+            help="Enable advanced SystemVerilog generation with enhanced features",
+        )
+
+        parser.add_argument(
+            "--device-type",
+            choices=["network", "storage", "graphics", "audio", "generic"],
+            default="generic",
+            help="Device type for specialized optimizations (default: generic)",
+        )
+
+        # Manufacturing Variance Simulation
+        parser.add_argument(
+            "--enable-variance",
+            action="store_true",
+            help="Enable manufacturing variance simulation for realistic timing",
+        )
+
+        # Feature Control
+        parser.add_argument(
+            "--disable-power-management",
+            action="store_true",
+            help="Disable power management features in advanced generation",
+        )
+
+        parser.add_argument(
+            "--disable-error-handling",
+            action="store_true",
+            help="Disable error handling features in advanced generation",
+        )
+
+        parser.add_argument(
+            "--disable-performance-counters",
+            action="store_true",
+            help="Disable performance counter features in advanced generation",
+        )
+
+        # Behavior Profiling
+        parser.add_argument(
+            "--behavior-profile-duration",
+            type=int,
+            default=30,
+            help="Duration for behavior profiling in seconds (default: 30)",
+        )
+
         args = parser.parse_args()
-        logger.info(f"Configuration: board={args.board}, flash={args.flash}")
+
+        # Enhanced logging with advanced features
+        config_info = [f"board={args.board}", f"flash={args.flash}"]
+        if args.advanced_sv:
+            config_info.append("advanced_sv=True")
+        if args.device_type != "generic":
+            config_info.append(f"device_type={args.device_type}")
+        if args.enable_variance:
+            config_info.append("variance=True")
+        if args.disable_power_management:
+            config_info.append("no_power_mgmt=True")
+        if args.disable_error_handling:
+            config_info.append("no_error_handling=True")
+        if args.disable_performance_counters:
+            config_info.append("no_perf_counters=True")
+        if args.behavior_profile_duration != 30:
+            config_info.append(f"profile_duration={args.behavior_profile_duration}s")
+
+        logger.info(f"Configuration: {', '.join(config_info)}")
 
         # List and select PCIe device
         devices = list_pci_devices()
@@ -410,7 +534,7 @@ def main() -> int:
         bind_to_vfio(bdf, vendor, device, original_driver)
 
         # Run the build container
-        run_build_container(bdf, args.board, vfio_device)
+        run_build_container(bdf, args.board, vfio_device, args)
 
         # Flash firmware if requested
         if args.flash:
