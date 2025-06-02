@@ -10,7 +10,7 @@ on:
     - cron: '0 2 * * *'
 
 env:
-  PYTHONPATH: ${{ runner.os == 'Windows' && format('{0}\\src;{0}', github.workspace) || format('{0}/src:{0}', github.workspace) }}
+  PYTHONPATH: ${{ github.workspace }}/src:${{ github.workspace }}
 
 jobs:
   # Code Quality and Security Checks
