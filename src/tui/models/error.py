@@ -5,8 +5,8 @@ Error classification and guidance system for the TUI.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional
 from enum import Enum
+from typing import List, Optional
 
 
 class ErrorSeverity(Enum):

@@ -27,16 +27,16 @@ from typing import Any, Dict, List, Optional, Tuple
 # Import manufacturing variance simulation
 try:
     from .manufacturing_variance import (
+        DeviceClass,
         ManufacturingVarianceSimulator,
         VarianceModel,
-        DeviceClass,
     )
 except ImportError:
     # Fallback for direct execution
     from manufacturing_variance import (
+        DeviceClass,
         ManufacturingVarianceSimulator,
         VarianceModel,
-        DeviceClass,
     )
 
 

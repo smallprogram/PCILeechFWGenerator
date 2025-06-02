@@ -4,16 +4,18 @@ Test TUI Core Modules
 Tests for the TUI core modules (build_orchestrator, config_manager, device_manager, status_monitor).
 """
 
-import pytest
 import asyncio
-from unittest.mock import patch, MagicMock, AsyncMock, mock_open
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
+
+import pytest
+
+from src.tui.core.build_orchestrator import BuildOrchestrator
+from src.tui.core.config_manager import ConfigManager
 
 # Import TUI core modules
 from src.tui.core.device_manager import DeviceManager
-from src.tui.core.config_manager import ConfigManager
-from src.tui.core.build_orchestrator import BuildOrchestrator
 from src.tui.core.status_monitor import StatusMonitor
 from src.tui.models.config import BuildConfiguration
 from src.tui.models.device import PCIDevice

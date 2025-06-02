@@ -4,10 +4,10 @@ TUI Data Models
 This module contains all data models used by the TUI components.
 """
 
-from .device import PCIDevice
 from .config import BuildConfiguration
+from .device import PCIDevice
+from .error import ErrorSeverity, TUIError
 from .progress import BuildProgress
-from .error import TUIError, ErrorSeverity
 
 __all__ = [
     "PCIDevice",

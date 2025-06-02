@@ -4,8 +4,8 @@ TUI version of PCILeech firmware generator.
 Provides an interactive interface for the generate.py workflow.
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
 
 # Add project root to path for imports

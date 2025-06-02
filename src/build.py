@@ -26,26 +26,26 @@ from typing import Optional
 
 # Import manufacturing variance simulation and advanced SystemVerilog generation
 try:
-    from .manufacturing_variance import ManufacturingVarianceSimulator, DeviceClass
     from .advanced_sv_main import (
         AdvancedSVGenerator,
-        PowerManagementConfig,
-        ErrorHandlingConfig,
-        PerformanceCounterConfig,
         DeviceSpecificLogic,
         DeviceType,
+        ErrorHandlingConfig,
+        PerformanceCounterConfig,
+        PowerManagementConfig,
     )
+    from .manufacturing_variance import DeviceClass, ManufacturingVarianceSimulator
 except ImportError:
     # Fallback for direct execution
-    from manufacturing_variance import ManufacturingVarianceSimulator, DeviceClass
     from advanced_sv_main import (
         AdvancedSVGenerator,
-        PowerManagementConfig,
-        ErrorHandlingConfig,
-        PerformanceCounterConfig,
         DeviceSpecificLogic,
         DeviceType,
+        ErrorHandlingConfig,
+        PerformanceCounterConfig,
+        PowerManagementConfig,
     )
+    from manufacturing_variance import DeviceClass, ManufacturingVarianceSimulator
 
 # Configuration constants
 ROOT = Path(__file__).parent.parent.resolve()  # Get project root directory

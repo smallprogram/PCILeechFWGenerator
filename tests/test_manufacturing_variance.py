@@ -3,11 +3,12 @@ Tests for manufacturing variance simulation module.
 """
 
 import pytest
+
 from src.manufacturing_variance import (
+    DeviceClass,
     ManufacturingVarianceSimulator,
     VarianceModel,
     VarianceParameters,
-    DeviceClass,
     VarianceType,
 )
 

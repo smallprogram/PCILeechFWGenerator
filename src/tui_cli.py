@@ -4,8 +4,8 @@ CLI entry point for pcileech-tui console script.
 This module provides the main() function that setuptools will use as an entry point.
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
 
 # Add project root to path for imports

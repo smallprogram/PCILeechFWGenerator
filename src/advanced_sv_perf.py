@@ -10,8 +10,8 @@ Performance Counter feature for the PCILeechFWGenerator project.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict
 from enum import Enum
+from typing import Dict, List, Optional
 
 
 class DeviceType(Enum):

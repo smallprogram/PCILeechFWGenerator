@@ -11,11 +11,11 @@ Classes:
     StateMachineExtractor: Main class for extracting state machines from driver code
 """
 
-import re
 import json
+import re
 from dataclasses import dataclass, field
-from typing import List, Dict, Set, Optional, Tuple, Any
 from enum import Enum
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 
 class StateType(Enum):

@@ -6,12 +6,12 @@ generation, adding timing jitter and parameter variations to make generated firm
 more realistic and harder to detect.
 """
 
+import math
 import random
 import statistics
-import math
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple, Any, Optional
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class DeviceClass(Enum):

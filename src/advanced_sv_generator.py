@@ -12,20 +12,20 @@ Advanced SystemVerilog Generation feature for the PCILeechFWGenerator project.
 import math
 import random
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
 # Import manufacturing variance for integration
 try:
     from .manufacturing_variance import (
-        ManufacturingVarianceSimulator,
         DeviceClass,
+        ManufacturingVarianceSimulator,
         VarianceModel,
     )
 except ImportError:
     from manufacturing_variance import (
-        ManufacturingVarianceSimulator,
         DeviceClass,
+        ManufacturingVarianceSimulator,
         VarianceModel,
     )
 

@@ -5,12 +5,13 @@ Monitors system status including container availability, USB devices, and system
 """
 
 import asyncio
-import subprocess
-import shutil
 import os
-from typing import Dict, List, Optional, Tuple, Any
-import psutil
+import shutil
+import subprocess
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import psutil
 
 
 class StatusMonitor:

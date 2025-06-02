@@ -4,16 +4,17 @@ Test TUI Data Models
 Tests for the TUI data models (config, device, error, progress).
 """
 
-import pytest
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Import TUI models
 from src.tui.models.config import BuildConfiguration
 from src.tui.models.device import PCIDevice
-from src.tui.models.error import TUIError, ErrorSeverity, ErrorTemplates
+from src.tui.models.error import ErrorSeverity, ErrorTemplates, TUIError
 from src.tui.models.progress import BuildProgress, BuildStage
 
 

@@ -11,35 +11,35 @@ Advanced SystemVerilog Generation feature for the PCILeechFWGenerator project.
 
 import random
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
 # Import manufacturing variance for integration
 try:
-    from .manufacturing_variance import (
-        ManufacturingVarianceSimulator,
-        DeviceClass,
-        VarianceModel,
-    )
-    from .advanced_sv_power import PowerManagementGenerator, PowerManagementConfig
-    from .advanced_sv_error import ErrorHandlingGenerator, ErrorHandlingConfig
+    from .advanced_sv_error import ErrorHandlingConfig, ErrorHandlingGenerator
     from .advanced_sv_perf import (
-        PerformanceCounterGenerator,
-        PerformanceCounterConfig,
         DeviceType,
+        PerformanceCounterConfig,
+        PerformanceCounterGenerator,
+    )
+    from .advanced_sv_power import PowerManagementConfig, PowerManagementGenerator
+    from .manufacturing_variance import (
+        DeviceClass,
+        ManufacturingVarianceSimulator,
+        VarianceModel,
     )
 except ImportError:
-    from manufacturing_variance import (
-        ManufacturingVarianceSimulator,
-        DeviceClass,
-        VarianceModel,
-    )
-    from advanced_sv_power import PowerManagementGenerator, PowerManagementConfig
-    from advanced_sv_error import ErrorHandlingGenerator, ErrorHandlingConfig
+    from advanced_sv_error import ErrorHandlingConfig, ErrorHandlingGenerator
     from advanced_sv_perf import (
-        PerformanceCounterGenerator,
-        PerformanceCounterConfig,
         DeviceType,
+        PerformanceCounterConfig,
+        PerformanceCounterGenerator,
+    )
+    from advanced_sv_power import PowerManagementConfig, PowerManagementGenerator
+    from manufacturing_variance import (
+        DeviceClass,
+        ManufacturingVarianceSimulator,
+        VarianceModel,
     )
 
 

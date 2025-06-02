@@ -4,10 +4,10 @@ Build Configuration Data Model
 Comprehensive build configuration for the TUI interface.
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, Any, Optional
 import json
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 
 @dataclass

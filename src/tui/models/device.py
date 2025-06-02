@@ -5,7 +5,7 @@ Enhanced PCIe device information for the TUI interface.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 
 @dataclass

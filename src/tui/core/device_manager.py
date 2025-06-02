@@ -8,11 +8,11 @@ import asyncio
 import os
 import re
 import subprocess
-from typing import List, Dict, Any, Optional
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from ..models.device import PCIDevice
-from ..models.error import TUIError, ErrorTemplates, ErrorSeverity
+from ..models.error import ErrorSeverity, ErrorTemplates, TUIError
 
 
 class DeviceManager:

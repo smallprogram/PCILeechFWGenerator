@@ -5,33 +5,34 @@ The main entry point for the PCILeech Firmware Generator TUI.
 """
 
 import asyncio
-from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import (
-    Header,
-    Footer,
-    Static,
-    Button,
-    DataTable,
-    ProgressBar,
-    Log,
-    Select,
-    Switch,
-    Input,
-    Label,
-)
-from textual.reactive import reactive
-from textual.message import Message
-from textual import events
-from textual.screen import ModalScreen
 from typing import Optional
 
-from .core.device_manager import DeviceManager
-from .core.config_manager import ConfigManager
+from textual import events
+from textual.app import App, ComposeResult
+from textual.containers import Container, Horizontal, Vertical
+from textual.message import Message
+from textual.reactive import reactive
+from textual.screen import ModalScreen
+from textual.widgets import (
+    Button,
+    DataTable,
+    Footer,
+    Header,
+    Input,
+    Label,
+    Log,
+    ProgressBar,
+    Select,
+    Static,
+    Switch,
+)
+
 from .core.build_orchestrator import BuildOrchestrator
+from .core.config_manager import ConfigManager
+from .core.device_manager import DeviceManager
 from .core.status_monitor import StatusMonitor
-from .models.device import PCIDevice
 from .models.config import BuildConfiguration
+from .models.device import PCIDevice
 from .models.progress import BuildProgress
 
 

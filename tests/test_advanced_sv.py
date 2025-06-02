@@ -6,26 +6,28 @@ Tests the modular advanced SystemVerilog generation components including
 power management, error handling, performance counters, and main generator.
 """
 
-import pytest
-import tempfile
 import os
+import tempfile
 from pathlib import Path
+
+import pytest
+
+from src.advanced_sv_error import ErrorHandlingConfig, ErrorHandlingGenerator, ErrorType
+from src.advanced_sv_main import AdvancedSVGenerator, DeviceSpecificLogic
+from src.advanced_sv_perf import (
+    DeviceType,
+    PerformanceCounterConfig,
+    PerformanceCounterGenerator,
+)
 
 # Import the modules to test
 from src.advanced_sv_power import (
-    PowerManagementGenerator,
-    PowerManagementConfig,
-    PowerState,
     LinkState,
+    PowerManagementConfig,
+    PowerManagementGenerator,
+    PowerState,
 )
-from src.advanced_sv_error import ErrorHandlingGenerator, ErrorHandlingConfig, ErrorType
-from src.advanced_sv_perf import (
-    PerformanceCounterGenerator,
-    PerformanceCounterConfig,
-    DeviceType,
-)
-from src.advanced_sv_main import AdvancedSVGenerator, DeviceSpecificLogic
-from src.manufacturing_variance import ManufacturingVarianceSimulator, DeviceClass
+from src.manufacturing_variance import DeviceClass, ManufacturingVarianceSimulator
 
 
 class TestPowerManagementGenerator:
@@ -394,9 +396,9 @@ class TestAdvancedSVGenerator:
 
     def test_systemverilog_with_all_features(self):
         """Test SystemVerilog generation with all features enabled."""
-        from src.advanced_sv_power import PowerManagementConfig
         from src.advanced_sv_error import ErrorHandlingConfig
         from src.advanced_sv_perf import PerformanceCounterConfig
+        from src.advanced_sv_power import PowerManagementConfig
 
         power_config = PowerManagementConfig(
             enable_clock_gating=True, enable_aspm=True, enable_power_domains=True

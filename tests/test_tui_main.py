@@ -4,14 +4,15 @@ Test TUI Main Module
 Tests for the main TUI entry point and core functionality from src/tui/main.py.
 """
 
-import pytest
 import asyncio
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from textual.app import App
-from textual.widgets import DataTable, Button, Static, ProgressBar
+from textual.widgets import Button, DataTable, ProgressBar, Static
 
 # Import TUI main modules
-from src.tui.main import PCILeechTUI, ConfigurationDialog
+from src.tui.main import ConfigurationDialog, PCILeechTUI
 from src.tui.models.config import BuildConfiguration
 from src.tui.models.device import PCIDevice
 from src.tui.models.progress import BuildProgress, BuildStage
