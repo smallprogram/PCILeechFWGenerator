@@ -423,6 +423,12 @@ def main() -> int:
 
         # Basic options
         parser.add_argument(
+            "--tui",
+            action="store_true",
+            help="Launch TUI (Text User Interface) mode",
+        )
+
+        parser.add_argument(
             "--flash",
             action="store_true",
             help="Flash output/firmware.bin with usbloader after build",
@@ -484,6 +490,26 @@ def main() -> int:
         )
 
         args = parser.parse_args()
+
+        # Check if TUI mode is requested
+        if args.tui:
+            try:
+                # Import and launch TUI
+                from src.tui.main import PCILeechTUI
+
+                app = PCILeechTUI()
+                app.run()
+                return 0
+            except ImportError:
+                error_msg = "TUI dependencies not installed. Install with: pip install textual rich psutil"
+                logger.error(error_msg)
+                print(f"[✗] {error_msg}")
+                return 1
+            except Exception as e:
+                error_msg = f"Failed to launch TUI: {e}"
+                logger.error(error_msg)
+                print(f"[✗] {error_msg}")
+                return 1
 
         # Enhanced logging with advanced features
         config_info = [f"board={args.board}", f"flash={args.flash}"]

@@ -1,0 +1,190 @@
+/* CSS Variables - Textual Default Color Scheme */
+$background: #0f1419;
+$primary: #1e293b;
+$text: #f8fafc;
+$accent: #3b82f6;
+$success: #10b981;
+$warning: #f59e0b;
+$error: #ef4444;
+$info: #06b6d4;
+$surface: #1e293b;
+$text-muted: #64748b;
+
+/* Main TUI Stylesheet */
+
+/* Global styles */
+Screen {
+    background: $background;
+}
+
+/* Header and Footer */
+Header {
+    dock: top;
+    height: 3;
+    background: $primary;
+    color: $text;
+}
+
+Footer {
+    dock: bottom;
+    height: 1;
+    background: $primary;
+    color: $text;
+}
+
+/* Main container */
+#main-container {
+    height: 1fr;
+    padding: 1;
+}
+
+/* Panel styles */
+.panel {
+    border: solid $primary;
+    margin: 1;
+    padding: 1;
+    height: auto;
+}
+
+.panel-title {
+    text-style: bold;
+    color: $accent;
+    margin-bottom: 1;
+}
+
+/* Section layouts */
+#top-section {
+    height: 12;
+}
+
+#middle-section {
+    height: 8;
+}
+
+#bottom-section {
+    height: 8;
+}
+
+/* Device panel */
+#device-panel {
+    width: 1fr;
+}
+
+#device-table {
+    height: 6;
+    margin-bottom: 1;
+}
+
+/* Configuration panel */
+#config-panel {
+    width: 1fr;
+}
+
+/* Build panel */
+#build-panel {
+    width: 1fr;
+}
+
+#build-progress {
+    margin: 1 0;
+}
+
+/* Status panel */
+#status-panel {
+    width: 1fr;
+}
+
+/* Actions panel */
+#actions-panel {
+    width: 1fr;
+}
+
+/* Button styles */
+.button-row {
+    height: 3;
+    align: center middle;
+}
+
+Button {
+    margin: 0 1;
+    min-width: 12;
+}
+
+Button.-primary {
+    background: $primary;
+    color: $text;
+}
+
+Button.-success {
+    background: $success;
+    color: $text;
+}
+
+Button.-warning {
+    background: $warning;
+    color: $text;
+}
+
+Button.-error {
+    background: $error;
+    color: $text;
+}
+
+Button:disabled {
+    background: $surface;
+    color: $text-muted;
+}
+
+/* Progress bar */
+ProgressBar {
+    height: 1;
+    margin: 1 0;
+}
+
+/* Data table */
+DataTable {
+    height: 1fr;
+}
+
+DataTable > .datatable--header {
+    background: $primary;
+    color: $text;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: $accent;
+    color: $text;
+}
+
+/* Status indicators */
+.status-good {
+    color: $success;
+}
+
+.status-warning {
+    color: $warning;
+}
+
+.status-error {
+    color: $error;
+}
+
+.status-info {
+    color: $info;
+}
+
+/* Text styles */
+.text-bold {
+    text-style: bold;
+}
+
+.text-italic {
+    text-style: italic;
+}
+
+.text-muted {
+    color: $text-muted;
+}
+
+/* Responsive adjustments would go here if supported by Textual CSS */

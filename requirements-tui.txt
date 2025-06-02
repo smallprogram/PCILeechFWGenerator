@@ -1,0 +1,17 @@
+# TUI-specific dependencies for PCILeech Firmware Generator
+# Install with: pip install -r requirements-tui.txt
+
+# Core TUI framework
+textual>=0.45.0
+
+# Rich text rendering and formatting
+rich>=13.0.0
+
+# System resource monitoring
+psutil>=5.9.0
+
+# File system monitoring for logs
+watchdog>=3.0.0
+
+# Configuration validation and serialization
+pydantic>=2.0.0
