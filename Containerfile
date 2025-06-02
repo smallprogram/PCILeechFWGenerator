@@ -1,6 +1,6 @@
 # Multi-stage build for smaller final image
 # Build stage - includes development tools
-FROM ubuntu:22.04@sha256:77906da86b60585ce12215807090eb327e7386c8fafb5402369e421f44eff17e AS builder
+FROM ubuntu:25.10 AS builder
 
 # Set environment variables for reproducible builds
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -30,7 +30,7 @@ WORKDIR /build
 RUN cd src/donor_dump && make clean && make
 
 # Runtime stage - minimal runtime environment
-FROM ubuntu:22.04@sha256:77906da86b60585ce12215807090eb327e7386c8fafb5402369e421f44eff17e AS runtime
+FROM ubuntu:25.10 AS runtime
 
 # Set environment variables for reproducible builds
 ENV DEBIAN_FRONTEND=noninteractive \
