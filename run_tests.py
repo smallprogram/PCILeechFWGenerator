@@ -201,6 +201,39 @@ def run_performance_tests():
         return False
 
 
+def run_external_tests(verbose=False):
+    """Run external example validation tests."""
+    print("\n" + "=" * 60)
+    print("EXTERNAL EXAMPLE TESTS")
+    print("=" * 60)
+
+    # Specify the external example test files directly
+    external_test_files = [
+        "tests/test_tcl_validation.py",
+        "tests/test_sv_validation.py",
+        "tests/test_external_integration.py",
+        "tests/test_build_integration.py",
+    ]
+
+    cmd_parts = ["pytest"]
+    cmd_parts.extend(external_test_files)
+
+    if verbose:
+        cmd_parts.append("-v")
+
+    cmd_parts.extend(["--tb=short", "--junit-xml=junit-external.xml"])
+
+    cmd = " ".join(cmd_parts)
+
+    try:
+        run_command(cmd, "Running external example tests")
+        print("[✓] External example tests passed")
+        return True
+    except subprocess.CalledProcessError:
+        print("[✗] External example tests failed")
+        return False
+
+
 def run_legacy_tests():
     """Run the original test_enhancements.py for backward compatibility."""
     print("\n" + "=" * 60)
@@ -279,6 +312,7 @@ def generate_test_report(results):
         "htmlcov/index.html",
         "junit-unit.xml",
         "junit-integration.xml",
+        "junit-external.xml",
         "benchmark.json",
         "bandit-report.json",
     ]
@@ -307,6 +341,7 @@ Examples:
   python run_tests.py --ci             # CI mode (no interactive tests)
   python run_tests.py --coverage       # With coverage reporting
   python run_tests.py --performance    # Performance tests only
+  python run_tests.py --external       # External example tests only
         """,
     )
 
@@ -328,6 +363,9 @@ Examples:
         "--legacy", action="store_true", help="Run legacy enhancement tests only"
     )
     parser.add_argument(
+        "--external", action="store_true", help="Run external example tests only"
+    )
+    parser.add_argument(
         "--no-quality", action="store_true", help="Skip code quality checks"
     )
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
@@ -336,7 +374,15 @@ Examples:
 
     # Set default to quick if no specific mode is selected
     if not any(
-        [args.quick, args.full, args.ci, args.performance, args.security, args.legacy]
+        [
+            args.quick,
+            args.full,
+            args.ci,
+            args.performance,
+            args.security,
+            args.legacy,
+            args.external,
+        ]
     ):
         args.quick = True
 
@@ -372,8 +418,12 @@ Examples:
     if args.performance or args.full:
         results["Performance Tests"] = run_performance_tests()
 
+    # External example tests
+    if args.external or args.full or args.ci:
+        results["External Example Tests"] = run_external_tests(verbose=args.verbose)
+
     # Unit tests
-    if args.quick or args.full or args.ci or not args.performance:
+    if args.quick or args.full or args.ci or not (args.performance or args.external):
         results["Unit Tests"] = run_unit_tests(
             coverage=args.coverage or args.full or args.ci, verbose=args.verbose
         )

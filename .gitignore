@@ -376,3 +376,10 @@ secrets.json
 *.patch
 *.diff
 bandit-report.json
+junit-external.xml
+junit-unit.xml
+external_sv_example.sv
+external_tcl_example.tcl
+junit-unit.xml
+test.tcl
+junit-unit.xml

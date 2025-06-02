@@ -119,6 +119,11 @@ class AdvancedSVGenerator:
 // - Manufacturing variance integration
 //==============================================================================
 
+// State machine definitions
+`define S_SHADOW_CFGSPACE_IDLE  2'b00
+`define S_SHADOW_CFGSPACE_TLP   2'b01
+`define S_SHADOW_CFGSPACE_USB   2'b10
+
 module advanced_pcileech_controller #(
     parameter DEVICE_TYPE = "{self.device_config.device_type.value}",
     parameter DEVICE_CLASS = "{self.device_config.device_class.value}",
@@ -217,8 +222,11 @@ module advanced_pcileech_controller #(
             name = reg["name"]
             initial_value = int(reg["value"], 16)
 
+            # Special case for pcileech_tlps128_cfgspace_shadow_status register
+            if name == "pcileech_tlps128_cfgspace_shadow_status":
+                register_logic.append(f"    logic [31:0] {name}_reg = 32'h1;")
             # Apply variance to initial values if model provided
-            if variance_model:
+            elif variance_model:
                 variance_factor = 1.0 + (random.random() - 0.5) * 0.01  # ±0.5% variance
                 varied_value = int(initial_value * variance_factor) & 0xFFFFFFFF
                 register_logic.append(

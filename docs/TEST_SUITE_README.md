@@ -26,7 +26,11 @@ tests/
 ├── test_driver_scrape.py       # Driver analysis tests
 ├── test_flash_fpga.py          # FPGA flashing tests
 ├── test_donor_dump.py          # Kernel module tests
-└── test_integration.py         # Integration and workflow tests
+├── test_integration.py         # Integration and workflow tests
+├── test_tcl_validation.py      # TCL generation validation against real-world examples
+├── test_sv_validation.py       # SystemVerilog validation against real-world examples
+├── test_external_integration.py # Integration with external patterns and examples
+└── test_build_integration.py   # Build process validation with external examples
 ```
 
 ### Configuration Files
@@ -85,6 +89,9 @@ run_tests.py                   # Comprehensive test runner
 - **Kernel module compilation testing** with mock hardware
 - **Large dataset performance testing** up to 10,000 registers
 - **Memory usage monitoring** and optimization validation
+- **External example validation** against real-world PCILeech firmware
+- **TCL script generation validation** against production examples
+- **Manufacturing variance simulation** with real-world patterns
 
 ### 4. Developer-Friendly Tools
 - **Unified test runner** (`run_tests.py`) with multiple modes
@@ -130,6 +137,10 @@ pytest tests/ -m "performance"       # Performance tests only
 # Run specific test files
 pytest tests/test_generate.py        # Main orchestrator tests
 pytest tests/test_build.py           # Build system tests
+pytest tests/test_tcl_validation.py  # TCL validation tests
+pytest tests/test_sv_validation.py   # SystemVerilog validation tests
+pytest tests/test_external_integration.py  # External pattern integration tests
+pytest tests/test_build_integration.py     # Build integration tests
 
 # Run with coverage
 pytest tests/ --cov=src --cov=generate --cov-report=html
@@ -228,11 +239,93 @@ The CI pipeline includes multiple parallel jobs:
 4. Follow naming convention: `test_<functionality>.py`
 5. Update this documentation
 
+### External Example Tests
+The test suite includes specialized tests that validate the PCILeech firmware generator against real-world examples fetched directly from GitHub:
+
+#### GitHub Integration for Real Examples
+- Tests now fetch real examples from the `pcileech-wifi-v2` GitHub repository
+- Utility functions in `tests/utils.py` handle fetching, caching, and fallback mechanisms
+- Local example files are used as a fallback if GitHub fetching fails
+- Cached files are stored in `~/.pcileech_test_cache` with a 24-hour expiry
+
+#### TCL Validation Tests (`test_tcl_validation.py`)
+- Validates TCL script generation against external examples from pcileech-wifi-v2
+- Tests structure, device ID configuration, BAR size configuration, and file inclusion
+- Fetches TCL examples from GitHub using `get_pcileech_wifi_tcl_file()` utility
+- Falls back to local `external_tcl_example.tcl` if GitHub fetching fails
+- Run with: `pytest tests/test_tcl_validation.py`
+
+#### SystemVerilog Validation Tests (`test_sv_validation.py`)
+- Validates SystemVerilog generation against external examples
+- Tests module structure, register handling, clock domains, interfaces, and error handling
+- Includes advanced feature validation for state machines and memory interfaces
+- Fetches SystemVerilog examples from GitHub using `get_pcileech_wifi_sv_file()` utility
+- Falls back to local `external_sv_example.sv` if GitHub fetching fails
+- Run with: `pytest tests/test_sv_validation.py`
+
+#### External Pattern Integration Tests (`test_external_integration.py`)
+- Tests integration of external patterns with advanced_sv modules
+- Validates power management, error handling, and performance counters with real-world patterns
+- Tests register and state machine generation based on external examples
+- Includes special handling for state machine patterns extracted from real examples
+- Run with: `pytest tests/test_external_integration.py`
+
+#### Build Integration Tests (`test_build_integration.py`)
+- Tests build process with external examples
+- Validates SystemVerilog generation, TCL script generation, and full build workflow
+- Tests advanced SystemVerilog features and manufacturing variance integration
+- Tests build script integration and TCL script execution
+- Run with: `pytest tests/test_build_integration.py`
+
+#### Adding New External Example Tests
+To add new external example tests that use real-world examples from GitHub:
+
+1. **Identify Appropriate Files**:
+   - Browse the `pcileech-wifi-v2` repository to find relevant SystemVerilog or TCL files
+   - Look for files that demonstrate patterns you want to test against
+
+2. **Use the Utility Functions**:
+   - Import utility functions from `tests/utils.py`:
+     ```python
+     from tests.utils import get_pcileech_wifi_sv_file, get_pcileech_wifi_tcl_file
+     ```
+   - For SystemVerilog files: `get_pcileech_wifi_sv_file()`
+   - For TCL files: `get_pcileech_wifi_tcl_file()`
+   - For specific files: `get_pcileech_wifi_file(file_path)`
+
+3. **Implement Fallback Handling**:
+   - Wrap GitHub fetching in try/except blocks to handle potential failures
+   - Use pytest.skip to gracefully skip tests when examples can't be fetched:
+     ```python
+     try:
+         sv_content = get_pcileech_wifi_sv_file()
+     except ValueError as e:
+         pytest.skip(f"Failed to fetch example: {str(e)}")
+     ```
+
+4. **Handle Special Cases**:
+   - For state machine patterns, use regex extraction:
+     ```python
+     state_pattern = r"`define\s+(\w*STATE\w*|\w*S_\w+)\s+"
+     states = re.findall(state_pattern, sv_content)
+     ```
+   - For register values, extract from the example:
+     ```python
+     reg_pattern = r"logic\s+\[31:0\]\s+(\w+_reg)\s*=\s*32\'h([0-9a-fA-F]+);"
+     registers = re.findall(reg_pattern, sv_content)
+     ```
+
+5. **Add to Existing Test Classes**:
+   - Add new test methods to existing test classes in the appropriate test file
+   - Follow the pattern of existing tests that use external examples
+
 ### Test Maintenance
 - Regular dependency updates via Dependabot
 - Performance benchmark updates for new hardware
 - Mock data updates for new device types
 - CI pipeline optimization and updates
+- Update GitHub repository references if needed
+- Refresh local example files periodically to match current GitHub examples
 
 ### Debugging Failed Tests
 1. Check test output for specific failure details
