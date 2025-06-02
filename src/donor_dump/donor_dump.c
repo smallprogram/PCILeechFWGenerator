@@ -10,6 +10,10 @@
  *   class_code        – 24-bit (class<<16 | subclass<<8 | progIF)
  *   bar_size          – byte length of BAR0
  *   dsn_hi / dsn_lo   – 64-bit Device Serial Number (0 if absent)
+ *   extended_config   – Full 4KB configuration space (hex encoded)
+ *   power_mgmt        – Power management capabilities
+ *   aer_caps          – Advanced Error Reporting capabilities
+ *   vendor_caps       – Vendor-specific capabilities
  *
  * Kernel ≥ 5.x, GPL-compatible.
  */
@@ -20,6 +24,15 @@
 
 static char *bdf = "";          /* passed as 0000:03:00.0 */
 module_param(bdf, charp, 000);
+
+/* Configuration options for enhanced features */
+static bool enable_extended_config = true;
+module_param(enable_extended_config, bool, 0444);
+MODULE_PARM_DESC(enable_extended_config, "Enable extended configuration space extraction");
+
+static bool enable_enhanced_caps = true;
+module_param(enable_enhanced_caps, bool, 0444);
+MODULE_PARM_DESC(enable_enhanced_caps, "Enable enhanced capability analysis");
 
 static struct pci_dev        *pdev;
 static struct proc_dir_entry *pe;
@@ -118,8 +131,35 @@ static int show(struct seq_file *m, void *v)
         cap_count++;
     }
 
-    /* ── optional: extended cap 0x03 = Device Serial Number with bounds checking ── */
+    /* ── Extended configuration space extraction (4KB) ── */
+    u8 *extended_config = NULL;
+    if (enable_extended_config) {
+        extended_config = kmalloc(4096, GFP_KERNEL);
+        if (!extended_config) {
+            pr_warn("donor_dump: Failed to allocate memory for extended config space\n");
+            seq_printf(m, "error:memory_allocation_failed\n");
+            return 0;
+        }
+        
+        /* Read full 4KB configuration space with error handling */
+        for (int i = 0; i < 4096; i += 4) {
+            u32 data;
+            ret = pci_read_config_dword(pdev, i, &data);
+            if (ret != PCIBIOS_SUCCESSFUL) {
+                /* Fill with 0xFF for inaccessible regions */
+                data = 0xFFFFFFFF;
+                pr_debug("donor_dump: Config space read failed at offset 0x%03x\n", i);
+            }
+            memcpy(extended_config + i, &data, 4);
+        }
+        pr_info("donor_dump: Successfully extracted 4KB extended configuration space\n");
+    }
+    
+    /* ── Enhanced extended capability analysis ── */
     u32 dsn_lo = 0, dsn_hi = 0;
+    u32 power_mgmt_caps = 0;
+    u32 aer_caps = 0;
+    u32 vendor_caps = 0;
     u32 ecap_ptr = 0x100;   /* extended caps start at 0x100 */
     int ecap_count = 0;     /* Prevent infinite loops */
     
@@ -139,16 +179,38 @@ static int show(struct seq_file *m, void *v)
         u16 cap_id = hdr & 0xffff;
         u16 next   = hdr >> 20;
         
-        if (cap_id == PCI_EXT_CAP_ID_DSN) {            /* 0x0003 */
-            /* Validate we have enough space for DSN capability */
-            if (ecap_ptr + 0x8 <= 0xFFF) {
-                ret = pci_read_config_dword(pdev, ecap_ptr + 0x4, &dsn_lo);
-                if (ret != PCIBIOS_SUCCESSFUL) break;
-                ret = pci_read_config_dword(pdev, ecap_ptr + 0x8, &dsn_hi);
-                if (ret != PCIBIOS_SUCCESSFUL) break;
-            }
-            break;
+        switch (cap_id) {
+            case PCI_EXT_CAP_ID_DSN:            /* 0x0003 - Device Serial Number */
+                if (ecap_ptr + 0x8 <= 0xFFF) {
+                    ret = pci_read_config_dword(pdev, ecap_ptr + 0x4, &dsn_lo);
+                    if (ret != PCIBIOS_SUCCESSFUL) break;
+                    ret = pci_read_config_dword(pdev, ecap_ptr + 0x8, &dsn_hi);
+                    if (ret != PCIBIOS_SUCCESSFUL) break;
+                }
+                break;
+                
+            case PCI_EXT_CAP_ID_PWR:            /* 0x0001 - Power Budgeting */
+                if (ecap_ptr + 0x4 <= 0xFFF) {
+                    ret = pci_read_config_dword(pdev, ecap_ptr + 0x4, &power_mgmt_caps);
+                    if (ret != PCIBIOS_SUCCESSFUL) power_mgmt_caps = 0;
+                }
+                break;
+                
+            case PCI_EXT_CAP_ID_ERR:            /* 0x0001 - Advanced Error Reporting */
+                if (ecap_ptr + 0x4 <= 0xFFF) {
+                    ret = pci_read_config_dword(pdev, ecap_ptr + 0x4, &aer_caps);
+                    if (ret != PCIBIOS_SUCCESSFUL) aer_caps = 0;
+                }
+                break;
+                
+            case PCI_EXT_CAP_ID_VNDR:           /* 0x000B - Vendor Specific */
+                if (ecap_ptr + 0x4 <= 0xFFF) {
+                    ret = pci_read_config_dword(pdev, ecap_ptr + 0x4, &vendor_caps);
+                    if (ret != PCIBIOS_SUCCESSFUL) vendor_caps = 0;
+                }
+                break;
         }
+        
         ecap_ptr = next;
         ecap_count++;
     }
@@ -171,12 +233,28 @@ static int show(struct seq_file *m, void *v)
         "class_code:0x%06X\n"
         "bar_size:0x%llX\n"
         "dsn_hi:0x%08X\n"
-        "dsn_lo:0x%08X\n",
+        "dsn_lo:0x%08X\n"
+        "power_mgmt:0x%08X\n"
+        "aer_caps:0x%08X\n"
+        "vendor_caps:0x%08X\n",
         mpc, mpr,
         vid, did, svid, ssid, rev, cls >> 8,
         (unsigned long long)bar_size,
-        dsn_hi, dsn_lo);
+        dsn_hi, dsn_lo,
+        power_mgmt_caps, aer_caps, vendor_caps);
 
+    /* ── Output extended configuration space as hex-encoded string ── */
+    if (enable_extended_config && extended_config) {
+        seq_printf(m, "extended_config:");
+        for (int i = 0; i < 4096; i++) {
+            seq_printf(m, "%02x", extended_config[i]);
+        }
+        seq_printf(m, "\n");
+        kfree(extended_config);
+    } else {
+        seq_printf(m, "extended_config:disabled\n");
+    }
+    
     return 0;
 }
 

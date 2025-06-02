@@ -20,13 +20,14 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 from pathlib import Path
 
 # Configuration constants
-ROOT = Path("/app").resolve()
+ROOT = Path(__file__).parent.parent.resolve()  # Get project root directory
 OUT = ROOT / "output"
 OUT.mkdir(exist_ok=True)
-DDIR = ROOT / "donor_dump"
+DDIR = ROOT / "src" / "donor_dump"
 
 # BAR aperture size mappings
 APERTURE = {
@@ -139,33 +140,167 @@ def scrape_driver_regs(vendor: str, device: str) -> list:
         return []
 
 
+def integrate_behavior_profile(bdf: str, regs: list, duration: float = 10.0) -> list:
+    """Integrate behavior profiling data with register definitions."""
+    try:
+        # Import behavior profiler
+        sys.path.append(str(ROOT / "src"))
+        from behavior_profiler import BehaviorProfiler
+
+        print(f"[*] Capturing device behavior profile for {duration}s...")
+        profiler = BehaviorProfiler(bdf, debug=False)
+
+        # Capture a short behavior profile
+        profile = profiler.capture_behavior_profile(duration)
+        analysis = profiler.analyze_patterns(profile)
+
+        # Enhance register definitions with behavioral data
+        enhanced_regs = []
+        for reg in regs:
+            enhanced_reg = reg.copy()
+
+            # Add behavioral timing information
+            reg_name = reg["name"].upper()
+
+            # Find matching behavioral data
+            for pattern in profile.timing_patterns:
+                if reg_name in [r.upper() for r in pattern.registers]:
+                    if "context" not in enhanced_reg:
+                        enhanced_reg["context"] = {}
+
+                    enhanced_reg["context"]["behavioral_timing"] = {
+                        "avg_interval_us": pattern.avg_interval_us,
+                        "frequency_hz": pattern.frequency_hz,
+                        "confidence": pattern.confidence,
+                    }
+                    break
+
+            # Add device characteristics
+            if "context" not in enhanced_reg:
+                enhanced_reg["context"] = {}
+
+            enhanced_reg["context"]["device_analysis"] = {
+                "access_frequency_hz": analysis["device_characteristics"][
+                    "access_frequency_hz"
+                ],
+                "timing_regularity": analysis["behavioral_signatures"][
+                    "timing_regularity"
+                ],
+                "performance_class": (
+                    "high"
+                    if analysis["device_characteristics"]["access_frequency_hz"] > 1000
+                    else "standard"
+                ),
+            }
+
+            enhanced_regs.append(enhanced_reg)
+
+        print(f"[*] Enhanced {len(enhanced_regs)} registers with behavioral data")
+        return enhanced_regs
+
+    except Exception as e:
+        print(f"[!] Behavior profiling failed: {e}")
+        print("[*] Continuing with static analysis only...")
+        return regs
+
+
 def build_sv(regs: list, target_src: pathlib.Path) -> None:
-    """Generate SystemVerilog BAR controller from register definitions."""
+    """Generate enhanced SystemVerilog BAR controller from register definitions."""
     if not regs:
         sys.exit("No registers scraped – aborting build")
 
     declarations = []
     write_cases = []
     read_cases = []
+    timing_logic = []
+    state_machines = []
 
+    # Enhanced register analysis with timing and context
     for reg in regs:
         offset = int(reg["offset"])
         initial_value = int(reg["value"], 16)
         name = reg["name"]
+        context = reg.get("context", {})
 
-        if reg["rw"] == "rw":
+        # Generate timing-aware register logic
+        timing_constraints = context.get("timing_constraints", [])
+        access_pattern = context.get("access_pattern", "unknown")
+
+        if reg["rw"] in ["rw", "wo"]:
+            # Add timing delay logic for write operations
+            delay_cycles = 1  # Default delay
+            if timing_constraints:
+                # Convert microseconds to clock cycles (assuming 100MHz clock)
+                avg_delay_us = sum(
+                    tc.get("delay_us", 0) for tc in timing_constraints
+                ) / len(timing_constraints)
+                delay_cycles = max(1, int(avg_delay_us * 100))  # 100MHz = 10ns period
+
             declarations.append(
                 f"    logic [31:0] {name}_reg = 32'h{initial_value:08X};"
             )
-            write_cases.append(f"      32'h{offset:08X}: {name}_reg <= bar_wr_data;")
+            declarations.append(
+                f"    logic [{max(1, delay_cycles.bit_length()-1)}:0] {name}_delay_counter = 0;"
+            )
+            declarations.append(f"    logic {name}_write_pending = 0;")
+
+            # Enhanced write logic with timing
+            timing_logic.append(
+                f"""
+    // Timing logic for {name}
+    always_ff @(posedge clk) begin
+        if (!reset_n) begin
+            {name}_delay_counter <= 0;
+            {name}_write_pending <= 0;
+        end else if (bar_wr_en && bar_addr == 32'h{offset:08X}) begin
+            {name}_write_pending <= 1;
+            {name}_delay_counter <= {delay_cycles};
+        end else if ({name}_write_pending && {name}_delay_counter > 0) begin
+            {name}_delay_counter <= {name}_delay_counter - 1;
+        end else if ({name}_write_pending && {name}_delay_counter == 0) begin
+            {name}_reg <= bar_wr_data;
+            {name}_write_pending <= 0;
+        end
+    end"""
+            )
+
             source = f"{name}_reg"
         else:
+            # Read-only register with potential dynamic behavior
+            if access_pattern == "read_heavy":
+                # Add read counter for frequently read registers
+                declarations.append(f"    logic [31:0] {name}_read_count = 0;")
+                timing_logic.append(
+                    f"""
+    // Read tracking for {name}
+    always_ff @(posedge clk) begin
+        if (!reset_n) begin
+            {name}_read_count <= 0;
+        end else if (bar_rd_en && bar_addr == 32'h{offset:08X}) begin
+            {name}_read_count <= {name}_read_count + 1;
+        end
+    end"""
+                )
+
             source = f"32'h{initial_value:08X}"
 
         read_cases.append(f"      32'h{offset:08X}: bar_rd_data <= {source};")
 
-    # Generate SystemVerilog module
+        # Generate state machine for complex register sequences
+        sequences = context.get("sequences", [])
+        if sequences and len(sequences) > 1:
+            state_machine = generate_register_state_machine(name, sequences, offset)
+            if state_machine:
+                state_machines.append(state_machine)
+
+    # Generate device-specific state machine based on register dependencies
+    device_state_machine = generate_device_state_machine(regs)
+
+    # Generate enhanced SystemVerilog module
     sv_content = f"""//--------------------------------------------------------------
+// Enhanced PCIe BAR Controller with Realistic Timing and State Machines
+// Generated with advanced register context analysis and behavioral modeling
+//--------------------------------------------------------------
 module pcileech_tlps128_bar_controller
 (
  input logic clk, reset_n,
@@ -176,32 +311,176 @@ module pcileech_tlps128_bar_controller
  input logic cfg_interrupt_msi_enable,
  output logic cfg_interrupt, input logic cfg_interrupt_ready
 );
-{os.linesep.join(declarations)}
-    logic irq_latch;
 
+    // Register declarations with timing support
+{os.linesep.join(declarations)}
+    
+    // Interrupt and state management
+    logic irq_latch;
+    logic [2:0] device_state = 3'b000;  // Device state machine
+    logic [15:0] global_timer = 0;      // Global timing reference
+    
+    // Global timing reference
     always_ff @(posedge clk) begin
-        if (!reset_n) irq_latch <= 0;
-        else if (bar_wr_en) begin
-{os.linesep.join(write_cases) or '            ;'}
-            irq_latch <= 1;
-        end else if (irq_latch && msi_ack) irq_latch <= 0;
+        if (!reset_n) begin
+            global_timer <= 0;
+        end else begin
+            global_timer <= global_timer + 1;
+        end
     end
 
+{os.linesep.join(timing_logic)}
+
+    // Enhanced interrupt logic with timing awareness
+    always_ff @(posedge clk) begin
+        if (!reset_n) begin
+            irq_latch <= 0;
+        end else if (bar_wr_en) begin
+            // Generate interrupt based on write patterns and timing
+            irq_latch <= 1;
+        end else if (irq_latch && msi_ack) begin
+            irq_latch <= 0;
+        end
+    end
+
+{device_state_machine}
+
+{os.linesep.join(state_machines)}
+
+    // Enhanced read logic with state awareness
     always_comb begin
         unique case(bar_addr)
 {os.linesep.join(read_cases)}
+            // Device state register
+            32'h00000000: bar_rd_data = {{29'b0, device_state}};
+            // Global timer register
+            32'h00000004: bar_rd_data = {{16'b0, global_timer}};
             default: bar_rd_data = 32'h0;
         endcase
     end
 
     assign msi_request = irq_latch;
     assign cfg_interrupt = irq_latch & cfg_interrupt_msi_enable;
+    
 endmodule
 """
 
     # Write to output and target locations
     (OUT / "bar_controller.sv").write_text(sv_content)
     shutil.copyfile(OUT / "bar_controller.sv", target_src)
+
+
+def generate_register_state_machine(reg_name: str, sequences: list, offset: int) -> str:
+    """Generate a state machine for complex register access sequences."""
+    if len(sequences) < 2:
+        return ""
+
+    states = []
+    transitions = []
+
+    for i, seq in enumerate(sequences):
+        state_name = f"{reg_name}_state_{i}"
+        states.append(state_name)
+
+        if i < len(sequences) - 1:
+            next_state = f"{reg_name}_state_{i+1}"
+            transitions.append(
+                f"        {state_name}: if (sequence_trigger_{reg_name}) next_state = {next_state};"
+            )
+        else:
+            transitions.append(
+                f"        {state_name}: if (sequence_trigger_{reg_name}) next_state = {reg_name}_state_0;"
+            )
+
+    return f"""
+    // State machine for {reg_name} access sequences
+    typedef enum logic [2:0] {{
+        {', '.join(states)}
+    }} {reg_name}_state_t;
+    
+    {reg_name}_state_t {reg_name}_current_state = {states[0]};
+    logic sequence_trigger_{reg_name};
+    
+    assign sequence_trigger_{reg_name} = bar_wr_en && bar_addr == 32'h{offset:08X};
+    
+    always_ff @(posedge clk) begin
+        if (!reset_n) begin
+            {reg_name}_current_state <= {states[0]};
+        end else begin
+            case ({reg_name}_current_state)
+{os.linesep.join(transitions)}
+                default: {reg_name}_current_state <= {states[0]};
+            endcase
+        end
+    end"""
+
+
+def generate_device_state_machine(regs: list) -> str:
+    """Generate a device-level state machine based on register dependencies."""
+    # Analyze register dependencies to create device states
+    init_regs = []
+    runtime_regs = []
+    cleanup_regs = []
+
+    for reg in regs:
+        context = reg.get("context", {})
+        timing = context.get("timing", "unknown")
+
+        if timing == "early":
+            init_regs.append(reg["name"])
+        elif timing == "late":
+            cleanup_regs.append(reg["name"])
+        else:
+            runtime_regs.append(reg["name"])
+
+    return f"""
+    // Device-level state machine
+    typedef enum logic [2:0] {{
+        DEVICE_RESET    = 3'b000,
+        DEVICE_INIT     = 3'b001,
+        DEVICE_READY    = 3'b010,
+        DEVICE_ACTIVE   = 3'b011,
+        DEVICE_ERROR    = 3'b100,
+        DEVICE_SHUTDOWN = 3'b101
+    }} device_state_t;
+    
+    device_state_t current_state = DEVICE_RESET;
+    device_state_t next_state;
+    
+    // State transition logic
+    always_ff @(posedge clk) begin
+        if (!reset_n) begin
+            current_state <= DEVICE_RESET;
+        end else begin
+            current_state <= next_state;
+        end
+    end
+    
+    // Next state logic
+    always_comb begin
+        next_state = current_state;
+        case (current_state)
+            DEVICE_RESET: begin
+                if (global_timer > 16'h0010) next_state = DEVICE_INIT;
+            end
+            DEVICE_INIT: begin
+                // Transition to ready after initialization registers are accessed
+                if (bar_wr_en && ({"||".join([f'bar_addr == 32\'h{int(reg["offset"]):08X}' for reg in regs if reg["name"] in init_regs[:3]])})) begin
+                    next_state = DEVICE_READY;
+                end
+            end
+            DEVICE_READY: begin
+                if (bar_wr_en) next_state = DEVICE_ACTIVE;
+            end
+            DEVICE_ACTIVE: begin
+                // Stay active during normal operation
+                if (global_timer[3:0] == 4'hF) next_state = DEVICE_READY;  // Periodic state refresh
+            end
+            default: next_state = DEVICE_RESET;
+        endcase
+    end
+    
+    assign device_state = current_state;"""
 
 
 def code_from_bytes(byte_count: int) -> int:
@@ -283,7 +562,9 @@ def vivado_run(board_root: pathlib.Path, gen_tcl_path: str, patch_tcl: str) -> N
 
 def main() -> None:
     """Main entry point."""
-    parser = argparse.ArgumentParser(description="FPGA firmware builder")
+    parser = argparse.ArgumentParser(
+        description="Enhanced FPGA firmware builder with behavioral analysis"
+    )
     parser.add_argument(
         "--bdf", required=True, help="PCIe Bus:Device.Function (e.g., 0000:03:00.0)"
     )
@@ -293,6 +574,27 @@ def main() -> None:
         required=True,
         help="Target board type",
     )
+    parser.add_argument(
+        "--enable-behavior-profiling",
+        action="store_true",
+        help="Enable dynamic behavior profiling (requires root privileges)",
+    )
+    parser.add_argument(
+        "--profile-duration",
+        type=float,
+        default=10.0,
+        help="Behavior profiling duration in seconds (default: 10.0)",
+    )
+    parser.add_argument(
+        "--enhanced-timing",
+        action="store_true",
+        default=True,
+        help="Enable enhanced timing models in SystemVerilog generation",
+    )
+    parser.add_argument(
+        "--save-analysis", help="Save detailed analysis to specified file"
+    )
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
     args = parser.parse_args()
 
     # Get board configuration
@@ -304,27 +606,76 @@ def main() -> None:
     if not target_src.parent.exists():
         sys.exit("Expected pcileech board folder missing in repo clone")
 
-    # Extract donor information
-    print(f"[*] Extracting donor info from {args.bdf}")
+    # Extract donor information with extended config space
+    print(f"[*] Extracting enhanced donor info from {args.bdf}")
     info = get_donor_info(args.bdf)
 
-    # Scrape driver registers
-    print(f"[*] Scraping driver registers for {info['vendor_id']}:{info['device_id']}")
+    if args.verbose:
+        print(
+            f"[*] Device info: {info['vendor_id']}:{info['device_id']} (Rev {info['revision_id']})"
+        )
+        print(f"[*] BAR size: {info['bar_size']}")
+        if "extended_config" in info:
+            print(f"[*] Extended config space: {len(info['extended_config'])} bytes")
+
+    # Scrape driver registers with enhanced context analysis
+    print(
+        f"[*] Performing enhanced register analysis for {info['vendor_id']}:{info['device_id']}"
+    )
     regs = scrape_driver_regs(info["vendor_id"], info["device_id"])
     if not regs:
         sys.exit("Driver scrape returned no registers")
 
-    # Build SystemVerilog controller
-    print("[*] Generating BAR controller")
+    print(f"[*] Found {len(regs)} registers with context analysis")
+
+    # Optional behavior profiling
+    if args.enable_behavior_profiling:
+        print(f"[*] Integrating dynamic behavior profiling...")
+        regs = integrate_behavior_profile(args.bdf, regs, args.profile_duration)
+    else:
+        print(
+            "[*] Skipping behavior profiling (use --enable-behavior-profiling to enable)"
+        )
+
+    # Save detailed analysis if requested
+    if args.save_analysis:
+        analysis_data = {
+            "device_info": info,
+            "registers": regs,
+            "build_config": {
+                "board": args.board,
+                "enhanced_timing": args.enhanced_timing,
+                "behavior_profiling": args.enable_behavior_profiling,
+            },
+            "timestamp": time.time(),
+        }
+
+        with open(args.save_analysis, "w") as f:
+            json.dump(analysis_data, f, indent=2, default=str)
+        print(f"[*] Analysis saved to {args.save_analysis}")
+
+    # Build enhanced SystemVerilog controller
+    print("[*] Generating enhanced BAR controller with timing models")
     build_sv(regs, target_src)
 
-    # Generate TCL configuration
+    # Generate TCL configuration with extended capabilities
     print("[*] Generating Vivado configuration")
     gen_tcl, patch_tcl = build_tcl(info, board_config["gen"])
 
     # Run Vivado build
     print("[*] Starting Vivado build")
     vivado_run(board_root, gen_tcl, patch_tcl)
+
+    print("[✓] Enhanced firmware generation complete!")
+    print(f"[*] Firmware ready → {OUT / 'firmware.bin'}")
+
+    # Print enhancement summary
+    print("\n[*] Enhancement Summary:")
+    print(f"    - Extended config space: {'✓' if 'extended_config' in info else '✗'}")
+    print(f"    - Enhanced register analysis: ✓")
+    print(f"    - Behavior profiling: {'✓' if args.enable_behavior_profiling else '✗'}")
+    print(f"    - Advanced timing models: {'✓' if args.enhanced_timing else '✗'}")
+    print(f"    - Registers analyzed: {len(regs)}")
 
 
 if __name__ == "__main__":

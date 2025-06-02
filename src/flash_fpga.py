@@ -8,7 +8,11 @@ Needs:
     • usbloader binary in $PATH  (https://docs.lambdaconcept.com/screamer/programming.html)
     • Board in JTAG/flash-mode (default power-on state)
 """
-import argparse, shutil, subprocess, sys, pathlib
+import argparse
+import pathlib
+import shutil
+import subprocess
+import sys
 
 
 def run(cmd):

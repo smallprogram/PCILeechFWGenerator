@@ -1,0 +1,401 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  PYTHONPATH: ${{ github.workspace }}/src:${{ github.workspace }}
+
+jobs:
+  # Code Quality and Security Checks
+  code-quality:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements-test.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-${{ matrix.python-version }}-
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+        # Install any additional dependencies if requirements.txt exists
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    
+    - name: Code formatting check with Black
+      run: |
+        black --check --diff .
+    
+    - name: Import sorting check with isort
+      run: |
+        isort --check-only --diff .
+    
+    - name: Linting with flake8
+      run: |
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+    
+    - name: Type checking with mypy
+      run: |
+        mypy src/ generate.py --ignore-missing-imports --no-strict-optional
+      continue-on-error: true  # Type checking failures shouldn't block CI
+    
+    - name: Security scanning with bandit
+      run: |
+        bandit -r src/ generate.py -f json -o bandit-report.json
+        bandit -r src/ generate.py
+      continue-on-error: true
+    
+    - name: Dependency vulnerability scanning with safety
+      run: |
+        safety check --json --output safety-report.json
+        safety check
+      continue-on-error: true
+    
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports-${{ matrix.python-version }}
+        path: |
+          bandit-report.json
+          safety-report.json
+
+  # Unit and Integration Tests
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        test-type: ["unit", "integration"]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements-test.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-${{ matrix.python-version }}-
+          ${{ runner.os }}-pip-
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          linux-headers-generic \
+          pciutils \
+          usbutils \
+          kmod
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    
+    - name: Run unit tests
+      if: matrix.test-type == 'unit'
+      run: |
+        pytest tests/ -m "unit or not integration" \
+          --cov=src --cov=generate \
+          --cov-report=xml:coverage-${{ matrix.python-version }}-unit.xml \
+          --cov-report=html:htmlcov-${{ matrix.python-version }}-unit \
+          --junit-xml=junit-${{ matrix.python-version }}-unit.xml \
+          --timeout=300
+    
+    - name: Run integration tests
+      if: matrix.test-type == 'integration'
+      run: |
+        pytest tests/ -m "integration" \
+          --cov=src --cov=generate \
+          --cov-report=xml:coverage-${{ matrix.python-version }}-integration.xml \
+          --cov-report=html:htmlcov-${{ matrix.python-version }}-integration \
+          --junit-xml=junit-${{ matrix.python-version }}-integration.xml \
+          --timeout=600
+      continue-on-error: true  # Integration tests may fail in CI environment
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results-${{ matrix.python-version }}-${{ matrix.test-type }}
+        path: |
+          coverage-*.xml
+          htmlcov-*
+          junit-*.xml
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      if: matrix.test-type == 'unit'
+      with:
+        file: coverage-${{ matrix.python-version }}-unit.xml
+        flags: unittests
+        name: codecov-${{ matrix.python-version }}
+
+  # Performance and Regression Tests
+  performance:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'schedule'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+    
+    - name: Run performance tests
+      run: |
+        pytest tests/ -m "performance" \
+          --benchmark-only \
+          --benchmark-json=benchmark-results.json \
+          --timeout=1200
+      continue-on-error: true
+    
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: benchmark-results
+        path: benchmark-results.json
+
+  # Container Build Testing
+  container:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Test container build
+      run: |
+        docker build -f Containerfile -t pcileech-fw-test .
+    
+    - name: Test container functionality
+      run: |
+        # Test that the container can be created and basic commands work
+        docker run --rm pcileech-fw-test python3 --version
+        docker run --rm pcileech-fw-test ls -la /app
+      continue-on-error: true
+
+  # Documentation Build and Validation
+  documentation:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+    
+    - name: Install documentation dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install sphinx sphinx-rtd-theme
+    
+    - name: Validate README
+      run: |
+        # Check that README.md exists and has basic content
+        test -f README.md
+        grep -q "PCILeech" README.md
+    
+    - name: Check code documentation
+      run: |
+        # Check that main modules have docstrings
+        python -c "import sys; sys.path.append('src'); import build; assert build.__doc__"
+        python -c "import generate; assert generate.__doc__"
+      continue-on-error: true
+    
+    - name: Validate installation script
+      run: |
+        # Check that install.sh is executable and has basic structure
+        test -x install.sh
+        grep -q "#!/bin/bash" install.sh
+
+  # Kernel Module Compilation Test
+  kernel-module:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install kernel build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          linux-headers-$(uname -r) \
+          kmod
+    
+    - name: Test kernel module compilation
+      run: |
+        cd src/donor_dump
+        make clean
+        make
+        # Check that the module was built
+        test -f donor_dump.ko
+        # Check module info
+        modinfo donor_dump.ko
+      continue-on-error: true  # May fail in CI environment
+
+  # Dependency and License Scanning
+  dependencies:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pip-audit pipdeptree
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        if [ -f requirements-test.txt ]; then pip install -r requirements-test.txt; fi
+    
+    - name: Generate dependency tree
+      run: |
+        pipdeptree --json > dependency-tree.json
+        pipdeptree
+    
+    - name: Audit dependencies for vulnerabilities
+      run: |
+        pip-audit --format=json --output=audit-report.json
+        pip-audit
+      continue-on-error: true
+    
+    - name: Upload dependency reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: dependency-reports
+        path: |
+          dependency-tree.json
+          audit-report.json
+
+  # Release Testing (only on main branch)
+  release-test:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs: [code-quality, test, container]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+    
+    - name: Test installation process
+      run: |
+        # Test that the installation script works
+        chmod +x install.sh
+        # Run install script in dry-run mode if possible
+        bash -n install.sh  # Syntax check
+    
+    - name: Test main entry points
+      run: |
+        # Test that main scripts can be imported and show help
+        python generate.py --help || true
+        python src/build.py --help || true
+        python src/flash_fpga.py --help || true
+    
+    - name: Run comprehensive test suite
+      run: |
+        pytest tests/ \
+          --cov=src --cov=generate \
+          --cov-report=xml:coverage-release.xml \
+          --junit-xml=junit-release.xml \
+          --timeout=900
+      continue-on-error: true
+
+  # Notification and Reporting
+  notify:
+    runs-on: ubuntu-latest
+    needs: [code-quality, test, performance, container, documentation, kernel-module, dependencies]
+    if: always()
+    
+    steps:
+    - name: Collect test results
+      run: |
+        echo "Code Quality: ${{ needs.code-quality.result }}"
+        echo "Tests: ${{ needs.test.result }}"
+        echo "Performance: ${{ needs.performance.result }}"
+        echo "Container: ${{ needs.container.result }}"
+        echo "Documentation: ${{ needs.documentation.result }}"
+        echo "Kernel Module: ${{ needs.kernel-module.result }}"
+        echo "Dependencies: ${{ needs.dependencies.result }}"
+    
+    - name: Create test summary
+      run: |
+        echo "## CI/CD Pipeline Results" > test-summary.md
+        echo "" >> test-summary.md
+        echo "| Job | Status |" >> test-summary.md
+        echo "|-----|--------|" >> test-summary.md
+        echo "| Code Quality | ${{ needs.code-quality.result }} |" >> test-summary.md
+        echo "| Tests | ${{ needs.test.result }} |" >> test-summary.md
+        echo "| Performance | ${{ needs.performance.result }} |" >> test-summary.md
+        echo "| Container | ${{ needs.container.result }} |" >> test-summary.md
+        echo "| Documentation | ${{ needs.documentation.result }} |" >> test-summary.md
+        echo "| Kernel Module | ${{ needs.kernel-module.result }} |" >> test-summary.md
+        echo "| Dependencies | ${{ needs.dependencies.result }} |" >> test-summary.md
+        cat test-summary.md
+    
+    - name: Upload test summary
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-summary
+        path: test-summary.md
