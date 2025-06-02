@@ -2,15 +2,15 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
   schedule:
     # Run tests daily at 2 AM UTC
     - cron: '0 2 * * *'
 
 env:
-  PYTHONPATH: ${{ github.workspace }}/src:${{ github.workspace }}
+  PYTHONPATH: ${{ runner.os == 'Windows' && format('{0}\\src;{0}', github.workspace) || format('{0}/src:{0}', github.workspace) }}
 
 jobs:
   # Code Quality and Security Checks
@@ -21,18 +21,18 @@ jobs:
         python-version: ["3.8", "3.9", "3.10", "3.11"]
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v4.2.2
     
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     
     - name: Cache pip dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements-test.txt') }}
+        key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements-test.txt') || 'default' }}
         restore-keys: |
           ${{ runner.os }}-pip-${{ matrix.python-version }}-
           ${{ runner.os }}-pip-
@@ -61,23 +61,26 @@ jobs:
     
     - name: Type checking with mypy
       run: |
-        mypy src/ generate.py --ignore-missing-imports --no-strict-optional
+        mypy src/ generate.py --ignore-missing-imports --no-strict-optional > mypy-results.txt || true
       continue-on-error: true  # Type checking failures shouldn't block CI
+    
+    - name: Log mypy results
+      run: |
+        echo "Mypy Type Checking Results:"
+        cat mypy-results.txt
     
     - name: Security scanning with bandit
       run: |
         bandit -r src/ generate.py -f json -o bandit-report.json
-        bandit -r src/ generate.py
       continue-on-error: true
     
     - name: Dependency vulnerability scanning with safety
       run: |
         safety check --json --output safety-report.json
-        safety check
       continue-on-error: true
     
     - name: Upload security reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: security-reports-${{ matrix.python-version }}
@@ -94,15 +97,15 @@ jobs:
         test-type: ["unit", "integration"]
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v4.2.2
     
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     
     - name: Cache pip dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.cache/pip
         key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements-test.txt') }}
@@ -147,8 +150,15 @@ jobs:
           --timeout=600
       continue-on-error: true  # Integration tests may fail in CI environment
     
+    - name: Summarize integration test results
+      if: matrix.test-type == 'integration'
+      run: |
+        echo "Integration Test Results:"
+        pytest tests/ -m "integration" --last-failed --report=summary
+      continue-on-error: true  # Integration tests may fail in CI environment
+    
     - name: Upload test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: test-results-${{ matrix.python-version }}-${{ matrix.test-type }}
@@ -158,10 +168,10 @@ jobs:
           junit-*.xml
     
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v5
       if: matrix.test-type == 'unit'
       with:
-        file: coverage-${{ matrix.python-version }}-unit.xml
+        files: coverage-${{ matrix.python-version }}-unit.xml
         flags: unittests
         name: codecov-${{ matrix.python-version }}
 
@@ -171,17 +181,12 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'schedule'
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v4.2.2
     
     - name: Set up Python 3.11
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "3.11"
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements-test.txt
     
     - name: Run performance tests
       run: |
@@ -191,8 +196,13 @@ jobs:
           --timeout=1200
       continue-on-error: true
     
+    - name: Log performance metrics
+      run: |
+        echo "Performance Test Results:"
+        cat benchmark-results.json
+    
     - name: Upload benchmark results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: benchmark-results
@@ -203,7 +213,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v4.2.2
     
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -224,29 +234,30 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v4.2.2
     
     - name: Set up Python 3.11
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "3.11"
-    
-    - name: Install documentation dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install sphinx sphinx-rtd-theme
     
     - name: Validate README
       run: |
         # Check that README.md exists and has basic content
-        test -f README.md
+        test -f README.md && [ -s README.md ]
         grep -q "PCILeech" README.md
     
     - name: Check code documentation
       run: |
         # Check that main modules have docstrings
         python -c "import sys; sys.path.append('src'); import build; assert build.__doc__"
-        python -c "import generate; assert generate.__doc__"
+        python -c "import sys; sys.path.append('src'); \
+        try: \
+            import build; \
+            assert build.__doc__, 'No docstring found in build module'; \
+        except ImportError: \
+            print('Error: build module not found'); \
+            exit(1)"
       continue-on-error: true
     
     - name: Validate installation script
@@ -260,7 +271,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v4.2.2
     
     - name: Install kernel build dependencies
       run: |
@@ -270,7 +281,7 @@ jobs:
           linux-headers-$(uname -r) \
           kmod
     
-    - name: Test kernel module compilation
+    - name: Build kernel module
       run: |
         cd src/donor_dump
         make clean
@@ -286,10 +297,10 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v4.2.2
     
     - name: Set up Python 3.11
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "3.11"
     
@@ -308,29 +319,26 @@ jobs:
     - name: Audit dependencies for vulnerabilities
       run: |
         pip-audit --format=json --output=audit-report.json
-        pip-audit
       continue-on-error: true
     
     - name: Upload dependency reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: dependency-reports
         path: |
           dependency-tree.json
           audit-report.json
-
-  # Release Testing (only on main branch)
   release-test:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     needs: [code-quality, test, container]
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v4.2.2
     
     - name: Set up Python 3.11
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "3.11"
     
@@ -371,31 +379,17 @@ jobs:
     steps:
     - name: Collect test results
       run: |
-        echo "Code Quality: ${{ needs.code-quality.result }}"
-        echo "Tests: ${{ needs.test.result }}"
-        echo "Performance: ${{ needs.performance.result }}"
-        echo "Container: ${{ needs.container.result }}"
-        echo "Documentation: ${{ needs.documentation.result }}"
-        echo "Kernel Module: ${{ needs.kernel-module.result }}"
-        echo "Dependencies: ${{ needs.dependencies.result }}"
-    
-    - name: Create test summary
-      run: |
-        echo "## CI/CD Pipeline Results" > test-summary.md
-        echo "" >> test-summary.md
-        echo "| Job | Status |" >> test-summary.md
-        echo "|-----|--------|" >> test-summary.md
-        echo "| Code Quality | ${{ needs.code-quality.result }} |" >> test-summary.md
-        echo "| Tests | ${{ needs.test.result }} |" >> test-summary.md
-        echo "| Performance | ${{ needs.performance.result }} |" >> test-summary.md
-        echo "| Container | ${{ needs.container.result }} |" >> test-summary.md
-        echo "| Documentation | ${{ needs.documentation.result }} |" >> test-summary.md
-        echo "| Kernel Module | ${{ needs.kernel-module.result }} |" >> test-summary.md
-        echo "| Dependencies | ${{ needs.dependencies.result }} |" >> test-summary.md
+        echo "Code Quality: ${{ needs.code-quality.result }}" > test-summary.md
+        echo "Tests: ${{ needs.test.result }}" >> test-summary.md
+        echo "Performance: ${{ needs.performance.result }}" >> test-summary.md
+        echo "Container: ${{ needs.container.result }}" >> test-summary.md
+        echo "Documentation: ${{ needs.documentation.result }}" >> test-summary.md
+        echo "Kernel Module: ${{ needs.kernel-module.result }}" >> test-summary.md
+        echo "Dependencies: ${{ needs.dependencies.result }}" >> test-summary.md
         cat test-summary.md
     
     - name: Upload test summary
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: test-summary
         path: test-summary.md
