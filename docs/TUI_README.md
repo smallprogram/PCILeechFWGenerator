@@ -16,7 +16,7 @@ The TUI provides an interactive, user-friendly interface that addresses the key 
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python 3.9 or higher
 - Root/sudo access (required for device binding)
 - Podman container runtime
 - PCILeech firmware generation environment

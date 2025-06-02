@@ -49,15 +49,15 @@ pcileech-build --bdf 0000:03:00.0 --board 75t
 
 ## 📋 Requirements
 
-### 1.1 Software
+### Software
 
 | Tool | Why you need it | Install |
 |------|----------------|---------|
 | Vivado Studio | Synthesis & bit‑stream generation | Download from Xilinx (any 2022.2+ release) |
-| Podman | Rootless container runtime for the build sandbox | See [`install.sh`](install.sh) in this repo |
+| Podman | Rootless container runtime for the build sandbox | See installation instructions below |
 | Python ≥ 3.9 | Host‑side orchestrator ([`generate.py`](generate.py)) | Distro package (python3) |
-| λConcept usbloader | USB flashing utility for Screamer‑class boards | Installed by [`install.sh`](install.sh) |
-| pciutils, usbutils | lspci / lsusb helpers | Installed by [`install.sh`](install.sh) |
+| λConcept usbloader | USB flashing utility for Screamer‑class boards | See installation instructions below |
+| pciutils, usbutils | lspci / lsusb helpers | Available in most Linux distributions |
 
 > **⚠️ Security Notice**
 > Never build firmware on the same operating system you plan to run the attack from. Use a separate Linux box or VM.
@@ -159,7 +159,7 @@ sudo pcileech-build --bdf 0000:03:00.0 --board 75t --advanced-sv \
 sudo python3 generate.py
 ```
 
-## 4. Flashing the DMA Board
+## 🔌 Flashing the DMA Board
 
 > **Note:** These steps can run on the same machine or a different PC.
 
@@ -175,9 +175,9 @@ usbloader -f output/firmware.bin      # auto‑detects Screamer VID:PID 1d50:613
 
 If multiple λConcept boards are attached, add `--vidpid <vid:pid>`.
 
-## 5. Advanced Features
+## 🚀 Advanced Features
 
-### 5.1 Manufacturing Variance Simulation
+### Manufacturing Variance Simulation
 
 The Manufacturing Variance Simulation feature adds realistic hardware variations to make generated firmware more authentic and harder to detect. This feature models real-world manufacturing tolerances and environmental conditions.
 
@@ -199,7 +199,7 @@ The Manufacturing Variance Simulation feature adds realistic hardware variations
 python3 src/build.py --bdf 0000:03:00.0 --board 75t --advanced-sv
 ```
 
-### 5.2 Advanced SystemVerilog Generation
+### Advanced SystemVerilog Generation
 
 The Advanced SystemVerilog Generation feature provides a comprehensive, modular PCIe device controller with enterprise-grade capabilities and optimizations.
 
@@ -250,7 +250,7 @@ python3 src/build.py --bdf 0000:03:00.0 --board 75t --advanced-sv \
   --device-type storage --enable-behavior-profiling
 ```
 
-### 5.3 Behavioral Profiling
+### Behavioral Profiling
 
 Dynamic behavior profiling captures real device operation patterns to enhance firmware realism.
 
@@ -267,7 +267,7 @@ python3 src/build.py --bdf 0000:03:00.0 --board 75t \
   --enable-behavior-profiling --profile-duration 30.0
 ```
 
-### 5.4 Command-Line Options
+### Command-Line Options
 
 **Core Options:**
 - `--bdf`: PCIe Bus:Device.Function identifier (required)
@@ -289,13 +289,15 @@ python3 src/build.py --bdf 0000:03:00.0 --board 75t \
 - `--verbose`: Enable verbose output
 - `--enhanced-timing`: Enable enhanced timing models (default: enabled)
 
-## 6. Cleanup & Safety
+## 🧹 Cleanup & Safety
 
 - Rebind the donor back to its original driver if you keep it around.
 - Keep the generated firmware private; it contains identifiers from the donor.
 - Advanced features require appropriate privileges for hardware access.
 
-## 7. Disclaimer
+## ⚠️ Disclaimer
+
+This tool is intended for educational research and legitimate PCIe development purposes only. Users are responsible for ensuring compliance with all applicable laws and regulations. The authors assume no liability for misuse of this software.
 
 ## 📦 Development & Contributing
 

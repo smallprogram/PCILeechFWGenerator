@@ -127,6 +127,65 @@ def analyze_function_context(file_content, reg_name):
     return context
 
 
+def analyze_access_sequences(file_content, reg_name=None):
+    """Analyze register access sequences for a specific register.
+
+    Args:
+        file_content: The source code content to analyze
+        reg_name: Optional specific register name to focus on
+
+    Returns:
+        List of access sequences with function context and position information
+    """
+    sequences = []
+
+    # Find functions in the file
+    func_pattern = re.compile(r"(\w+)\s*\([^)]*\)\s*\{([^}]*)\}", re.DOTALL)
+
+    for func_match in func_pattern.finditer(file_content):
+        func_name = func_match.group(1)
+        func_body = func_match.group(2)
+
+        # Find all register accesses in order
+        access_pattern = re.compile(
+            r"(write|read)[blwq]?\s*\([^)]*\b(REG_[A-Z0-9_]+)\b"
+        )
+        accesses = []
+
+        for access_match in access_pattern.finditer(func_body):
+            operation = access_match.group(1)
+            register = access_match.group(2)
+
+            # If specific register requested, filter for it
+            if reg_name and register != reg_name:
+                continue
+
+            accesses.append((operation, register, access_match.start()))
+
+        # Only process functions with register accesses
+        if len(accesses) > 0:
+            for i, (op, reg, pos) in enumerate(accesses):
+                sequence = {
+                    "function": func_name,
+                    "position": i,
+                    "total_ops": len(accesses),
+                    "operation": op,
+                    "register": reg,
+                }
+
+                # Add preceding and following operations for context
+                if i > 0:
+                    sequence["preceded_by"] = accesses[i - 1][1]  # Register name
+                    sequence["preceded_by_op"] = accesses[i - 1][0]  # Operation
+                if i < len(accesses) - 1:
+                    sequence["followed_by"] = accesses[i + 1][1]  # Register name
+                    sequence["followed_by_op"] = accesses[i + 1][0]  # Operation
+
+                sequences.append(sequence)
+
+    return sequences
+
+
 def analyze_register_sequences(file_content, registers):
     """Analyze register access sequences, timing dependencies, and state patterns."""
     sequences = {}
@@ -248,6 +307,70 @@ def analyze_state_patterns(func_body, accesses, registers):
 
     # Only return if there are meaningful state patterns
     return state_info if complexity_score > 1.0 else None
+
+
+def analyze_timing_constraints(file_content, reg_name=None):
+    """Analyze timing constraints and delays related to register accesses.
+
+    Args:
+        file_content: The source code content to analyze
+        reg_name: Optional specific register name to focus on
+
+    Returns:
+        List of timing constraints with delay values in microseconds
+    """
+    constraints = []
+
+    # Look for delay patterns
+    delay_pattern = re.compile(
+        r"(udelay|mdelay|msleep|usleep_range)\s*\(\s*(\d+)", re.IGNORECASE
+    )
+
+    for delay_match in delay_pattern.finditer(file_content):
+        delay_type = delay_match.group(1).lower()
+        delay_value = int(delay_match.group(2))
+
+        # Convert to microseconds for consistency
+        if delay_type in ["mdelay", "msleep"]:
+            delay_us = delay_value * 1000
+        elif delay_type == "udelay":
+            delay_us = delay_value
+        else:  # usleep_range
+            delay_us = delay_value
+
+        # Find nearby register accesses
+        context_start = max(0, delay_match.start() - 200)
+        context_end = min(len(file_content), delay_match.end() + 200)
+        context = file_content[context_start:context_end]
+
+        reg_pattern = re.compile(r"\b(REG_[A-Z0-9_]+)\b")
+        nearby_regs = reg_pattern.findall(context)
+
+        # Filter for specific register if provided
+        if reg_name and reg_name not in nearby_regs:
+            continue
+
+        if nearby_regs:
+            constraint = {
+                "delay_us": delay_us,
+                "registers": list(set(nearby_regs)),
+                "context": "register_access",
+            }
+
+            # Determine if this is a post-write or pre-read delay
+            pre_context = file_content[context_start : delay_match.start()]
+            post_context = file_content[delay_match.end() : context_end]
+
+            if re.search(r"write[blwq]?\s*\([^)]*", pre_context):
+                constraint["type"] = "post_write_delay"
+            elif re.search(r"read[blwq]?\s*\([^)]*", post_context):
+                constraint["type"] = "pre_read_delay"
+            else:
+                constraint["type"] = "general_delay"
+
+            constraints.append(constraint)
+
+    return constraints
 
 
 def extract_timing_constraints(file_content):
@@ -459,6 +582,93 @@ def main():
     }
 
     print(json.dumps(output, indent=2))
+
+
+def extract_registers_from_file(file_path):
+    """Extract register definitions from a header or source file.
+
+    Args:
+        file_path: Path to the file to analyze
+
+    Returns:
+        List of register dictionaries with name, offset, and other properties
+    """
+    registers = []
+
+    try:
+        with open(file_path, "r", errors="ignore") as f:
+            content = f.read()
+
+        # Find register definitions (#define REG_XXX 0xYYYY)
+        reg_pattern = re.compile(r"#define\s+(REG_[A-Z0-9_]+)\s+0x([0-9A-Fa-f]+)")
+
+        for match in reg_pattern.finditer(content):
+            reg_name = match.group(1)
+            reg_offset = int(match.group(2), 16)
+
+            # Default to read-write until we analyze access patterns
+            registers.append(
+                {
+                    "name": reg_name,
+                    "offset": reg_offset,
+                    "value": "0x0",
+                    "rw": "rw",  # Default to read-write
+                }
+            )
+
+    except Exception as e:
+        print(f"Error extracting registers from {file_path}: {e}")
+
+    return registers
+
+
+def enhance_registers_with_context(registers, file_path):
+    """Enhance register information with context from source files.
+
+    Args:
+        registers: List of register dictionaries to enhance
+        file_path: Path to the source file to analyze
+
+    Returns:
+        Enhanced list of register dictionaries with context information
+    """
+    enhanced_registers = []
+
+    try:
+        with open(file_path, "r", errors="ignore") as f:
+            content = f.read()
+
+        for reg in registers:
+            reg_name = reg["name"]
+
+            # Create a copy of the register with enhanced context
+            enhanced_reg = reg.copy()
+
+            # Analyze function context
+            context = analyze_function_context(content, reg_name)
+
+            # Analyze timing constraints
+            timing_constraints = analyze_timing_constraints(content, reg_name)
+            if timing_constraints:
+                context["timing_constraints"] = timing_constraints[
+                    :3
+                ]  # Limit to 3 most relevant
+
+            # Analyze access sequences
+            sequences = analyze_access_sequences(content, reg_name)
+            if sequences:
+                context["sequences"] = sequences
+
+            # Add the enhanced context to the register
+            enhanced_reg["context"] = context
+            enhanced_registers.append(enhanced_reg)
+
+    except Exception as e:
+        print(f"Error enhancing registers from {file_path}: {e}")
+        # Return original registers if enhancement fails
+        return registers
+
+    return enhanced_registers
 
 
 if __name__ == "__main__":
