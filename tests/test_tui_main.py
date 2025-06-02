@@ -7,10 +7,10 @@ Tests for the main TUI entry point and core functionality from src/tui/main.py.
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 # Import pytest-asyncio for async test support
 import pytest_asyncio
-
-import pytest
 from textual.app import App
 from textual.widgets import Button, DataTable, ProgressBar, Static
 
