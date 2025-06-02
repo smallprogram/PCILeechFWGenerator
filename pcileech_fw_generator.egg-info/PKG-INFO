@@ -4,7 +4,7 @@ Version: 2.0.0
 Summary: Generate spoofed PCIe DMA firmware from real donor hardware
 Author-email: Ramsey McGrath <ramseymcgrath@gmail.com>
 Maintainer-email: Ramsey McGrath <ramseymcgrath@gmail.com>
-License: MIT
+License-Expression: MIT
 Project-URL: Homepage, https://github.com/ramseymcgrath/PCILeechFWGenerator
 Project-URL: Repository, https://github.com/ramseymcgrath/PCILeechFWGenerator
 Project-URL: Documentation, https://github.com/ramseymcgrath/PCILeechFWGenerator/blob/main/README.md
@@ -17,7 +17,6 @@ Classifier: Environment :: Console :: Curses
 Classifier: Intended Audience :: Developers
 Classifier: Intended Audience :: Information Technology
 Classifier: Intended Audience :: System Administrators
-Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: POSIX :: Linux
 Classifier: Programming Language :: Python :: 3
 Classifier: Programming Language :: Python :: 3.9
