@@ -7,16 +7,14 @@ Manages PCIe device discovery, validation, and enhanced information gathering.
 import asyncio
 import os
 import re
-import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ..models.device import PCIDevice
-from ..models.error import ErrorSeverity, ErrorTemplates, TUIError
 
 
 class DeviceManager:
-    """Manages PCIe device discovery and validation"""
+    """Manages PCIe device discovery and validation."""
 
     def __init__(self):
         self._device_cache: List[PCIDevice] = []
@@ -24,7 +22,7 @@ class DeviceManager:
         self._load_vendor_database()
 
     def _load_vendor_database(self) -> None:
-        """Load PCI vendor database for enhanced device names"""
+        """Load PCI vendor database for enhanced device names."""
         # Basic vendor database - in production this could be loaded from pci.ids
         self._vendor_db = {
             "8086": "Intel Corporation",
@@ -40,7 +38,7 @@ class DeviceManager:
         }
 
     async def scan_devices(self) -> List[PCIDevice]:
-        """Enhanced device scanning with detailed information"""
+        """Enhanced device scanning with detailed information."""
         try:
             # Get raw device list from existing generate.py functionality
             raw_devices = await self._get_raw_devices()
@@ -65,7 +63,7 @@ class DeviceManager:
             raise RuntimeError(f"Failed to scan PCIe devices: {e}")
 
     async def _get_raw_devices(self) -> List[Dict[str, str]]:
-        """Get raw device list using existing generate.py functionality"""
+        """Get raw device list using existing generate.py functionality."""
         # Import the existing function
         import sys
 
@@ -77,7 +75,7 @@ class DeviceManager:
         return await loop.run_in_executor(None, list_pci_devices)
 
     async def _enhance_device_info(self, raw_device: Dict[str, str]) -> PCIDevice:
-        """Enhance raw device information with additional details"""
+        """Enhance raw device information with additional details."""
         bdf = raw_device["bdf"]
         vendor_id = raw_device["ven"]
         device_id = raw_device["dev"]
@@ -120,7 +118,7 @@ class DeviceManager:
         )
 
     def _extract_device_name(self, pretty_string: str) -> str:
-        """Extract device name from lspci pretty string"""
+        """Extract device name from lspci pretty string."""
         # Remove BDF and vendor/device IDs to get clean device name
         # Example: "0000:03:00.0 Ethernet controller [0200]: Intel Corporation 82574L Gigabit Network Connection [8086:10d3]"
         match = re.search(r"]: (.+?) \[[\da-fA-F]{4}:[\da-fA-F]{4}\]", pretty_string)
@@ -135,7 +133,7 @@ class DeviceManager:
         return "Unknown Device"
 
     async def _get_device_driver(self, bdf: str) -> Optional[str]:
-        """Get current driver for device"""
+        """Get current driver for device."""
         try:
             import sys
 
@@ -148,7 +146,7 @@ class DeviceManager:
             return None
 
     async def _get_iommu_group(self, bdf: str) -> str:
-        """Get IOMMU group for device"""
+        """Get IOMMU group for device."""
         try:
             import sys
 
@@ -161,7 +159,7 @@ class DeviceManager:
             return "unknown"
 
     async def _get_power_state(self, bdf: str) -> str:
-        """Get device power state"""
+        """Get device power state."""
         try:
             power_path = f"/sys/bus/pci/devices/{bdf}/power_state"
             if os.path.exists(power_path):
@@ -172,7 +170,7 @@ class DeviceManager:
         return "unknown"
 
     async def _get_link_speed(self, bdf: str) -> str:
-        """Get PCIe link speed"""
+        """Get PCIe link speed."""
         try:
             # Try to get link speed from sysfs
             link_path = f"/sys/bus/pci/devices/{bdf}/current_link_speed"
@@ -184,7 +182,7 @@ class DeviceManager:
         return "unknown"
 
     async def _get_device_bars(self, bdf: str) -> List[Dict[str, Any]]:
-        """Get device BAR information"""
+        """Get device BAR information."""
         bars = []
         try:
             # Read BAR information from sysfs
@@ -222,7 +220,7 @@ class DeviceManager:
     def _assess_device_suitability(
         self, device_class: str, driver: Optional[str], bars: List[Dict[str, Any]]
     ) -> tuple[float, List[str]]:
-        """Assess device suitability for firmware generation"""
+        """Assess device suitability for firmware generation."""
         score = 1.0
         issues = []
 
@@ -254,20 +252,20 @@ class DeviceManager:
         return score, issues
 
     def get_cached_devices(self) -> List[PCIDevice]:
-        """Get cached device list"""
+        """Get cached device list."""
         return self._device_cache.copy()
 
     async def refresh_devices(self) -> List[PCIDevice]:
-        """Refresh device list"""
+        """Refresh device list."""
         return await self.scan_devices()
 
     def find_device_by_bdf(self, bdf: str) -> Optional[PCIDevice]:
-        """Find device by BDF address"""
+        """Find device by BDF address."""
         for device in self._device_cache:
             if device.bdf == bdf:
                 return device
         return None
 
     def get_suitable_devices(self) -> List[PCIDevice]:
-        """Get list of devices suitable for firmware generation"""
+        """Get list of devices suitable for firmware generation."""
         return [device for device in self._device_cache if device.is_suitable]

@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 
 
 class BuildStage(Enum):
-    """Build stages for progress tracking"""
+    """Build stages for progress tracking."""
 
     ENVIRONMENT_VALIDATION = "Environment Validation"
     DEVICE_ANALYSIS = "Device Analysis"
@@ -22,7 +22,7 @@ class BuildStage(Enum):
 
 @dataclass
 class BuildProgress:
-    """Build progress tracking"""
+    """Build progress tracking."""
 
     stage: BuildStage
     completion_percent: float
@@ -34,30 +34,30 @@ class BuildProgress:
     stage_completion: Dict[BuildStage, bool] = field(default_factory=dict)
 
     def __post_init__(self):
-        """Initialize stage completion tracking"""
+        """Initialize stage completion tracking."""
         if not self.stage_completion:
             self.stage_completion = {stage: False for stage in BuildStage}
 
     @property
     def completed_stages(self) -> int:
-        """Number of completed stages"""
+        """Number of completed stages."""
         return sum(1 for completed in self.stage_completion.values() if completed)
 
     @property
     def total_stages(self) -> int:
-        """Total number of stages"""
+        """Total number of stages."""
         return len(BuildStage)
 
     @property
     def overall_progress(self) -> float:
-        """Overall progress percentage across all stages"""
+        """Overall progress percentage across all stages."""
         stage_progress = self.completed_stages / self.total_stages
         current_stage_progress = self.completion_percent / 100.0 / self.total_stages
         return min(100.0, (stage_progress + current_stage_progress) * 100.0)
 
     @property
     def status_text(self) -> str:
-        """Human-readable status text"""
+        """Human-readable status text."""
         if (
             self.completion_percent == 100.0
             and self.completed_stages == self.total_stages
@@ -72,31 +72,31 @@ class BuildProgress:
 
     @property
     def progress_bar_text(self) -> str:
-        """Progress bar text with stage information"""
+        """Progress bar text with stage information."""
         return f"{self.overall_progress:.1f}% ({self.completed_stages}/{self.total_stages} stages)"
 
     def mark_stage_complete(self, stage: BuildStage) -> None:
-        """Mark a stage as complete"""
+        """Mark a stage as complete."""
         self.stage_completion[stage] = True
 
     def add_warning(self, message: str) -> None:
-        """Add a warning message"""
+        """Add a warning message."""
         if message not in self.warnings:
             self.warnings.append(message)
 
     def add_error(self, message: str) -> None:
-        """Add an error message"""
+        """Add an error message."""
         if message not in self.errors:
             self.errors.append(message)
 
     def update_resource_usage(
         self, cpu: float, memory: float, disk_free: float
     ) -> None:
-        """Update resource usage metrics"""
+        """Update resource usage metrics."""
         self.resource_usage = {"cpu": cpu, "memory": memory, "disk_free": disk_free}
 
     def to_dict(self) -> Dict:
-        """Convert to dictionary for serialization"""
+        """Convert to dictionary for serialization."""
         return {
             "stage": self.stage.value,
             "completion_percent": self.completion_percent,

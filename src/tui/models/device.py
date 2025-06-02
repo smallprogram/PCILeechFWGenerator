@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 @dataclass
 class PCIDevice:
-    """Enhanced PCIe device information"""
+    """Enhanced PCIe device information."""
 
     bdf: str
     vendor_id: str
@@ -30,17 +30,17 @@ class PCIDevice:
 
     @property
     def display_name(self) -> str:
-        """Human-readable device name for display"""
+        """Human-readable device name for display."""
         return f"{self.vendor_name} {self.device_name}"
 
     @property
     def is_suitable(self) -> bool:
-        """Check if device is suitable for firmware generation"""
+        """Check if device is suitable for firmware generation."""
         return self.suitability_score >= 0.7 and len(self.compatibility_issues) == 0
 
     @property
     def status_indicator(self) -> str:
-        """Status indicator for UI display"""
+        """Status indicator for UI display."""
         if not self.is_suitable:
             return "❌"
         elif self.driver:
@@ -49,7 +49,7 @@ class PCIDevice:
             return "✅"
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for serialization"""
+        """Convert to dictionary for serialization."""
         return {
             "bdf": self.bdf,
             "vendor_id": self.vendor_id,
@@ -70,5 +70,5 @@ class PCIDevice:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PCIDevice":
-        """Create instance from dictionary"""
+        """Create instance from dictionary."""
         return cls(**data)

@@ -10,7 +10,7 @@ from typing import List, Optional
 
 
 class ErrorSeverity(Enum):
-    """Error severity levels"""
+    """Error severity levels."""
 
     INFO = "info"
     WARNING = "warning"
@@ -20,7 +20,7 @@ class ErrorSeverity(Enum):
 
 @dataclass
 class TUIError:
-    """TUI error with guidance information"""
+    """TUI error with guidance information."""
 
     severity: ErrorSeverity
     category: str  # "device", "config", "build", "flash", "system"
@@ -31,13 +31,13 @@ class TUIError:
     auto_fix_available: bool = False
 
     def __post_init__(self):
-        """Initialize default values"""
+        """Initialize default values."""
         if self.suggested_actions is None:
             self.suggested_actions = []
 
     @property
     def severity_icon(self) -> str:
-        """Get icon for severity level"""
+        """Get icon for severity level."""
         icons = {
             ErrorSeverity.INFO: "ℹ️",
             ErrorSeverity.WARNING: "⚠️",
@@ -48,7 +48,7 @@ class TUIError:
 
     @property
     def severity_color(self) -> str:
-        """Get color for severity level"""
+        """Get color for severity level."""
         colors = {
             ErrorSeverity.INFO: "blue",
             ErrorSeverity.WARNING: "yellow",
@@ -59,18 +59,18 @@ class TUIError:
 
     @property
     def title(self) -> str:
-        """Get formatted title for display"""
+        """Get formatted title for display."""
         return f"{self.severity_icon} {self.severity.value.title()}: {self.message}"
 
     def add_action(self, action: str) -> None:
-        """Add a suggested action"""
+        """Add a suggested action."""
         if self.suggested_actions is None:
             self.suggested_actions = []
         if action not in self.suggested_actions:
             self.suggested_actions.append(action)
 
     def to_dict(self) -> dict:
-        """Convert to dictionary for serialization"""
+        """Convert to dictionary for serialization."""
         return {
             "severity": self.severity.value,
             "category": self.category,
@@ -83,18 +83,18 @@ class TUIError:
 
     @classmethod
     def from_dict(cls, data: dict) -> "TUIError":
-        """Create instance from dictionary"""
+        """Create instance from dictionary."""
         data["severity"] = ErrorSeverity(data["severity"])
         return cls(**data)
 
 
 # Common error templates
 class ErrorTemplates:
-    """Pre-defined error templates for common issues"""
+    """Pre-defined error templates for common issues."""
 
     @staticmethod
     def vfio_binding_failed(details: Optional[str] = None) -> TUIError:
-        """VFIO binding failure error"""
+        """VFIO binding failure error."""
         return TUIError(
             severity=ErrorSeverity.ERROR,
             category="device",
@@ -102,7 +102,7 @@ class ErrorTemplates:
             details=details,
             suggested_actions=[
                 "Check if IOMMU is enabled in BIOS",
-                "Verify vfio-pci module is loaded: lsmod | grep vfio",
+                "Verify vfio-pci module is loaded: " "lsmod | grep vfio",
                 "Ensure device is not in use by another driver",
                 "Try unbinding the current driver first",
             ],
@@ -112,7 +112,7 @@ class ErrorTemplates:
 
     @staticmethod
     def container_not_found() -> TUIError:
-        """Container image not found error"""
+        """Container image not found error."""
         return TUIError(
             severity=ErrorSeverity.ERROR,
             category="system",
@@ -127,12 +127,13 @@ class ErrorTemplates:
 
     @staticmethod
     def insufficient_permissions() -> TUIError:
-        """Insufficient permissions error"""
+        """Insufficient permissions error."""
         return TUIError(
             severity=ErrorSeverity.CRITICAL,
             category="system",
             message="Insufficient permissions",
-            details="Root privileges required for device binding and container operations",
+            details="Root privileges required for device binding "
+            "and container operations",
             suggested_actions=[
                 "Run with sudo: sudo python3 tui_generate.py",
                 "Ensure user is in required groups (docker, vfio)",
@@ -142,7 +143,7 @@ class ErrorTemplates:
 
     @staticmethod
     def build_failed(stage: str, details: Optional[str] = None) -> TUIError:
-        """Build process failure error"""
+        """Build process failure error."""
         return TUIError(
             severity=ErrorSeverity.ERROR,
             category="build",
@@ -158,7 +159,7 @@ class ErrorTemplates:
 
     @staticmethod
     def device_not_suitable(issues: List[str]) -> TUIError:
-        """Device not suitable for firmware generation"""
+        """Device not suitable for firmware generation."""
         return TUIError(
             severity=ErrorSeverity.WARNING,
             category="device",
