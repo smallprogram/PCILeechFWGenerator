@@ -51,6 +51,8 @@ pcileech-build --bdf 0000:03:00.0 --board 75t
 
 ### Software
 
+This is primarily tested in Linux, with some fiddling you could probably get it to work on Windows too.
+
 | Tool | Why you need it | Install |
 |------|----------------|---------|
 | Vivado Studio | Synthesis & bit‑stream generation | Download from Xilinx (any 2022.2+ release) |
