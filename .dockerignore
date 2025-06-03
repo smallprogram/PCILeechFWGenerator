@@ -129,3 +129,4 @@ requirements-test.txt
 .github/
 .pytest_cache/
 .benchmarks/
+src/tui/
