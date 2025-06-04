@@ -116,11 +116,12 @@ class ErrorTemplates:
         return TUIError(
             severity=ErrorSeverity.ERROR,
             category="system",
-            message="Container image 'dma-fw' not found",
+            message="Container image 'dma-fw' not found and automatic build failed",
             suggested_actions=[
-                "Build the container image: podman build -t dma-fw .",
+                "Manually build the container image: podman build -t dma-fw .",
                 "Check if Podman is properly installed",
-                "Verify container build completed successfully",
+                "Verify internet connectivity for downloading base images",
+                "Check for sufficient disk space",
             ],
             auto_fix_available=True,
         )
