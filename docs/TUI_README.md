@@ -232,8 +232,9 @@ The TUI provides intelligent error analysis and guidance:
 #### Container Image Not Found
 - **Cause**: DMA firmware container not built
 - **Solutions**:
-  - Build container: `podman build -t dma-fw .`
-  - Check Podman installation
+  - The container is now automatically built when needed
+  - If automatic build fails, manually build with: `podman build -t dma-fw .`
+  - Check Podman installation and internet connectivity
 
 #### Insufficient Permissions
 - **Cause**: Not running with root privileges

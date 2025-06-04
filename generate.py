@@ -384,6 +384,34 @@ def validate_environment() -> None:
         error_msg = "Podman not found in PATH. Please install Podman first."
         logger.error(error_msg)
         raise RuntimeError(error_msg)
+        
+    # Check if container image exists
+    try:
+        result = run_command("podman images dma-fw --format '{{.Repository}}'")
+        if "dma-fw" not in result:
+            # Container image not found, try to build it
+            logger.info("Container image 'dma-fw' not found. Building it now...")
+            print("[*] Container image 'dma-fw' not found. Building it now...")
+            
+            try:
+                build_result = subprocess.run(
+                    "podman build -t dma-fw .",
+                    shell=True,
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                logger.info("Container image built successfully")
+                print("[✓] Container image built successfully")
+            except subprocess.CalledProcessError as e:
+                error_msg = f"Failed to build container image: {e.stderr}"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
+    except Exception as e:
+        error_msg = f"Error checking container image: {str(e)}"
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
 
 
 def main() -> int:

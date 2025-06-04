@@ -189,6 +189,8 @@ sudo pcileech-build --bdf 0000:03:00.0 --board 75t --advanced-sv \
   --disable-power-management --disable-performance-counters
 ```
 
+**Note:** The system will automatically build the required container image (`dma-fw`) if it doesn't exist. This happens during the first run and requires an internet connection to download base images.
+
 **Output:** `output/firmware.bin` (FPGA bit‑stream ready for flashing).
 
 ### Legacy Mode (Source Installation)
