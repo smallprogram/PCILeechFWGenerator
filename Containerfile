@@ -11,7 +11,6 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Install build dependencies without version pins for compatibility
 RUN apt-get update && apt-get install -y \
     build-essential \
-    linux-headers-generic \
     make \
     git \
     python3 \
@@ -26,8 +25,9 @@ COPY ./generate.py /build/
 COPY ./requirements-test.txt /build/
 WORKDIR /build
 
-# Pre-compile any Python modules or build kernel modules if needed
-RUN cd src/donor_dump && make clean && make
+# Note: Kernel module (donor_dump) should be built on target system, not in container
+# The module requires kernel headers matching the host kernel version
+# Build instructions are available in src/donor_dump/Makefile
 
 # Runtime stage - minimal runtime environment
 FROM ubuntu:22.04 AS runtime
@@ -58,27 +58,36 @@ RUN groupadd -r appuser && useradd -r -g appuser -s /bin/bash -m appuser
 # Set working directory
 WORKDIR /app
 
+# Copy Python requirements first for better layer caching
+COPY --chown=appuser:appuser ./requirements.txt /app/
+COPY --chown=appuser:appuser ./requirements-tui.txt /app/
+COPY --chown=appuser:appuser ./requirements-test.txt /app/
+
+# Install Python dependencies
+RUN pip3 install --no-cache-dir --upgrade pip && \
+    pip3 install --no-cache-dir -r /app/requirements.txt && \
+    pip3 install --no-cache-dir -r /app/requirements-tui.txt
+
 # Copy application files from builder stage
 # This includes all new advanced SystemVerilog modules:
 # - manufacturing_variance.py, advanced_sv_*.py, enhanced behavior_profiler.py, enhanced build.py
-COPY --from=builder --chown=appuser:appuser /build/src /app
+COPY --from=builder --chown=appuser:appuser /build/src /app/src
 
 # Copy additional root-level files needed for enhanced functionality
 COPY --chown=appuser:appuser ./generate.py /app/
-COPY --chown=appuser:appuser ./requirements-test.txt /app/
 
 # Create output directory with proper permissions
 RUN mkdir -p /app/output && chown appuser:appuser /app/output
 
-# Add health check
+# Add health check with dependency validation
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python3 -c "import sys; sys.exit(0)" || exit 1
+    CMD python3 -c "import psutil, pydantic; print('Dependencies OK')" || exit 1
 
 # Add container usage documentation
-LABEL maintainer="Ramsey McGrath <ramseymcgrath@gmail.com>" \
+LABEL maintainer="Ramsey McGrath <ramsey@voltcyclone.info>" \
       description="PCILeech DMA firmware generator container with advanced SystemVerilog features (multi-stage optimized)" \
       version="2.0" \
-      usage="podman run --rm -it --privileged --device=/dev/vfio/X --device=/dev/vfio/vfio -v ./output:/app/output dma-fw sudo python3 /app/build.py --bdf XXXX:XX:XX.X --board XXt [--advanced-sv] [--device-type TYPE] [--enable-variance]" \
+      usage="podman run --rm -it --cap-add=SYS_RAWIO --cap-add=SYS_ADMIN --device=/dev/vfio/X --device=/dev/vfio/vfio -v ./output:/app/output dma-fw sudo python3 /app/src/build.py --bdf XXXX:XX:XX.X --board XXt [--advanced-sv] [--device-type TYPE] [--enable-variance]" \
       security.notes="Requires privileged mode for PCI device access via VFIO" \
       features="Basic firmware generation, Advanced SystemVerilog features, Manufacturing variance simulation, Device-specific optimizations"
 
@@ -89,10 +98,10 @@ set -e\n\
 # Display usage information\n\
 if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then\n\
     echo "PCILeech DMA Firmware Generator Container v2.0"\n\
-    echo "Usage: podman run --rm -it --privileged \\"\n\
+    echo "Usage: podman run --rm -it --cap-add=SYS_RAWIO --cap-add=SYS_ADMIN \\"\n\
     echo "         --device=/dev/vfio/GROUP --device=/dev/vfio/vfio \\"\n\
     echo "         -v ./output:/app/output dma-fw \\"\n\
-    echo "         sudo python3 /app/build.py [OPTIONS]"\n\
+    echo "         sudo python3 /app/src/build.py [OPTIONS]"\n\
     echo ""\n\
     echo "Required arguments:"\n\
     echo "  --bdf XXXX:XX:XX.X  PCI Bus:Device.Function (e.g., 0000:03:00.0)"\n\
@@ -108,17 +117,24 @@ if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then\n\
     echo ""\n\
     echo "Basic examples:"\n\
     echo "  # Standard firmware generation"\n\
-    echo "  sudo python3 /app/build.py --bdf 0000:03:00.0 --board 75t"\n\
+    echo "  sudo python3 /app/src/build.py --bdf 0000:03:00.0 --board 75t"\n\
     echo ""\n\
     echo "Advanced examples:"\n\
     echo "  # Basic advanced generation"\n\
-    echo "  sudo python3 /app/build.py --bdf 0000:03:00.0 --board 75t --advanced-sv"\n\
+    echo "  sudo python3 /app/src/build.py --bdf 0000:03:00.0 --board 75t --advanced-sv"\n\
     echo ""\n\
     echo "  # Device-specific with variance"\n\
-    echo "  sudo python3 /app/build.py --bdf 0000:03:00.0 --board 75t --advanced-sv --device-type network --enable-variance"\n\
+    echo "  sudo python3 /app/src/build.py --bdf 0000:03:00.0 --board 75t --advanced-sv --device-type network --enable-variance"\n\
     echo ""\n\
     echo "  # Custom configuration"\n\
-    echo "  sudo python3 /app/build.py --bdf 0000:03:00.0 --board 75t --advanced-sv --device-type storage --disable-power-management"\n\
+    echo "  sudo python3 /app/src/build.py --bdf 0000:03:00.0 --board 75t --advanced-sv --device-type storage --disable-power-management"\n\
+    echo ""\n\
+    echo "Kernel Module (donor_dump):"\n\
+    echo "  The donor_dump kernel module must be built on the host system:"\n\
+    echo "  1. Copy /app/src/donor_dump/ to host"\n\
+    echo "  2. Install kernel headers: apt-get install linux-headers-\$(uname -r)"\n\
+    echo "  3. Build module: cd donor_dump && make"\n\
+    echo "  4. Load module: sudo insmod donor_dump.ko bdf=XXXX:XX:XX.X"\n\
     echo ""\n\
     echo "Features:"\n\
     echo "  - Basic PCILeech DMA firmware generation"\n\
