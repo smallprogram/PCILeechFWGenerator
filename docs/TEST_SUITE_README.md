@@ -1,18 +1,75 @@
-# PCILeech Firmware Generator - Comprehensive Test Suite
+# 🧪 PCILeech Firmware Generator - Comprehensive Test Suite
+
+[![PyPI version](https://badge.fury.io/py/pcileech-fw-generator.svg)](https://badge.fury.io/py/pcileech-fw-generator)
+[![Python Support](https://img.shields.io/pypi/pyversions/pcileech-fw-generator.svg)](https://pypi.org/project/pcileech-fw-generator/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![codecov](https://codecov.io/gh/ramseymcgrath/PCILeechFWGenerator/branch/main/graph/badge.svg)](https://codecov.io/gh/ramseymcgrath/PCILeechFWGenerator)
 
 This document describes the comprehensive test suite created for the PCILeech firmware generator project, providing extensive coverage of all core functionality and robust CI/CD pipeline integration.
 
-## Overview
+---
+
+## 📑 Table of Contents
+
+- [🔍 Overview](#-overview)
+- [📂 Test Structure](#-test-structure)
+  - [Core Test Files](#core-test-files)
+  - [Configuration Files](#configuration-files)
+- [🏷️ Test Categories](#️-test-categories)
+  - [Unit Tests](#unit-tests-pytestmarkunit)
+  - [Integration Tests](#integration-tests-pytestmarkintegration)
+  - [Performance Tests](#performance-tests-pytestmarkperformance)
+  - [Hardware Tests](#hardware-tests-pytestmarkhardware)
+- [✨ Key Features](#-key-features)
+  - [1. Comprehensive Coverage](#1-comprehensive-coverage)
+  - [2. CI/CD Integration](#2-cicd-integration)
+  - [3. Advanced Testing Features](#3-advanced-testing-features)
+  - [4. Developer-Friendly Tools](#4-developer-friendly-tools)
+- [▶️ Running Tests](#️-running-tests)
+  - [Quick Start](#quick-start)
+  - [Test Runner Options](#test-runner-options)
+  - [Direct Pytest Usage](#direct-pytest-usage)
+- [🧰 Test Fixtures and Utilities](#-test-fixtures-and-utilities)
+  - [Mock Data Fixtures](#mock-data-fixtures)
+  - [Environment Fixtures](#environment-fixtures)
+  - [Performance Fixtures](#performance-fixtures)
+- [🔄 CI/CD Pipeline](#-cicd-pipeline)
+  - [GitHub Actions Workflow](#github-actions-workflow)
+  - [Test Matrix](#test-matrix)
+- [📊 Test Data and Scenarios](#-test-data-and-scenarios)
+  - [Simulated Hardware](#simulated-hardware)
+  - [Test Scenarios](#test-scenarios)
+- [⚡ Performance Benchmarks](#-performance-benchmarks)
+  - [Target Performance Metrics](#target-performance-metrics)
+  - [Regression Testing](#regression-testing)
+- [🔒 Security Testing](#-security-testing)
+  - [Security Measures](#security-measures)
+  - [Security Test Coverage](#security-test-coverage)
+- [🔧 Maintenance and Updates](#-maintenance-and-updates)
+  - [Adding New Tests](#adding-new-tests)
+  - [External Example Tests](#external-example-tests)
+  - [Test Maintenance](#test-maintenance)
+  - [Debugging Failed Tests](#debugging-failed-tests)
+- [🔌 Integration with Development Workflow](#-integration-with-development-workflow)
+  - [Pre-commit Testing](#pre-commit-testing)
+  - [Release Testing](#release-testing)
+  - [Continuous Integration](#continuous-integration)
+- [📝 Conclusion](#-conclusion)
+- [⚠️ Disclaimer](#️-disclaimer)
+
+---
+
+## 🔍 Overview
 
 The test suite provides comprehensive coverage of:
-- **Main orchestrator** (`generate.py`) - Device enumeration, VFIO binding, container orchestration
-- **Firmware generation** (`src/build.py`) - SystemVerilog generation, TCL configuration, behavior profiling
-- **Kernel module** (`src/donor_dump/`) - PCIe device information extraction
-- **Driver analysis** (`src/scripts/driver_scrape.py`) - Linux driver register analysis
-- **FPGA flashing** (`src/flash_fpga.py`) - Hardware programming functionality
-- **Behavior profiling** (`src/behavior_profiler.py`) - Dynamic device behavior analysis
+- **Main orchestrator** ([`generate.py`](../generate.py)) - Device enumeration, VFIO binding, container orchestration
+- **Firmware generation** ([`src/build.py`](../src/build.py)) - SystemVerilog generation, TCL configuration, behavior profiling
+- **Kernel module** ([`src/donor_dump/`](../src/donor_dump/)) - PCIe device information extraction
+- **Driver analysis** ([`src/scripts/driver_scrape.py`](../src/scripts/driver_scrape.py)) - Linux driver register analysis
+- **FPGA flashing** ([`src/flash_fpga.py`](../src/flash_fpga.py)) - Hardware programming functionality
+- **Behavior profiling** ([`src/behavior_profiler.py`](../src/behavior_profiler.py)) - Dynamic device behavior analysis
 
-## Test Structure
+## 📂 Test Structure
 
 ### Core Test Files
 
@@ -42,7 +99,7 @@ run_tests.py                   # Comprehensive test runner
 .github/workflows/ci.yml       # GitHub Actions CI/CD pipeline
 ```
 
-## Test Categories
+## 🏷️ Test Categories
 
 ### Unit Tests (`@pytest.mark.unit`)
 - Individual function and class testing
@@ -68,7 +125,7 @@ run_tests.py                   # Comprehensive test runner
 - Simulated VFIO operations
 - USB device simulation
 
-## Key Features
+## ✨ Key Features
 
 ### 1. Comprehensive Coverage
 - **95%+ code coverage** target across all modules
@@ -94,12 +151,12 @@ run_tests.py                   # Comprehensive test runner
 - **Manufacturing variance simulation** with real-world patterns
 
 ### 4. Developer-Friendly Tools
-- **Unified test runner** (`run_tests.py`) with multiple modes
+- **Unified test runner** ([`run_tests.py`](../run_tests.py)) with multiple modes
 - **Rich test fixtures** for common test scenarios
 - **Detailed error reporting** with context and suggestions
 - **Performance benchmarking** with historical comparison
 
-## Running Tests
+## ▶️ Running Tests
 
 ### Quick Start
 ```bash
@@ -146,7 +203,7 @@ pytest tests/test_build_integration.py     # Build integration tests
 pytest tests/ --cov=src --cov=generate --cov-report=html
 ```
 
-## Test Fixtures and Utilities
+## 🧰 Test Fixtures and Utilities
 
 ### Mock Data Fixtures
 - `mock_pci_device` - Simulated PCIe device data
@@ -167,7 +224,7 @@ pytest tests/ --cov=src --cov=generate --cov-report=html
 - Large dataset generators for scalability testing
 - Memory usage monitoring utilities
 
-## CI/CD Pipeline
+## 🔄 CI/CD Pipeline
 
 ### GitHub Actions Workflow
 The CI pipeline includes multiple parallel jobs:
@@ -187,7 +244,7 @@ The CI pipeline includes multiple parallel jobs:
 - **Environments**: Ubuntu Latest with kernel headers
 - **Coverage**: Comprehensive reporting with Codecov integration
 
-## Test Data and Scenarios
+## 📊 Test Data and Scenarios
 
 ### Simulated Hardware
 - **Intel I210 Gigabit Ethernet** (8086:1533) - Primary test device
@@ -202,7 +259,7 @@ The CI pipeline includes multiple parallel jobs:
 - **Performance limits** - Memory usage, processing time constraints
 - **Security scenarios** - Input validation, command injection prevention
 
-## Performance Benchmarks
+## ⚡ Performance Benchmarks
 
 ### Target Performance Metrics
 - **Small device** (10 registers): < 1s build time, < 50MB memory
@@ -215,7 +272,7 @@ The CI pipeline includes multiple parallel jobs:
 - Memory leak detection
 - Processing time optimization validation
 
-## Security Testing
+## 🔒 Security Testing
 
 ### Security Measures
 - **Input validation** - BDF format, file paths, command parameters
@@ -230,7 +287,7 @@ The CI pipeline includes multiple parallel jobs:
 - File permission validation
 - Container security best practices
 
-## Maintenance and Updates
+## 🔧 Maintenance and Updates
 
 ### Adding New Tests
 1. Create test file in `tests/` directory
@@ -334,7 +391,7 @@ To add new external example tests that use real-world examples from GitHub:
 4. Check mock configurations for hardware dependencies
 5. Verify test environment setup
 
-## Integration with Development Workflow
+## 🔌 Integration with Development Workflow
 
 ### Pre-commit Testing
 ```bash
@@ -360,7 +417,7 @@ python run_tests.py --performance
 - Performance regression monitoring
 - Security vulnerability scanning
 
-## Conclusion
+## 📝 Conclusion
 
 This comprehensive test suite provides robust validation of the PCILeech firmware generator, ensuring reliability, performance, and security across all supported environments. The combination of unit, integration, and performance testing with extensive CI/CD integration creates a solid foundation for maintaining and extending the project.
 
@@ -372,3 +429,11 @@ The test suite is designed to:
 - **Enable confident releases** through thorough pre-release validation
 
 For questions or contributions to the test suite, please refer to the project's contribution guidelines and feel free to open issues for test-related improvements.
+
+## ⚠️ Disclaimer
+
+This tool is intended for educational research and legitimate PCIe development purposes only. Users are responsible for ensuring compliance with all applicable laws and regulations. The authors assume no liability for misuse of this software.
+
+---
+
+**Version 2.0.0** - Major release with TUI interface and professional packaging

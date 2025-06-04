@@ -1,23 +1,60 @@
-# Contributing to PCILeech Firmware Generator
+# 🤝 Contributing to PCILeech Firmware Generator
+
+[![PyPI version](https://badge.fury.io/py/pcileech-fw-generator.svg)](https://badge.fury.io/py/pcileech-fw-generator)
+[![Python Support](https://img.shields.io/pypi/pyversions/pcileech-fw-generator.svg)](https://pypi.org/project/pcileech-fw-generator/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/ramseymcgrath/PCILeechFWGenerator/workflows/CI/badge.svg)](https://github.com/ramseymcgrath/PCILeechFWGenerator/actions)
 
 Thank you for your interest in contributing to the PCILeech Firmware Generator! This document provides guidelines and information for contributors.
 
-## Table of Contents
+---
 
-- [Code of Conduct](#code-of-conduct)
-- [Getting Started](#getting-started)
-- [Development Setup](#development-setup)
-- [Contributing Guidelines](#contributing-guidelines)
-- [Testing](#testing)
-- [Code Style](#code-style)
-- [Submitting Changes](#submitting-changes)
-- [Release Process](#release-process)
+## 📑 Table of Contents
 
-## Code of Conduct
+- [📜 Code of Conduct](#-code-of-conduct)
+- [🚀 Getting Started](#-getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Development Setup](#development-setup)
+- [📋 Contributing Guidelines](#-contributing-guidelines)
+  - [Types of Contributions](#types-of-contributions)
+  - [Bug Reports](#bug-reports)
+  - [Feature Requests](#feature-requests)
+- [🔄 Development Workflow](#-development-workflow)
+  - [Branch Strategy](#branch-strategy)
+  - [Making Changes](#making-changes)
+  - [Commit Message Format](#commit-message-format)
+- [🧪 Testing](#-testing)
+  - [Test Structure](#test-structure)
+  - [Writing Tests](#writing-tests)
+  - [Running Tests](#running-tests)
+- [💻 Code Style](#-code-style)
+  - [Python Style Guide](#python-style-guide)
+  - [Formatting Tools](#formatting-tools)
+  - [Pre-commit Hooks](#pre-commit-hooks)
+- [📚 Documentation](#-documentation)
+  - [Code Documentation](#code-documentation)
+  - [Documentation Style](#documentation-style)
+- [📤 Submitting Changes](#-submitting-changes)
+  - [Pull Request Process](#pull-request-process)
+  - [Pull Request Template](#pull-request-template)
+  - [Review Process](#review-process)
+- [📦 Release Process](#-release-process)
+  - [Version Management](#version-management)
+  - [Release Steps](#release-steps)
+  - [Distribution](#distribution)
+- [❓ Getting Help](#-getting-help)
+  - [Communication Channels](#communication-channels)
+  - [Development Resources](#development-resources)
+- [🏆 Recognition](#-recognition)
+- [⚠️ Disclaimer](#️-disclaimer)
+
+---
+
+## 📜 Code of Conduct
 
 This project adheres to a code of conduct that promotes a welcoming and inclusive environment. By participating, you are expected to uphold this code.
 
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
 
@@ -56,7 +93,7 @@ This project adheres to a code of conduct that promotes a welcoming and inclusiv
    python -m pytest tests/
    ```
 
-## Contributing Guidelines
+## 📋 Contributing Guidelines
 
 ### Types of Contributions
 
@@ -87,7 +124,7 @@ For feature requests, please provide:
 - **Alternatives Considered**: Other approaches you've thought about
 - **Implementation Ideas**: Technical approach if you have one
 
-## Development Workflow
+## 🔄 Development Workflow
 
 ### Branch Strategy
 
@@ -156,7 +193,7 @@ docs(readme): update installation instructions for TUI
 test(core): add unit tests for device manager
 ```
 
-## Testing
+## 🧪 Testing
 
 ### Test Structure
 
@@ -194,7 +231,7 @@ python -m pytest -n auto
 python -m pytest -m "not slow"
 ```
 
-## Code Style
+## 💻 Code Style
 
 ### Python Style Guide
 
@@ -230,7 +267,7 @@ Our pre-commit configuration automatically runs:
 - mypy (type checking)
 - pytest (basic tests)
 
-## Documentation
+## 📚 Documentation
 
 ### Code Documentation
 
@@ -262,7 +299,7 @@ def generate_firmware(device_bdf: str, board_type: str) -> Path:
     """
 ```
 
-## Submitting Changes
+## 📤 Submitting Changes
 
 ### Pull Request Process
 
@@ -304,7 +341,7 @@ Brief description of changes
 4. **Approval**: At least one maintainer approval required
 5. **Merge**: Changes merged to appropriate branch
 
-## Release Process
+## 📦 Release Process
 
 ### Version Management
 
@@ -338,7 +375,7 @@ twine check dist/*
 twine upload dist/*
 ```
 
-## Getting Help
+## ❓ Getting Help
 
 ### Communication Channels
 
@@ -353,11 +390,19 @@ twine upload dist/*
 - **Examples**: See `examples/` directory
 - **Test Cases**: See `tests/` directory
 
-## Recognition
+## 🏆 Recognition
 
 Contributors are recognized in:
 - **CHANGELOG.md**: Release notes mention contributors
 - **GitHub Contributors**: Automatic recognition
 - **Release Notes**: Major contributions highlighted
 
+## ⚠️ Disclaimer
+
+This tool is intended for educational research and legitimate PCIe development purposes only. Users are responsible for ensuring compliance with all applicable laws and regulations. The authors assume no liability for misuse of this software.
+
+---
+
 Thank you for contributing to PCILeech Firmware Generator!
+
+**Version 2.0.0** - Major release with TUI interface and professional packaging

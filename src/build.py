@@ -96,7 +96,16 @@ BOARD_INFO = {
 
 
 def run(cmd: str, **kwargs) -> None:
-    """Execute a shell command with logging."""
+    """
+    Execute a shell command with logging.
+
+    Args:
+        cmd (str): The shell command to execute.
+        **kwargs: Additional arguments passed to subprocess.run.
+
+    Raises:
+        subprocess.CalledProcessError: If the command fails.
+    """
     print(f"[+] {cmd}")
     subprocess.run(cmd, shell=True, check=True, **kwargs)
 
@@ -104,18 +113,22 @@ def run(cmd: str, **kwargs) -> None:
 def create_secure_tempfile(suffix: str = "", prefix: str = "pcileech_") -> str:
     """
     Create a temporary file in a secure location.
-    Returns the path to the created file.
 
-    Note: This function no longer attempts to set file permissions to avoid
-    permission errors in test environments.
+    Args:
+        suffix (str): The suffix for the temporary file name.
+        prefix (str): The prefix for the temporary file name.
+
+    Returns:
+        str: The path to the created temporary file.
+
+    Raises:
+        Exception: If an error occurs during file creation or cleanup.
     """
     fd, tmp_path = tempfile.mkstemp(suffix=suffix, prefix=prefix)
     try:
-        # Close the file descriptor
         os.close(fd)
         return tmp_path
     except Exception:
-        # Clean up on error
         try:
             os.close(fd)
             os.unlink(tmp_path)
@@ -125,7 +138,18 @@ def create_secure_tempfile(suffix: str = "", prefix: str = "pcileech_") -> str:
 
 
 def get_donor_info(bdf: str) -> dict:
-    """Extract donor PCIe device information using kernel module."""
+    """
+    Extract donor PCIe device information using a kernel module.
+
+    Args:
+        bdf (str): PCIe Bus:Device.Function identifier (e.g., "0000:03:00.0").
+
+    Returns:
+        dict: A dictionary containing donor device information.
+
+    Raises:
+        SystemExit: If required fields are missing from the donor dump.
+    """
     os.chdir(DDIR)
     run("make -s")
     run(f"insmod donor_dump.ko bdf={bdf}")
@@ -135,14 +159,12 @@ def get_donor_info(bdf: str) -> dict:
     finally:
         run("rmmod donor_dump")
 
-    # Parse the output into a dictionary
     info = {}
     for line in raw.splitlines():
         if ":" in line:
             key, value = line.split(":", 1)
             info[key] = value.strip()
 
-    # Validate required fields
     required_fields = [
         "vendor_id",
         "device_id",
@@ -162,30 +184,45 @@ def get_donor_info(bdf: str) -> dict:
 
 
 def scrape_driver_regs(vendor: str, device: str) -> list:
-    """Scrape driver registers for the given vendor/device ID."""
+    """
+    Scrape driver registers for the given vendor/device ID.
+
+    Args:
+        vendor (str): Vendor ID of the PCIe device.
+        device (str): Device ID of the PCIe device.
+
+    Returns:
+        list: A list of register definitions.
+    """
     try:
         output = subprocess.check_output(
             f"python3 scripts/driver_scrape.py {vendor} {device}", shell=True, text=True
         )
         data = json.loads(output)
 
-        # Handle new format with state machine analysis
         if isinstance(data, dict) and "registers" in data:
             return data["registers"]
+        elif isinstance(data, list):
+            return data
         else:
-            # Backward compatibility with old format - ensure data is a list
-            if isinstance(data, list):
-                return data
-            else:
-                return []
+            return []
     except subprocess.CalledProcessError:
         return []
 
 
 def integrate_behavior_profile(bdf: str, regs: list, duration: float = 10.0) -> list:
-    """Integrate behavior profiling data with register definitions."""
+    """
+    Integrate behavior profiling data with register definitions.
+
+    Args:
+        bdf (str): PCIe Bus:Device.Function identifier.
+        regs (list): List of register definitions.
+        duration (float): Duration of behavior profiling in seconds.
+
+    Returns:
+        list: Enhanced register definitions with behavioral data.
+    """
     try:
-        # Import behavior profiler
         src_path = str(ROOT / "src")
         if src_path not in sys.path:
             sys.path.append(src_path)
@@ -193,26 +230,18 @@ def integrate_behavior_profile(bdf: str, regs: list, duration: float = 10.0) -> 
 
         print(f"[*] Capturing device behavior profile for {duration}s...")
         profiler = BehaviorProfiler(bdf, debug=False)
-
-        # Capture a short behavior profile
         profile = profiler.capture_behavior_profile(duration)
         analysis = profiler.analyze_patterns(profile)
 
-        # Enhance register definitions with behavioral data
         enhanced_regs = []
         for reg in regs:
-            # Ensure we're working with a mutable copy
             enhanced_reg = dict(reg) if isinstance(reg, dict) else reg.copy()
-
-            # Add behavioral timing information
             reg_name = reg["name"].upper()
 
-            # Find matching behavioral data
             for pattern in profile.timing_patterns:
                 if reg_name in [r.upper() for r in pattern.registers]:
                     if "context" not in enhanced_reg:
                         enhanced_reg["context"] = {}
-
                     enhanced_reg["context"]["behavioral_timing"] = {
                         "avg_interval_us": pattern.avg_interval_us,
                         "frequency_hz": pattern.frequency_hz,
@@ -220,10 +249,8 @@ def integrate_behavior_profile(bdf: str, regs: list, duration: float = 10.0) -> 
                     }
                     break
 
-            # Add device characteristics
             if "context" not in enhanced_reg:
                 enhanced_reg["context"] = {}
-
             enhanced_reg["context"]["device_analysis"] = {
                 "access_frequency_hz": analysis["device_characteristics"][
                     "access_frequency_hz"
@@ -256,7 +283,19 @@ def build_sv(
     enable_variance: bool = True,
     variance_metadata: Optional[dict] = None,
 ) -> None:
-    """Generate enhanced SystemVerilog BAR controller from register definitions with variance simulation."""
+    """
+    Generate enhanced SystemVerilog BAR controller from register definitions.
+
+    Args:
+        regs (list): List of register definitions.
+        target_src (pathlib.Path): Path to the target SystemVerilog source file.
+        board_type (str): Target board type (e.g., "75t").
+        enable_variance (bool): Enable manufacturing variance simulation.
+        variance_metadata (Optional[dict]): Metadata for variance simulation.
+
+    Raises:
+        SystemExit: If no registers are provided.
+    """
     if not regs:
         sys.exit("No registers scraped – aborting build")
 
@@ -492,8 +531,20 @@ def build_advanced_sv(
     variance_metadata: Optional[dict] = None,
     advanced_features: Optional[dict] = None,
 ) -> None:
-    """Generate advanced SystemVerilog BAR controller with comprehensive features."""
+    """
+    Generate advanced SystemVerilog BAR controller with comprehensive features.
 
+    Args:
+        regs (list): List of register definitions.
+        target_src (pathlib.Path): Path to the target SystemVerilog source file.
+        board_type (str): Target board type (e.g., "75t").
+        enable_variance (bool): Enable manufacturing variance simulation.
+        variance_metadata (Optional[dict]): Metadata for variance simulation.
+        advanced_features (Optional[dict]): Advanced feature configuration.
+
+    Raises:
+        SystemExit: If no registers are provided.
+    """
     if not regs:
         sys.exit("No registers scraped – aborting advanced build")
 
@@ -643,7 +694,18 @@ def build_advanced_sv(
 def generate_register_state_machine(
     reg_name: str, sequences: list, offset: int, state_machines: Optional[list] = None
 ) -> str:
-    """Generate a state machine for complex register access sequences."""
+    """
+    Generate a state machine for complex register access sequences.
+
+    Args:
+        reg_name (str): Name of the register.
+        sequences (list): List of access sequences.
+        offset (int): Register offset.
+        state_machines (Optional[list]): Predefined state machines.
+
+    Returns:
+        str: SystemVerilog code for the state machine.
+    """
     # First try to use extracted state machines if available
     if state_machines:
         for sm_data in state_machines:
@@ -800,7 +862,15 @@ def generate_extracted_state_machine_sv(
 
 
 def generate_device_state_machine(regs: list) -> str:
-    """Generate a device-level state machine based on register dependencies."""
+    """
+    Generate a device-level state machine based on register dependencies.
+
+    Args:
+        regs (list): List of register definitions.
+
+    Returns:
+        str: SystemVerilog code for the device state machine.
+    """
     # Analyze register dependencies to create device states
     init_regs = []
     runtime_regs = []
@@ -880,13 +950,30 @@ def generate_device_state_machine(regs: list) -> str:
 
 
 def code_from_bytes(byte_count: int) -> int:
-    """Convert byte count to PCIe configuration code."""
+    """
+    Convert byte count to PCIe configuration code.
+
+    Args:
+        byte_count (int): Byte count.
+
+    Returns:
+        int: PCIe configuration code.
+    """
     byte_to_code = {128: 0, 256: 1, 512: 2, 1024: 3, 2048: 4, 4096: 5}
     return byte_to_code[byte_count]
 
 
 def build_tcl(info: dict, gen_tcl: str) -> tuple[str, str]:
-    """Generate TCL patch file for Vivado configuration."""
+    """
+    Generate TCL patch file for Vivado configuration.
+
+    Args:
+        info (dict): Donor device information.
+        gen_tcl (str): Path to the base TCL file.
+
+    Returns:
+        tuple[str, str]: Generated TCL content and path to the temporary file.
+    """
     bar_bytes = int(info["bar_size"], 16)
     aperture = APERTURE.get(bar_bytes)
     if not aperture:
@@ -972,7 +1059,17 @@ save_project
 
 
 def vivado_run(board_root: pathlib.Path, gen_tcl_path: str, patch_tcl: str) -> None:
-    """Execute Vivado build flow."""
+    """
+    Execute Vivado build flow.
+
+    Args:
+        board_root (pathlib.Path): Path to the board root directory.
+        gen_tcl_path (str): Path to the base TCL file.
+        patch_tcl (str): Path to the patch TCL file.
+
+    Raises:
+        SystemExit: If no bitstream file is found after the build.
+    """
     os.chdir(board_root)
 
     try:
@@ -1001,7 +1098,9 @@ def vivado_run(board_root: pathlib.Path, gen_tcl_path: str, patch_tcl: str) -> N
 
 
 def main() -> None:
-    """Main entry point."""
+    """
+    Main entry point for the FPGA firmware builder.
+    """
     parser = argparse.ArgumentParser(
         description="Enhanced FPGA firmware builder with behavioral analysis"
     )

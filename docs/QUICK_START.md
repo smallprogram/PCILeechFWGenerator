@@ -1,8 +1,38 @@
-# Quick Start Guide
+# 🚀 Quick Start Guide
+
+[![PyPI version](https://badge.fury.io/py/pcileech-fw-generator.svg)](https://badge.fury.io/py/pcileech-fw-generator)
+[![Python Support](https://img.shields.io/pypi/pyversions/pcileech-fw-generator.svg)](https://pypi.org/project/pcileech-fw-generator/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Get up and running with PCILeech Firmware Generator in minutes.
 
-## 🚀 Installation
+---
+
+## 📑 Table of Contents
+
+- [🔧 Installation](#-installation)
+  - [Option 1: pip Installation](#option-1-pip-installation-recommended)
+  - [Option 2: From Source](#option-2-from-source)
+- [🎯 First Run](#-first-run)
+  - [1. System Setup](#1-system-setup)
+  - [2. Hardware Setup](#2-hardware-setup)
+  - [3. Generate Firmware](#3-generate-firmware)
+- [📋 Common Workflows](#-common-workflows)
+  - [Basic Firmware Generation](#basic-firmware-generation)
+  - [Advanced Features](#advanced-features)
+  - [Flashing DMA Board](#flashing-dma-board)
+- [🐛 Troubleshooting](#-troubleshooting)
+  - [Permission Issues](#permission-issues)
+  - [TUI Not Starting](#tui-not-starting)
+  - [Container Issues](#container-issues)
+  - [Device Not Found](#device-not-found)
+- [📚 Next Steps](#-next-steps)
+- [🆘 Getting Help](#-getting-help)
+- [⚠️ Important Notes](#️-important-notes)
+
+---
+
+## 🔧 Installation
 
 ### Option 1: pip Installation (Recommended)
 
@@ -104,7 +134,7 @@ usbloader -f output/firmware.bin
 usbloader -f output/firmware.bin --vidpid 1d50:6130
 ```
 
-## 🔧 Troubleshooting
+## 🐛 Troubleshooting
 
 ### Permission Issues
 

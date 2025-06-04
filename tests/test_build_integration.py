@@ -217,6 +217,71 @@ class TestBuildWithExternalExamples:
         # Build SystemVerilog
         build.build_sv(enhanced_regs, sv_file)
 
+    @patch("build.BehaviorProfiler")
+    def test_behavior_profiling_integration(
+        self, mock_profiler_class, mock_registers_from_example, temp_dir
+    ):
+        """Test behavior profiling integration with the build process."""
+        # Create a mock profiler instance
+        mock_profiler = Mock()
+        mock_profiler_class.return_value = mock_profiler
+
+        # Create a mock profile with timing patterns
+        from behavior_profiler import BehaviorProfile, TimingPattern
+
+        mock_profile = BehaviorProfile(
+            device_bdf="0000:03:00.0",
+            capture_duration=10.0,
+            total_accesses=100,
+            register_accesses=[],
+            timing_patterns=[
+                TimingPattern(
+                    pattern_type="periodic",
+                    registers=["CONTROL"],
+                    avg_interval_us=100.0,
+                    std_deviation_us=5.0,
+                    frequency_hz=10000.0,
+                    confidence=0.95,
+                )
+            ],
+            state_transitions={"init": ["ready"]},
+            power_states=["D0"],
+            interrupt_patterns={},
+        )
+
+        # Set up the mock analysis results
+        mock_analysis = {
+            "device_characteristics": {
+                "access_frequency_hz": 5000.0,
+            },
+            "behavioral_signatures": {
+                "timing_regularity": 0.85,
+            },
+        }
+
+        mock_profiler.capture_behavior_profile.return_value = mock_profile
+        mock_profiler.analyze_patterns.return_value = mock_analysis
+
+        # Call the integrate_behavior_profile function
+        enhanced_regs = build.integrate_behavior_profile(
+            "0000:03:00.0", mock_registers_from_example
+        )
+
+        # Verify that the profiler was initialized correctly
+        mock_profiler_class.assert_called_once_with("0000:03:00.0", debug=False)
+
+        # Verify that the profiler methods were called
+        mock_profiler.capture_behavior_profile.assert_called_once()
+        mock_profiler.analyze_patterns.assert_called_once_with(mock_profile)
+
+        # Verify that the registers were enhanced with behavioral data
+        assert len(enhanced_regs) == len(mock_registers_from_example)
+
+        # Check that all registers have device analysis information
+        for reg in enhanced_regs:
+            assert "context" in reg
+            assert "device_analysis" in reg["context"]
+
         # Build TCL
         tcl_content, tcl_path = build.build_tcl(donor_info, str(tcl_file))
 
