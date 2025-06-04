@@ -453,6 +453,129 @@ class TestAdvancedSVGenerator:
         assert "tx_control_reg" in sv_content
         assert "rx_status_reg" in sv_content
 
+    def test_generate_enhanced_build_integration(self):
+        """Test generation of build.py integration code."""
+        generator = AdvancedSVGenerator()
+        integration_code = generator.generate_enhanced_build_integration()
+
+        # Check for key components in the integration code
+        assert "def build_advanced_sv" in integration_code
+        assert "from .advanced_sv_main import" in integration_code
+        assert "AdvancedSVGenerator" in integration_code
+        assert "PowerManagementConfig" in integration_code
+        assert "ErrorHandlingConfig" in integration_code
+        assert "PerformanceCounterConfig" in integration_code
+        assert "DeviceSpecificLogic" in integration_code
+        assert "DeviceType" in integration_code
+        assert "variance_model = None" in integration_code
+        assert "if enable_variance:" in integration_code
+        assert "generator = AdvancedSVGenerator" in integration_code
+        assert (
+            "sv_content = generator.generate_advanced_systemverilog" in integration_code
+        )
+        assert "write_text" in integration_code
+        assert "shutil.copyfile" in integration_code
+
+    def test_register_logic_with_special_names(self):
+        """Test register logic generation with special register names."""
+        generator = AdvancedSVGenerator()
+
+        # Test with special register names
+        regs = [
+            {
+                "name": "pcileech_tlps128_cfgspace_shadow_status",
+                "offset": "0x100",
+                "value": "0x00000000",
+                "rw": "rw",
+            },
+            {
+                "name": "register-with-dashes",
+                "offset": "0x104",
+                "value": "0x00000001",
+                "rw": "ro",
+            },
+            {
+                "name": "register_with_underscores",
+                "offset": "0x108",
+                "value": "0x00000002",
+                "rw": "rw",
+            },
+            {
+                "name": "UPPERCASE_REGISTER",
+                "offset": "0x10C",
+                "value": "0x00000003",
+                "rw": "ro",
+            },
+        ]
+
+        register_logic = generator.generate_register_logic(regs, None)
+
+        # Check for special case handling of pcileech_tlps128_cfgspace_shadow_status
+        assert "pcileech_tlps128_cfgspace_shadow_status_reg = 32'h1" in register_logic
+
+        # Check for other register names
+        assert "register-with-dashes_reg" in register_logic
+        assert "register_with_underscores_reg" in register_logic
+        assert "UPPERCASE_REGISTER_reg" in register_logic
+
+    def test_clock_domain_logic_with_variance(self):
+        """Test clock domain logic generation with variance model."""
+        generator = AdvancedSVGenerator()
+
+        # Create a variance model
+        variance_simulator = ManufacturingVarianceSimulator()
+        variance_model = variance_simulator.generate_variance_model(
+            device_id="test_device",
+            device_class=DeviceClass.INDUSTRIAL,
+            base_frequency_mhz=125.0,
+        )
+
+        clock_logic = generator.generate_clock_domain_logic(variance_model)
+
+        # Check for clock domain management
+        assert "Clock Domain Management" in clock_logic
+        assert "clk_monitor_counter" in clock_logic
+        assert "mem_clk_monitor_counter" in clock_logic
+        assert "aux_clk_monitor_counter" in clock_logic
+        assert "clock_domain_status" in clock_logic
+
+    def test_device_type_class_combinations(self):
+        """Test different combinations of device types and classes."""
+        # Test all device types with ENTERPRISE class
+        for device_type in DeviceType:
+            device_config = DeviceSpecificLogic(
+                device_type=device_type, device_class=DeviceClass.ENTERPRISE
+            )
+            generator = AdvancedSVGenerator(device_config=device_config)
+            header = generator.generate_module_header()
+
+            assert f'DEVICE_TYPE = "{device_type.value}"' in header
+            assert 'DEVICE_CLASS = "enterprise"' in header
+
+            # Check device-specific ports
+            ports = generator._generate_device_specific_ports()
+            if device_type == DeviceType.NETWORK_CONTROLLER:
+                assert "Network controller ports" in ports
+            elif device_type == DeviceType.STORAGE_CONTROLLER:
+                assert "Storage controller ports" in ports
+            elif device_type == DeviceType.GRAPHICS_CONTROLLER:
+                assert "Graphics controller ports" in ports
+            else:
+                assert "Generic device ports" in ports
+
+    def test_register_logic_with_invalid_values(self):
+        """Test register logic generation with invalid register values."""
+        generator = AdvancedSVGenerator()
+
+        # Test with invalid register values
+        regs = [
+            {"name": "invalid_hex", "offset": "0x100", "value": "invalid", "rw": "rw"},
+        ]
+
+        # This should handle the errors gracefully or raise appropriate exceptions
+        with pytest.raises(ValueError):
+            generator.generate_register_logic(regs, None)
+
 
 class TestIntegration:
     """Integration tests for the advanced SystemVerilog generation system."""
@@ -506,6 +629,51 @@ class TestIntegration:
         # Should contain variance-aware timing logic
         assert "timing_counter" in sv_content
         assert "access_pending" in sv_content
+
+
+class TestDeviceSpecificLogic:
+    """Test the DeviceSpecificLogic configuration class."""
+
+    def test_device_specific_logic_defaults(self):
+        """Test default values for DeviceSpecificLogic."""
+        config = DeviceSpecificLogic()
+        assert config.device_type == DeviceType.GENERIC
+        assert config.device_class == DeviceClass.CONSUMER
+        assert config.max_payload_size == 256
+        assert config.max_read_request_size == 512
+        assert config.msi_vectors == 1
+        assert config.msix_vectors == 0
+        assert config.enable_dma is False
+        assert config.tx_queue_depth == 256
+        assert config.rx_queue_depth == 256
+        assert config.base_frequency_mhz == 100.0
+
+    def test_device_specific_logic_custom_values(self):
+        """Test custom values for DeviceSpecificLogic."""
+        config = DeviceSpecificLogic(
+            device_type=DeviceType.NETWORK_CONTROLLER,
+            device_class=DeviceClass.ENTERPRISE,
+            max_payload_size=512,
+            max_read_request_size=1024,
+            msi_vectors=4,
+            msix_vectors=16,
+            enable_dma=True,
+            enable_interrupt_coalescing=True,
+            tx_queue_depth=512,
+            rx_queue_depth=512,
+            base_frequency_mhz=250.0,
+        )
+        assert config.device_type == DeviceType.NETWORK_CONTROLLER
+        assert config.device_class == DeviceClass.ENTERPRISE
+        assert config.max_payload_size == 512
+        assert config.max_read_request_size == 1024
+        assert config.msi_vectors == 4
+        assert config.msix_vectors == 16
+        assert config.enable_dma is True
+        assert config.enable_interrupt_coalescing is True
+        assert config.tx_queue_depth == 512
+        assert config.rx_queue_depth == 512
+        assert config.base_frequency_mhz == 250.0
 
 
 if __name__ == "__main__":

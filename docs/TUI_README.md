@@ -1,8 +1,54 @@
-# PCILeech Firmware Generator TUI
+# 🖥️ PCILeech Firmware Generator TUI
+
+[![PyPI version](https://badge.fury.io/py/pcileech-fw-generator.svg)](https://badge.fury.io/py/pcileech-fw-generator)
+[![Python Support](https://img.shields.io/pypi/pyversions/pcileech-fw-generator.svg)](https://pypi.org/project/pcileech-fw-generator/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A modern Text User Interface (TUI) for the PCILeech firmware generation workflow, built with the Textual framework.
 
-## Overview
+---
+
+## 📑 Table of Contents
+
+- [🔍 Overview](#-overview)
+- [🚀 Installation](#-installation)
+  - [Prerequisites](#prerequisites)
+  - [Install TUI Dependencies](#install-tui-dependencies)
+- [🎮 Usage](#-usage)
+  - [Launch TUI Mode](#launch-tui-mode)
+  - [TUI Interface Overview](#tui-interface-overview)
+- [✨ Features](#-features)
+  - [Device Management](#device-management)
+  - [Configuration Management](#configuration-management)
+  - [Build Monitoring](#build-monitoring)
+  - [System Integration](#system-integration)
+- [⚙️ Configuration Profiles](#️-configuration-profiles)
+  - [Profile Locations](#profile-locations)
+  - [Default Profiles](#default-profiles)
+  - [Creating Custom Profiles](#creating-custom-profiles)
+- [⌨️ Keyboard Shortcuts](#️-keyboard-shortcuts)
+- [🔧 Error Handling](#-error-handling)
+  - [Common Errors and Solutions](#common-errors-and-solutions)
+- [🚀 Advanced Features](#-advanced-features)
+  - [Behavior Profiling](#behavior-profiling)
+  - [System Status Monitoring](#system-status-monitoring)
+  - [Build Process Integration](#build-process-integration)
+  - [Configuration Validation](#configuration-validation)
+- [🐛 Troubleshooting](#-troubleshooting)
+  - [TUI Won't Start](#tui-wont-start)
+  - [Device Detection Issues](#device-detection-issues)
+  - [Build Failures](#build-failures)
+- [🛠️ Development](#️-development)
+  - [Architecture](#architecture)
+  - [Key Components](#key-components)
+  - [Extending the TUI](#extending-the-tui)
+- [🤝 Contributing](#-contributing)
+- [📄 License](#-license)
+- [⚠️ Disclaimer](#️-disclaimer)
+
+---
+
+## 🔍 Overview
 
 The TUI provides an interactive, user-friendly interface that addresses the key pain points of the command-line workflow:
 
@@ -12,7 +58,7 @@ The TUI provides an interactive, user-friendly interface that addresses the key 
 - **Error Guidance**: Intelligent error analysis with suggested fixes
 - **Profile Management**: Save and load configuration profiles
 
-## Installation
+## 🚀 Installation
 
 ### Prerequisites
 
@@ -31,7 +77,7 @@ pip install -r requirements-tui.txt
 pip install textual rich psutil watchdog pydantic
 ```
 
-## Usage
+## 🎮 Usage
 
 ### Launch TUI Mode
 
@@ -83,7 +129,7 @@ The TUI is organized into several panels:
 - Advanced settings
 - Documentation links
 
-## Features
+## ✨ Features
 
 ### Device Management
 
@@ -121,7 +167,7 @@ The TUI is organized into several panels:
 - **Log Management**: Integrated log viewing and analysis
 - **USB Device Support**: Automatic USB device detection for flashing
 
-## Configuration Profiles
+## ⚙️ Configuration Profiles
 
 ### Profile Locations
 
@@ -137,7 +183,8 @@ Profiles are stored in `~/.pcileech/profiles/` as JSON files.
   "device_type": "network",
   "advanced_sv": true,
   "enable_variance": true,
-  "behavior_profiling": false
+  "behavior_profiling": true,
+  "profile_duration": 30.0
 }
 ```
 
@@ -160,7 +207,7 @@ Profiles are stored in `~/.pcileech/profiles/` as JSON files.
 3. Enter a profile name
 4. Profile is saved to `~/.pcileech/profiles/`
 
-## Keyboard Shortcuts
+## ⌨️ Keyboard Shortcuts
 
 - `Ctrl+C`: Exit application
 - `Tab`: Navigate between panels
@@ -169,7 +216,7 @@ Profiles are stored in `~/.pcileech/profiles/` as JSON files.
 - `↑/↓`: Navigate lists and tables
 - `F1`: Help (if implemented)
 
-## Error Handling
+## 🔧 Error Handling
 
 The TUI provides intelligent error analysis and guidance:
 
@@ -194,7 +241,35 @@ The TUI provides intelligent error analysis and guidance:
   - Run with sudo: `sudo python3 tui_generate.py`
   - Add user to required groups
 
-## Advanced Features
+## 🚀 Advanced Features
+
+### Behavior Profiling
+
+The TUI provides a seamless interface for enabling and configuring behavior profiling:
+
+- **Enable/Disable**: Toggle behavior profiling in the configuration panel
+- **Duration Control**: Set custom profiling duration (in seconds)
+- **Real-time Monitoring**: Track profiling progress in the build progress panel
+- **Profile Integration**: Automatically integrates profiling data into the build process
+
+**Configuration Options:**
+- **Behavior Profiling**: Enable/disable the profiling feature
+- **Profile Duration**: Set the duration for capturing device behavior (default: 30.0 seconds)
+- **Device Type**: Select specific device type for optimized profiling
+
+**Benefits:**
+- **Enhanced Realism**: Generated firmware mimics actual device behavior patterns
+- **Improved Timing**: More accurate register access timing based on real measurements
+- **Optimized Performance**: Device-specific optimizations based on observed behavior
+
+**Usage:**
+1. Select a device in the Device Selection Panel
+2. Open the Configuration Panel
+3. Enable "Behavior Profiling" option
+4. Adjust "Profile Duration" if needed
+5. Start the build process
+
+During the build, a dedicated "Behavior Profiling" stage will appear in the progress panel, showing real-time status of the profiling process.
 
 ### System Status Monitoring
 
@@ -218,7 +293,7 @@ The TUI continuously monitors:
 - **Compatibility Checks**: Warns about incompatible settings
 - **Resource Requirements**: Estimates resource requirements
 
-## Troubleshooting
+## 🐛 Troubleshooting
 
 ### TUI Won't Start
 
@@ -269,7 +344,7 @@ The TUI continuously monitors:
    - Use "View Logs" button in TUI
    - Check `generate.log` file
 
-## Development
+## 🛠️ Development
 
 ### Architecture
 
@@ -299,7 +374,7 @@ src/tui/
 3. **Extend Models**: Add new data models in `src/tui/models/`
 4. **Add Services**: Create new services in `src/tui/core/`
 
-## Contributing
+## 🤝 Contributing
 
 1. Follow the existing code structure
 2. Add type hints to all functions
@@ -307,6 +382,14 @@ src/tui/
 4. Test with various PCIe devices
 5. Ensure backward compatibility
 
-## License
+## 📄 License
 
 Same as the main PCILeech project.
+
+## ⚠️ Disclaimer
+
+This tool is intended for educational research and legitimate PCIe development purposes only. Users are responsible for ensuring compliance with all applicable laws and regulations. The authors assume no liability for misuse of this software.
+
+---
+
+**Version 2.0.0** - Major release with TUI interface and professional packaging

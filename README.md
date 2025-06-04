@@ -5,8 +5,45 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/ramseymcgrath/PCILeechFWGenerator/workflows/CI/badge.svg)](https://github.com/ramseymcgrath/PCILeechFWGenerator/actions)
 [![codecov](https://codecov.io/gh/ramseymcgrath/PCILeechFWGenerator/branch/main/graph/badge.svg)](https://codecov.io/gh/ramseymcgrath/PCILeechFWGenerator)
+![](https://dcbadge.limes.pink/api/shield/429866199833247744)
 
 Generate spoofed PCIe DMA firmware from real donor hardware with a single command. The workflow rips the donor's configuration space, builds a personalized FPGA bit‑stream in an isolated container, and (optionally) flashes your DMA card over USB‑JTAG.
+
+---
+
+## 📑 Table of Contents
+
+- [✨ Features](#-features)
+- [🚀 Quick Start](#-quick-start)
+  - [Installation](#installation)
+  - [Usage](#usage)
+- [📋 Requirements](#-requirements)
+  - [Software](#software)
+  - [Hardware](#hardware)
+- [🛠️ Installation & Setup](#️-installation--setup)
+- [🎮 Usage](#-usage-1)
+  - [Interactive TUI Mode](#interactive-tui-mode-recommended)
+  - [Command Line Mode](#command-line-mode)
+  - [Legacy Mode](#legacy-mode-source-installation)
+- [🔌 Flashing the DMA Board](#-flashing-the-dma-board)
+- [🚀 Advanced Features](#-advanced-features)
+  - [Manufacturing Variance Simulation](#manufacturing-variance-simulation)
+  - [Advanced SystemVerilog Generation](#advanced-systemverilog-generation)
+  - [Behavioral Profiling](#behavioral-profiling)
+  - [Command-Line Options](#command-line-options)
+- [🧹 Cleanup & Safety](#-cleanup--safety)
+- [⚠️ Disclaimer](#️-disclaimer)
+- [📦 Development & Contributing](#-development--contributing)
+  - [Building from Source](#building-from-source)
+  - [Contributing](#contributing)
+  - [Release Process](#release-process)
+- [📚 Documentation](#-documentation)
+- [🔧 Troubleshooting](#-troubleshooting)
+- [🏆 Acknowledgments](#-acknowledgments)
+- [📄 License](#-license)
+- [⚠️ Legal Notice](#️-legal-notice)
+
+---
 
 ## ✨ Features
 
@@ -254,19 +291,30 @@ python3 src/build.py --bdf 0000:03:00.0 --board 75t --advanced-sv \
 
 ### Behavioral Profiling
 
-Dynamic behavior profiling captures real device operation patterns to enhance firmware realism.
+Dynamic behavior profiling captures real device operation patterns to enhance firmware realism by monitoring and analyzing how the donor device behaves during normal operation.
 
 **Capabilities:**
-- **Real-time Monitoring**: Captures live device register access patterns
-- **Pattern Analysis**: Identifies behavioral signatures and timing characteristics
-- **Integration**: Enhances register definitions with behavioral data
-- **Configurable Duration**: Adjustable profiling periods (default: 10 seconds)
+- **Real-time Monitoring**: Captures live device register access patterns and timing
+- **Pattern Analysis**: Identifies behavioral signatures, timing characteristics, and state transitions
+- **Manufacturing Variance Integration**: Combines with variance simulation for enhanced realism
+- **SystemVerilog Enhancement**: Automatically integrates behavioral data into generated code
+- **Configurable Duration**: Adjustable profiling periods (default: 30 seconds)
+
+**Key Benefits:**
+- **Enhanced Realism**: Generated firmware mimics actual device behavior patterns
+- **Improved Timing Accuracy**: Precise register access timing based on real-world measurements
+- **Optimized Performance**: Device-specific optimizations based on observed behavior
+- **Reduced Detection Risk**: More authentic behavioral signatures
 
 **Usage:**
 ```bash
 # Enable behavior profiling with custom duration
 python3 src/build.py --bdf 0000:03:00.0 --board 75t \
   --enable-behavior-profiling --profile-duration 30.0
+
+# Enable profiling with device-specific optimizations
+python3 src/build.py --bdf 0000:03:00.0 --board 75t --advanced-sv \
+  --device-type network --enable-behavior-profiling
 ```
 
 ### Command-Line Options
@@ -279,7 +327,7 @@ python3 src/build.py --bdf 0000:03:00.0 --board 75t \
 - `--advanced-sv`: Enable advanced SystemVerilog generation
 - `--device-type`: Specify device type (generic, network, storage, graphics, audio)
 - `--enable-behavior-profiling`: Enable dynamic behavior profiling
-- `--profile-duration`: Profiling duration in seconds (default: 10.0)
+- `--profile-duration`: Profiling duration in seconds (default: 30.0)
 
 **Feature Control:**
 - `--disable-power-management`: Disable power management features
@@ -303,26 +351,7 @@ This tool is intended for educational research and legitimate PCIe development p
 
 ## 📦 Development & Contributing
 
-### Development Setup
-
-```bash
-# Clone repository
-git clone https://github.com/ramseymcgrath/PCILeechFWGenerator
-cd PCILeechFWGenerator
-
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install development dependencies
-pip install -r requirements-dev.txt
-
-# Install pre-commit hooks
-pre-commit install
-
-# Run tests
-pytest tests/
-```
+For development setup instructions, please see [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ### Building from Source
 

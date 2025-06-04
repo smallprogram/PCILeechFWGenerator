@@ -94,7 +94,23 @@ class BuildOrchestrator:
             if self._should_cancel:
                 return False
 
-            # Stage 4: SystemVerilog Generation
+            # Stage 4: Behavior Profiling (if enabled)
+            if config.behavior_profiling:
+                await self._update_progress(
+                    BuildStage.BEHAVIOR_PROFILING, 0, "Starting behavior profiling"
+                )
+                await self._run_behavior_profiling(device)
+                await self._update_progress(
+                    BuildStage.BEHAVIOR_PROFILING, 100, "Behavior profiling complete"
+                )
+                self._current_progress.mark_stage_complete(
+                    BuildStage.BEHAVIOR_PROFILING
+                )
+
+                if self._should_cancel:
+                    return False
+
+            # Stage 5: SystemVerilog Generation
             await self._update_progress(
                 BuildStage.SYSTEMVERILOG_GENERATION, 0, "Generating SystemVerilog"
             )
@@ -260,6 +276,49 @@ class BuildOrchestrator:
         # This would integrate with existing register extraction logic
         await asyncio.sleep(1)  # Simulate register extraction
 
+    async def _run_behavior_profiling(self, device: PCIDevice) -> None:
+        """Run behavior profiling on the device"""
+        # Import behavior profiler
+        import sys
+        from pathlib import Path
+
+        sys.path.append(str(Path(__file__).parent.parent.parent))
+        from behavior_profiler import BehaviorProfiler
+
+        # Log the start of profiling
+        if self._current_progress:
+            self._current_progress.current_operation = f"Profiling device {device.bdf}"
+            await self._notify_progress()
+
+        # Run the profiling in a separate thread to avoid blocking the event loop
+        def run_profiling():
+            try:
+                profiler = BehaviorProfiler(bdf=device.bdf, debug=True)
+                profile = profiler.capture_behavior_profile(duration=30.0)
+                return profile
+            except Exception as e:
+                if self._current_progress:
+                    self._current_progress.add_error(
+                        f"Behavior profiling failed: {str(e)}"
+                    )
+                return None
+
+        # Execute profiling in a thread pool
+        loop = asyncio.get_event_loop()
+        profile = await loop.run_in_executor(None, run_profiling)
+
+        # Update progress with results
+        if profile and self._current_progress:
+            self._current_progress.current_operation = (
+                f"Analyzed {profile.total_accesses} register accesses"
+            )
+            self._current_progress.add_warning(
+                f"Found {len(profile.timing_patterns)} timing patterns"
+            )
+            self._current_progress.add_warning(
+                f"Identified {len(profile.state_transitions)} state transitions"
+            )
+
     async def _generate_systemverilog(
         self, device: PCIDevice, config: BuildConfiguration
     ) -> None:
@@ -285,6 +344,11 @@ class BuildOrchestrator:
             build_cmd_parts.append(f"--device-type {cli_args['device_type']}")
         if cli_args.get("enable_variance"):
             build_cmd_parts.append("--enable-variance")
+        if cli_args.get("enable_behavior_profiling"):
+            build_cmd_parts.append("--enable-behavior-profiling")
+            build_cmd_parts.append(
+                f"--profile-duration {cli_args['behavior_profile_duration']}"
+            )
 
         build_cmd = " ".join(build_cmd_parts)
 
@@ -308,7 +372,7 @@ class BuildOrchestrator:
             "--privileged",
             f"--device={vfio_device}",
             "--device=/dev/vfio/vfio",
-            f"-v",
+            "-v",
             f"{os.getcwd()}/output:/app/output",
             "dma-fw",
             build_cmd,
@@ -322,66 +386,71 @@ class BuildOrchestrator:
         # This would be part of the Vivado synthesis step
         await asyncio.sleep(1)  # Simulate bitstream generation
 
-    async def _run_command(self, command: str) -> subprocess.CompletedProcess:
-        """Run a command asynchronously"""
+    async def _run_command(self, cmd: str) -> subprocess.CompletedProcess:
+        """Run a shell command and return the result"""
         process = await asyncio.create_subprocess_shell(
-            command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await process.communicate()
 
         return subprocess.CompletedProcess(
-            args=command,
-            returncode=process.returncode or 0,
-            stdout=stdout.decode(),
-            stderr=stderr.decode(),
+            args=cmd,
+            returncode=process.returncode if process.returncode is not None else 0,
+            stdout=stdout.decode("utf-8"),
+            stderr=stderr.decode("utf-8"),
         )
 
-    async def _run_monitored_command(self, command: list) -> None:
-        """Run command with progress monitoring"""
-        self._build_process = await asyncio.create_subprocess_exec(
-            *command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+    async def _run_monitored_command(self, cmd_parts: list) -> None:
+        """Run a command with progress monitoring"""
+        cmd = " ".join(cmd_parts) if isinstance(cmd_parts, list) else cmd_parts
+
+        self._build_process = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
 
-        # Monitor output for progress indicators
+        # Monitor process output for progress updates
         while True:
-            if self._should_cancel:
-                self._build_process.terminate()
-                break
-
-            if self._build_process and self._build_process.stdout:
+            if self._build_process.stdout:
                 line = await self._build_process.stdout.readline()
-            else:
-                break
-            if not line:
+                if not line:
+                    break
+
+                line_str = line.decode("utf-8").strip()
+                if line_str:
+                    # Update progress based on output
+                    if "Running synthesis" in line_str:
+                        await self._update_progress(
+                            BuildStage.VIVADO_SYNTHESIS, 25, "Running synthesis"
+                        )
+                    elif "Running implementation" in line_str:
+                        await self._update_progress(
+                            BuildStage.VIVADO_SYNTHESIS, 50, "Running implementation"
+                        )
+                    elif "Generating bitstream" in line_str:
+                        await self._update_progress(
+                            BuildStage.VIVADO_SYNTHESIS, 75, "Generating bitstream"
+                        )
+
+            # Check if process has completed
+            if self._build_process.returncode is not None:
                 break
 
-            line_str = line.decode().strip()
-            if line_str:
-                # Parse progress from output
-                await self._parse_build_output(line_str)
+            await asyncio.sleep(0.1)
 
+        # Wait for process to complete
         await self._build_process.wait()
 
-        if self._build_process.returncode != 0 and not self._should_cancel:
+        if self._build_process.returncode != 0:
+            error_msg = ""
+            if self._build_process.stderr:
+                stderr = await self._build_process.stderr.read()
+                error_msg = stderr.decode("utf-8")
+            if self._current_progress:
+                self._current_progress.add_error(f"Build command failed: {error_msg}")
             raise RuntimeError(
-                f"Build command failed with return code {self._build_process.returncode}"
+                f"Build command failed with code {self._build_process.returncode}"
             )
-
-    async def _parse_build_output(self, line: str) -> None:
-        """Parse build output for progress information"""
-        # Look for progress indicators in the output
-        if "synthesis" in line.lower():
-            if self._current_progress:
-                self._current_progress.current_operation = "Running synthesis"
-        elif "implementation" in line.lower():
-            if self._current_progress:
-                self._current_progress.current_operation = "Running implementation"
-        elif "bitstream" in line.lower():
-            if self._current_progress:
-                self._current_progress.current_operation = "Generating bitstream"
-        elif "error" in line.lower():
-            if self._current_progress:
-                self._current_progress.add_error(line)
-        elif "warning" in line.lower():
-            if self._current_progress:
-                self._current_progress.add_warning(line)

@@ -15,6 +15,7 @@ class BuildStage(Enum):
     ENVIRONMENT_VALIDATION = "Environment Validation"
     DEVICE_ANALYSIS = "Device Analysis"
     REGISTER_EXTRACTION = "Register Extraction"
+    BEHAVIOR_PROFILING = "Behavior Profiling"
     SYSTEMVERILOG_GENERATION = "SystemVerilog Generation"
     VIVADO_SYNTHESIS = "Vivado Synthesis"
     BITSTREAM_GENERATION = "Bitstream Generation"

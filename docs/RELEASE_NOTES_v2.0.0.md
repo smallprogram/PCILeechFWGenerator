@@ -1,7 +1,43 @@
-# Release Notes - PCILeech Firmware Generator v2.0.0
+# 🚀 Release Notes - PCILeech Firmware Generator v2.0.0
+
+[![PyPI version](https://badge.fury.io/py/pcileech-fw-generator.svg)](https://badge.fury.io/py/pcileech-fw-generator)
+[![Python Support](https://img.shields.io/pypi/pyversions/pcileech-fw-generator.svg)](https://pypi.org/project/pcileech-fw-generator/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Release Date:** January 2, 2025  
 **Major Version:** 2.0.0 - Professional Release with TUI Interface
+
+---
+
+## 📑 Table of Contents
+
+- [🎉 What's New](#-whats-new)
+  - [Interactive TUI Interface](#interactive-tui-interface)
+  - [Professional Python Packaging](#professional-python-packaging)
+  - [Enhanced Features](#enhanced-features)
+- [🚀 Installation](#-installation)
+  - [Quick Install](#quick-install)
+  - [From Source](#from-source)
+- [🎮 Usage](#-usage)
+  - [TUI Interface](#tui-interface-new)
+  - [Command Line](#command-line-enhanced)
+- [🔧 Technical Improvements](#-technical-improvements)
+  - [Architecture](#architecture)
+  - [Dependencies](#dependencies)
+  - [Quality Assurance](#quality-assurance)
+- [📚 Documentation](#-documentation)
+  - [New Documentation](#new-documentation)
+  - [Updated Documentation](#updated-documentation)
+- [🔄 Migration Guide](#-migration-guide)
+  - [From v1.x to v2.0.0](#from-v1x-to-v200)
+- [🐛 Bug Fixes](#-bug-fixes)
+- [⚠️ Breaking Changes](#️-breaking-changes)
+- [🔮 Future Roadmap](#-future-roadmap)
+- [🙏 Acknowledgments](#-acknowledgments)
+- [📞 Support](#-support)
+- [📄 License](#-license)
+
+---
 
 ## 🎉 What's New
 
@@ -163,6 +199,10 @@ pip install pcileech-fw-generator[tui]
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details.
+
+## ⚠️ Disclaimer
+
+This tool is intended for educational research and legitimate PCIe development purposes only. Users are responsible for ensuring compliance with all applicable laws and regulations. The authors assume no liability for misuse of this software.
 
 ---
 

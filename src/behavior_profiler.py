@@ -460,18 +460,99 @@ class BehaviorProfiler:
         """Analyze state transitions based on register access patterns."""
         transitions = {}
 
-        # Simplified state transition analysis
-        # In practice, this would be much more sophisticated
+        # Advanced state transition analysis with timing and frequency considerations
         prev_register = None
+        prev_timestamp = None
+        transition_times = {}
+        transition_counts = {}
+
+        # First pass: collect transition data
         for access in accesses:
             if prev_register and prev_register != access.register:
+                # Record the transition
+                transition_key = (prev_register, access.register)
+
+                # Track transition timing
+                if prev_timestamp:
+                    transition_time = access.timestamp - prev_timestamp
+                    if transition_key not in transition_times:
+                        transition_times[transition_key] = []
+                    transition_times[transition_key].append(transition_time)
+
+                # Track transition frequency
+                if transition_key not in transition_counts:
+                    transition_counts[transition_key] = 0
+                transition_counts[transition_key] += 1
+
+                # Build the basic transition graph
                 if prev_register not in transitions:
                     transitions[prev_register] = []
                 if access.register not in transitions[prev_register]:
                     transitions[prev_register].append(access.register)
+
             prev_register = access.register
+            prev_timestamp = access.timestamp
+
+        # Second pass: analyze transition patterns
+        # Identify common sequences and potential state machine patterns
+        if len(accesses) > 10:  # Only analyze if we have enough data
+            # Find repeated sequences (potential state machine cycles)
+            register_sequence = [access.register for access in accesses]
+            repeated_sequences = self._find_repeated_sequences(register_sequence)
+
+            # Add identified cycles to the transitions with metadata
+            for seq in repeated_sequences:
+                if len(seq) > 1:
+                    cycle_key = "->".join(seq)
+                    if "cycles" not in transitions:
+                        transitions["cycles"] = {}
+                    transitions["cycles"][cycle_key] = {
+                        "length": len(seq),
+                        "frequency": repeated_sequences[seq],
+                    }
 
         return transitions
+
+    def _find_repeated_sequences(
+        self, sequence: List[str], min_length: int = 2, min_occurrences: int = 2
+    ) -> Dict[tuple, int]:
+        """
+        Find repeated subsequences in a list of register accesses.
+
+        Args:
+            sequence: List of register names in order of access
+            min_length: Minimum length of sequences to consider
+            min_occurrences: Minimum number of occurrences to be considered a pattern
+
+        Returns:
+            Dictionary mapping sequences (as tuples) to their occurrence count
+        """
+        sequences = {}
+        seq_len = len(sequence)
+
+        # Look for sequences of different lengths
+        for length in range(min_length, min(10, seq_len // 2 + 1)):
+            # Scan the sequence for patterns of current length
+            for i in range(seq_len - length + 1):
+                # Extract the subsequence
+                subseq = tuple(sequence[i : i + length])
+
+                # Count occurrences
+                if subseq not in sequences:
+                    # Count non-overlapping occurrences
+                    count = 0
+                    pos = 0
+                    while pos <= seq_len - length:
+                        if tuple(sequence[pos : pos + length]) == subseq:
+                            count += 1
+                            pos += length  # Skip to avoid overlap
+                        else:
+                            pos += 1
+
+                    if count >= min_occurrences:
+                        sequences[subseq] = count
+
+        return sequences
 
     def _analyze_interrupt_patterns(
         self, accesses: List[RegisterAccess]

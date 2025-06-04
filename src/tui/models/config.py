@@ -84,6 +84,7 @@ class BuildConfiguration:
             "disable_power_management": not self.power_management,
             "disable_error_handling": not self.error_handling,
             "disable_performance_counters": not self.performance_counters,
+            "enable_behavior_profiling": self.behavior_profiling,
             "behavior_profile_duration": int(self.profile_duration),
         }
         return args

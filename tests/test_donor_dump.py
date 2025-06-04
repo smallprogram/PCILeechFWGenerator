@@ -608,7 +608,7 @@ class TestMakefileValidation:
         import platform
         import re
 
-        # Get system info (this would be used by the module)
+        # Get system info and use it for compatibility checking
         system_info = platform.uname()
 
         # Verify we can get kernel information
@@ -617,6 +617,25 @@ class TestMakefileValidation:
 
         # Parse kernel version for compatibility checking
         kernel_release = system_info.release
+
+        # Extract major and minor version numbers
+        version_match = re.match(r"^(\d+)\.(\d+)", kernel_release)
+        if version_match:
+            major, minor = map(int, version_match.groups())
+
+            # Check for minimum kernel version requirements
+            # Most PCIe direct memory access features require kernel 4.10+
+            if major < 4 or (major == 4 and minor < 10):
+                pytest.skip(
+                    f"Kernel version {major}.{minor} may not support all required features (4.10+ recommended)"
+                )
+
+            # Check for known compatibility issues with specific kernel versions
+            if major == 5 and 0 <= minor <= 3:
+                # Log a warning about known compatibility issues
+                print(
+                    f"WARNING: Kernel 5.0-5.3 has known issues with VFIO passthrough for some devices"
+                )
 
         # Extract major.minor version from kernel release
         version_match = re.match(r"(\d+)\.(\d+)", kernel_release)

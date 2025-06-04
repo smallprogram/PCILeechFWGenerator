@@ -1,6 +1,47 @@
-# Installation Guide
+# 🛠️ Installation Guide
+
+[![PyPI version](https://badge.fury.io/py/pcileech-fw-generator.svg)](https://badge.fury.io/py/pcileech-fw-generator)
+[![Python Support](https://img.shields.io/pypi/pyversions/pcileech-fw-generator.svg)](https://pypi.org/project/pcileech-fw-generator/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Complete installation instructions for PCILeech Firmware Generator v2.0.0.
+
+---
+
+## 📑 Table of Contents
+
+- [📋 System Requirements](#-system-requirements)
+  - [Operating System](#operating-system)
+  - [Software Dependencies](#software-dependencies)
+  - [Hardware Requirements](#hardware-requirements)
+- [🚀 Installation Methods](#-installation-methods)
+  - [Method 1: pip Installation](#method-1-pip-installation-recommended)
+  - [Method 2: From Source](#method-2-from-source)
+  - [Method 3: Container Installation](#method-3-container-installation)
+- [🛠️ System Setup](#️-system-setup)
+  - [1. Install System Dependencies](#1-install-system-dependencies)
+  - [2. Configure VFIO](#2-configure-vfio)
+  - [3. Install Vivado](#3-install-vivado-required-for-synthesis)
+  - [4. Configure Podman](#4-configure-podman-rootless)
+- [🔧 Installation Verification](#-installation-verification)
+  - [Basic Verification](#basic-verification)
+  - [TUI Verification](#tui-verification)
+  - [Container Verification](#container-verification)
+  - [Hardware Verification](#hardware-verification)
+- [🐛 Troubleshooting](#-troubleshooting)
+  - [Common Issues](#common-issues)
+  - [Getting Help](#getting-help)
+- [🔄 Updating](#-updating)
+  - [pip Installation](#pip-installation)
+  - [Source Installation](#source-installation)
+  - [Container Installation](#container-installation)
+- [🗑️ Uninstallation](#️-uninstallation)
+  - [pip Installation](#pip-installation-1)
+  - [Source Installation](#source-installation-1)
+  - [System Cleanup](#system-cleanup)
+- [⚠️ Disclaimer](#️-disclaimer)
+
+---
 
 ## 📋 System Requirements
 
@@ -370,6 +411,10 @@ sudo deluser $USER dialout
 # Remove VFIO configuration (optional)
 sudo rm /etc/modules-load.d/vfio.conf
 ```
+
+## ⚠️ Disclaimer
+
+This tool is intended for educational research and legitimate PCIe development purposes only. Users are responsible for ensuring compliance with all applicable laws and regulations. The authors assume no liability for misuse of this software.
 
 ---
 
