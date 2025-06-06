@@ -67,20 +67,39 @@ pip install pcileechfwgenerator[tui]
 
 # Development installation
 pip install pcileechfwgenerator[dev]
+
+# Install sudo wrapper scripts (recommended for TUI and build commands)
+./install-sudo-wrapper.sh
 ```
 
 ### Usage
 
 ```bash
 # Interactive TUI interface (recommended)
-pcileech-tui
+pcileech-tui-sudo  # Use sudo wrapper (preserves Python path)
+# OR
+sudo pcileech-tui  # Direct sudo (may have module import issues)
 
 # Command line interface
 pcileech-generate
 
 # Direct build command
-pcileech-build --bdf 0000:03:00.0 --board 75t
+pcileech-build-sudo --bdf 0000:03:00.0 --board 75t  # Use sudo wrapper
+# OR
+sudo pcileech-build --bdf 0000:03:00.0 --board 75t  # Direct sudo
 ```
+
+### Device Suitability Indicators
+
+In the TUI, devices are evaluated for firmware generation compatibility:
+
+| Indicator | Meaning |
+|-----------|---------|
+| ✅ | **Suitable**: Device is compatible and not bound to a driver |
+| ⚠️ | **Suitable with Warning**: Device is compatible but bound to a driver |
+| ❌ | **Not Suitable**: Device is not compatible for firmware generation |
+
+A device is considered suitable when its suitability score is ≥ 0.7 and it has no compatibility issues.
 
 ## 📋 Requirements
 

@@ -42,6 +42,9 @@ Get up and running with PCILeech Firmware Generator in minutes.
 # Install with TUI support
 pip install pcileechfwgenerator[tui]
 
+# Install sudo wrapper scripts (recommended)
+./install-sudo-wrapper.sh
+
 # Verify installation
 pcileech-tui --help
 ```
@@ -77,6 +80,10 @@ newgrp
 #### Interactive TUI (Recommended)
 
 ```bash
+# Using the sudo wrapper (recommended)
+pcileech-tui-sudo
+
+# Or directly with sudo (may have module import issues)
 sudo pcileech-tui
 ```
 
@@ -93,7 +100,9 @@ The TUI will guide you through:
 sudo pcileech-generate
 
 # Direct build (if you know the device BDF)
-sudo pcileech-build --bdf 0000:03:00.0 --board 75t
+pcileech-build-sudo --bdf 0000:03:00.0 --board 75t  # Using sudo wrapper
+# OR
+sudo pcileech-build --bdf 0000:03:00.0 --board 75t  # Direct sudo
 ```
 
 ## 📋 Common Workflows
@@ -102,27 +111,40 @@ sudo pcileech-build --bdf 0000:03:00.0 --board 75t
 
 ```bash
 # 1. Launch TUI
-sudo pcileech-tui
+pcileech-tui-sudo  # Using sudo wrapper (recommended)
 
 # 2. Select your donor device from the list
+#    (Look for ✅ or ⚠️ indicators for suitable devices)
 # 3. Choose board type (35t, 75t, 100t)
 # 4. Click "Start Build"
 # 5. Wait for completion
 # 6. Find firmware in output/firmware.bin
 ```
 
+### Device Suitability Indicators
+
+In the TUI, devices are evaluated for firmware generation compatibility:
+
+| Indicator | Meaning |
+|-----------|---------|
+| ✅ | **Suitable**: Device is compatible and not bound to a driver |
+| ⚠️ | **Suitable with Warning**: Device is compatible but bound to a driver |
+| ❌ | **Not Suitable**: Device is not compatible for firmware generation |
+
+A device is considered suitable when its suitability score is ≥ 0.7 and it has no compatibility issues.
+
 ### Advanced Features
 
 ```bash
-# Enable all advanced features
-sudo pcileech-build --bdf 0000:03:00.0 --board 75t --advanced-sv
+# Enable all advanced features (using sudo wrapper)
+pcileech-build-sudo --bdf 0000:03:00.0 --board 75t --advanced-sv
 
 # Network device with behavior profiling
-sudo pcileech-build --bdf 0000:03:00.0 --board 75t --advanced-sv \
+pcileech-build-sudo --bdf 0000:03:00.0 --board 75t --advanced-sv \
   --device-type network --enable-behavior-profiling
 
 # Custom profiling duration
-sudo pcileech-build --bdf 0000:03:00.0 --board 75t \
+pcileech-build-sudo --bdf 0000:03:00.0 --board 75t \
   --enable-behavior-profiling --profile-duration 30.0
 ```
 
@@ -170,13 +192,13 @@ By default, the system builds and uses the donor_dump kernel module to extract d
 
 ```bash
 # Skip using the donor_dump kernel module (use synthetic data)
-sudo pcileech-build --bdf 0000:03:00.0 --board 75t --skip-donor-dump
+pcileech-build-sudo --bdf 0000:03:00.0 --board 75t --skip-donor-dump
 
 # Save donor information to a file for future use
-sudo pcileech-build --bdf 0000:03:00.0 --board 75t --donor-info-file /path/to/save/donor_info.json
+pcileech-build-sudo --bdf 0000:03:00.0 --board 75t --donor-info-file /path/to/save/donor_info.json
 
 # Use a previously saved donor information file (no donor device needed)
-sudo pcileech-build --bdf 0000:03:00.0 --board 75t --skip-donor-dump --donor-info-file /path/to/saved/donor_info.json
+pcileech-build-sudo --bdf 0000:03:00.0 --board 75t --skip-donor-dump --donor-info-file /path/to/saved/donor_info.json
 ```
 
 In the TUI, you can:
