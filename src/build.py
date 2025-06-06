@@ -53,6 +53,10 @@ OUT = ROOT / "output"
 OUT.mkdir(exist_ok=True)
 DDIR = ROOT / "src" / "donor_dump"
 
+# Repository cache directory
+REPO_CACHE_DIR = Path(os.path.expanduser("~/.cache/pcileech-fw-generator/repos"))
+PCILEECH_FPGA_DIR = REPO_CACHE_DIR / "pcileech-fpga"
+
 # BAR aperture size mappings
 APERTURE = {
     1024: "1_KB",
@@ -74,23 +78,74 @@ APERTURE = {
 
 # Board configuration mapping
 BOARD_INFO = {
+    # Original boards
     "35t": {
-        "root": ROOT / "pcileech-fpga" / "PCIeSquirrel",
+        "root": PCILEECH_FPGA_DIR / "PCIeSquirrel",
         "gen": "vivado_generate_project_35t.tcl",
         "base_frequency_mhz": 100.0,
         "device_class": "consumer",
     },
     "75t": {
-        "root": ROOT / "pcileech-fpga" / "PCIeEnigmaX1",
+        "root": PCILEECH_FPGA_DIR / "PCIeEnigmaX1",
         "gen": "vivado_generate_project_75t.tcl",
         "base_frequency_mhz": 125.0,
         "device_class": "industrial",
     },
     "100t": {
-        "root": ROOT / "pcileech-fpga" / "XilinxZDMA",
+        "root": PCILEECH_FPGA_DIR / "XilinxZDMA",
         "gen": "vivado_generate_project_100t.tcl",
         "base_frequency_mhz": 150.0,
         "device_class": "enterprise",
+    },
+    # CaptainDMA boards
+    "pcileech_75t484_x1": {
+        "root": PCILEECH_FPGA_DIR / "CaptainDMA" / "75t484_x1",
+        "gen": "vivado_generate_project_captaindma_75t.tcl",
+        "base_frequency_mhz": 125.0,
+        "device_class": "industrial",
+    },
+    "pcileech_35t484_x1": {
+        "root": PCILEECH_FPGA_DIR / "CaptainDMA" / "35t484_x1",
+        "gen": "vivado_generate_project_captaindma_35t.tcl",
+        "base_frequency_mhz": 100.0,
+        "device_class": "consumer",
+    },
+    "pcileech_35t325_x4": {
+        "root": PCILEECH_FPGA_DIR / "CaptainDMA" / "35t325_x4",
+        "gen": "vivado_generate_project_captaindma_m2x4.tcl",
+        "base_frequency_mhz": 100.0,
+        "device_class": "consumer",
+    },
+    "pcileech_35t325_x1": {
+        "root": PCILEECH_FPGA_DIR / "CaptainDMA" / "35t325_x1",
+        "gen": "vivado_generate_project_captaindma_m2x1.tcl",
+        "base_frequency_mhz": 100.0,
+        "device_class": "consumer",
+    },
+    "pcileech_100t484_x1": {
+        "root": PCILEECH_FPGA_DIR / "CaptainDMA" / "100t484-1",
+        "gen": "vivado_generate_project_captaindma_100t.tcl",
+        "base_frequency_mhz": 150.0,
+        "device_class": "enterprise",
+    },
+    # Other boards
+    "pcileech_enigma_x1": {
+        "root": PCILEECH_FPGA_DIR / "EnigmaX1",
+        "gen": "vivado_generate_project.tcl",
+        "base_frequency_mhz": 125.0,
+        "device_class": "industrial",
+    },
+    "pcileech_squirrel": {
+        "root": PCILEECH_FPGA_DIR / "PCIeSquirrel",
+        "gen": "vivado_generate_project.tcl",
+        "base_frequency_mhz": 100.0,
+        "device_class": "consumer",
+    },
+    "pcileech_pciescreamer_xc7a35": {
+        "root": PCILEECH_FPGA_DIR / "pciescreamer",
+        "gen": "vivado_generate_project.tcl",
+        "base_frequency_mhz": 100.0,
+        "device_class": "consumer",
     },
 }
 
@@ -140,13 +195,13 @@ def create_secure_tempfile(suffix: str = "", prefix: str = "pcileech_") -> str:
 def validate_donor_info(info: dict) -> bool:
     """
     Validate donor information to ensure all required PCI configuration values exist.
-    
+
     Args:
         info (dict): The donor information dictionary to validate.
-        
+
     Returns:
         bool: True if all required fields are present and valid, False otherwise.
-        
+
     Raises:
         SystemExit: If critical fields are missing from the donor info.
     """
@@ -161,66 +216,89 @@ def validate_donor_info(info: dict) -> bool:
         "mpc",
         "mpr",
     ]
-    
+
     # Define extended fields that should be present for complete validation
     extended_required_fields = [
-        "class_code",        # 24-bit code defining device function type
+        "class_code",  # 24-bit code defining device function type
         "extended_config_space",  # Full 4KB extended configuration space
-        "enhanced_caps",     # Enhanced capability support
+        "enhanced_caps",  # Enhanced capability support
     ]
-    
+
     # Optional but valuable fields
     optional_fields = [
-        "dsn_hi",            # Device Serial Number (high 32 bits)
-        "dsn_lo",            # Device Serial Number (low 32 bits)
-        "power_mgmt",        # Power management capabilities
-        "aer_caps",          # Advanced Error Reporting capabilities
-        "vendor_caps",       # Vendor-specific capabilities
+        "dsn_hi",  # Device Serial Number (high 32 bits)
+        "dsn_lo",  # Device Serial Number (low 32 bits)
+        "power_mgmt",  # Power management capabilities
+        "aer_caps",  # Advanced Error Reporting capabilities
+        "vendor_caps",  # Vendor-specific capabilities
     ]
-    
+
     # Check for critical missing fields
     missing_critical = [field for field in basic_required_fields if field not in info]
     if missing_critical:
         print(f"[!] ERROR: Critical fields missing from donor info: {missing_critical}")
         print("[!] These fields are required for basic PCI device emulation")
-        raise SystemExit(f"Missing critical donor information: {', '.join(missing_critical)}")
-    
+        raise SystemExit(
+            f"Missing critical donor information: {', '.join(missing_critical)}"
+        )
+
     # Check for extended fields
-    missing_extended = [field for field in extended_required_fields if field not in info]
+    missing_extended = [
+        field for field in extended_required_fields if field not in info
+    ]
     if missing_extended:
-        print(f"[!] WARNING: Extended fields missing from donor info: {missing_extended}")
-        print("[!] These fields are recommended for complete PCI configuration space emulation")
+        print(
+            f"[!] WARNING: Extended fields missing from donor info: {missing_extended}"
+        )
+        print(
+            "[!] These fields are recommended for complete PCI configuration space emulation"
+        )
         print("[!] The build will continue but may not fully match the donor device")
-    
+
     # Check for optional fields
     missing_optional = [field for field in optional_fields if field not in info]
     if missing_optional:
         print(f"[*] Note: Optional fields missing from donor info: {missing_optional}")
         print("[*] These fields provide additional device-specific features")
-    
+
     # Validate format of critical fields
     format_errors = []
-    
+
     # Validate hex values
-    hex_fields = ["vendor_id", "device_id", "subvendor_id", "subsystem_id", "revision_id", "bar_size"]
+    hex_fields = [
+        "vendor_id",
+        "device_id",
+        "subvendor_id",
+        "subsystem_id",
+        "revision_id",
+        "bar_size",
+    ]
     for field in hex_fields:
         if field in info:
             value = info[field]
-            if not (value.startswith("0x") and all(c in "0123456789abcdefABCDEF" for c in value[2:])):
+            if not (
+                value.startswith("0x")
+                and all(c in "0123456789abcdefABCDEF" for c in value[2:])
+            ):
                 format_errors.append(f"{field} ({value}) is not a valid hex value")
-    
+
     # Validate class code if present
     if "class_code" in info:
         class_code = info["class_code"]
-        if not (len(class_code) == 6 and all(c in "0123456789abcdefABCDEF" for c in class_code)):
-            format_errors.append(f"class_code ({class_code}) should be a 6-digit hex value")
-    
+        if not (
+            len(class_code) == 6
+            and all(c in "0123456789abcdefABCDEF" for c in class_code)
+        ):
+            format_errors.append(
+                f"class_code ({class_code}) should be a 6-digit hex value"
+            )
+
     if format_errors:
         print(f"[!] WARNING: Format validation issues in donor info:")
         for error in format_errors:
             print(f"[!]   - {error}")
         print("[!] The build will continue but may not behave as expected")
-    
+
     return len(missing_critical) == 0 and len(format_errors) == 0
 
 
@@ -1266,7 +1344,22 @@ def main() -> None:
     )
     parser.add_argument(
         "--board",
-        choices=["35t", "75t", "100t"],
+        choices=[
+            # Original boards
+            "35t",
+            "75t",
+            "100t",
+            # CaptainDMA boards
+            "pcileech_75t484_x1",
+            "pcileech_35t484_x1",
+            "pcileech_35t325_x4",
+            "pcileech_35t325_x1",
+            "pcileech_100t484_x1",
+            # Other boards
+            "pcileech_enigma_x1",
+            "pcileech_squirrel",
+            "pcileech_pciescreamer_xc7a35",
+        ],
         required=True,
         help="Target board type",
     )
@@ -1340,7 +1433,9 @@ def main() -> None:
 
     # Validate board directory exists (unless skipped)
     if not args.skip_board_check and not target_src.parent.exists():
-        sys.exit("Expected pcileech board folder missing in repo clone")
+        sys.exit(
+            f"Expected pcileech board folder missing: {target_src.parent}\nMake sure the pcileech-fpga repository is properly cloned."
+        )
 
     # Create output directory if it doesn't exist
     if not target_src.parent.exists():
