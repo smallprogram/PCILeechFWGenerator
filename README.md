@@ -200,6 +200,9 @@ sudo pcileech-build --bdf 0000:03:00.0 --board 75t --skip-donor-dump
 # Build using a previously saved donor information file
 sudo pcileech-build --bdf 0000:03:00.0 --board 75t --donor-info-file /path/to/donor_info.json
 
+# For manual donor dump generation, see the Manual Donor Dump Guide:
+# docs/MANUAL_DONOR_DUMP.md
+
 # Advanced generation with enhanced features
 sudo pcileech-build --bdf 0000:03:00.0 --board 75t --advanced-sv
 
@@ -426,6 +429,7 @@ twine upload dist/*
 
 - **[TUI Documentation](docs/TUI_README.md)**: Detailed TUI interface guide
 - **[TUI Design Document](docs/TUI_Design_Document.md)**: Technical architecture
+- **[Manual Donor Dump Guide](docs/MANUAL_DONOR_DUMP.md)**: Step-by-step guide for manually generating donor dumps
 - **[Contributing Guide](CONTRIBUTING.md)**: Development and contribution guidelines
 - **[Changelog](CHANGELOG.md)**: Version history and release notes
 - **[API Reference](https://pcileechfwgenerator.readthedocs.io/)**: Complete API documentation
@@ -479,6 +483,21 @@ podman run --rm pcileechfwgenerator:latest ls -la /app/src/
 
 # Test with specific capabilities (recommended)
 podman run --rm --cap-add=SYS_RAWIO --cap-add=SYS_ADMIN pcileechfwgenerator:latest echo "Capability test passed"
+```
+
+**Donor Dump Issues:**
+```bash
+# If donor_dump module fails to build or load
+# See the Manual Donor Dump Guide for step-by-step instructions:
+# docs/MANUAL_DONOR_DUMP.md
+
+# Manual donor dump extraction (Linux)
+sudo insmod src/donor_dump/donor_dump.ko bdf=0000:03:00.0
+cat /proc/donor_dump > donor_info.txt
+
+# Windows donor dump extraction
+# Run PowerShell as Administrator
+.\scripts\windows_donor_dump.ps1 -BDF "0000:03:00.0" -OutputFile "donor_info.json"
 ```
 
 **Container Security Best Practices:**
