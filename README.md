@@ -1,6 +1,6 @@
 # PCILeech Firmware Generator
 
-[![PyPI version](https://badge.fury.io/py/pcileechfwgenerator.svg)](https://badge.fury.io/py/pcileechfwgenerator)
+[![PyPI - Version](https://img.shields.io/pypi/v/:pcileechfwgenerator)](https://pypi.org/project/pcileechfwgenerator/)
 [![CI](https://github.com/ramseymcgrath/PCILeechFWGenerator/workflows/CI/badge.svg)](https://github.com/ramseymcgrath/PCILeechFWGenerator/actions)
 [![codecov](https://codecov.io/gh/ramseymcgrath/PCILeechFWGenerator/branch/main/graph/badge.svg)](https://codecov.io/gh/ramseymcgrath/PCILeechFWGenerator)
 ![](https://dcbadge.limes.pink/api/shield/429866199833247744)
@@ -535,5 +535,5 @@ This tool is intended for educational research and legitimate PCIe development p
 
 ---
 
-**Version 0.1.7** - Major release with TUI interface and professional packaging
+**Version 0.1.8** - Major release with TUI interface and professional packaging
 For educational research and legitimate PCIe development only. Misuse may violate laws and void warranties. The authors assume no liability.
