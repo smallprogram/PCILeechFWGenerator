@@ -208,7 +208,8 @@ class ConfigurationDialog(ModalScreen[BuildConfiguration]):
         # Initialize the device type select with default value
         try:
             device_type_select = self.query_one("#device-type-select", Select)
-            device_options = [option[0] for option in device_type_select.options]
+            # Fix for Textual 3.3.0: options is now a property that returns a different format
+            device_options = [option.value for option in device_type_select.options]
 
             # Check if generic is in options
             if "generic" in device_options:
@@ -233,7 +234,8 @@ class ConfigurationDialog(ModalScreen[BuildConfiguration]):
             # Set device type value safely
             try:
                 device_type_select = self.query_one("#device-type-select", Select)
-                device_options = [option[0] for option in device_type_select.options]
+                # Fix for Textual 3.3.0: options is now a property that returns a different format
+                device_options = [option.value for option in device_type_select.options]
 
                 # Make sure the value is in the available options
                 if config.device_type in device_options:
@@ -294,7 +296,8 @@ class ConfigurationDialog(ModalScreen[BuildConfiguration]):
             # Get device type safely
             device_type_select = self.query_one("#device-type-select", Select)
             device_type = device_type_select.value
-            device_options = [option[0] for option in device_type_select.options]
+            # Fix for Textual 3.3.0: options is now a property that returns a different format
+            device_options = [option.value for option in device_type_select.options]
 
             # Fallback to generic if value is not set or invalid
             if not device_type or device_type not in device_options:
