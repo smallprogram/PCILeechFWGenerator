@@ -208,16 +208,13 @@ class ConfigurationDialog(ModalScreen[BuildConfiguration]):
         # Initialize the device type select with default value
         try:
             device_type_select = self.query_one("#device-type-select", Select)
-            # Fix for Textual 3.3.0: options is now a property that returns a different format
-            device_options = [option.value for option in device_type_select.options]
+            device_type_options = self._get_select_options(device_type_select)
 
-            # Check if generic is in options
-            if "generic" in device_options:
+            # Set to generic if available, otherwise first option
+            if "generic" in device_type_options:
                 device_type_select.value = "generic"
-            elif device_options:  # If options exist but generic isn't one of them
-                device_type_select.value = device_options[
-                    0
-                ]  # Use first available option
+            elif device_type_options:
+                device_type_select.value = device_type_options[0]
         except Exception as e:
             print(f"Error initializing device type select: {e}")
 
@@ -229,27 +226,37 @@ class ConfigurationDialog(ModalScreen[BuildConfiguration]):
     def _populate_form(self, config: BuildConfiguration) -> None:
         """Populate form fields with configuration values"""
         try:
-            self.query_one("#board-type-select", Select).value = config.board_type
+            # Get board type options first
+            board_type_select = self.query_one("#board-type-select", Select)
+            board_type_options = self._get_select_options(board_type_select)
 
-            # Set device type value safely
+            # Only set the value if it's valid
+            board_type = config.board_type
+            if board_type in board_type_options:
+                board_type_select.value = board_type
+            elif board_type_options:
+                print(
+                    f"Board type '{board_type}' not found, using '{board_type_options[0]}'"
+                )
+                board_type_select.value = board_type_options[0]
+
+            # Set device type safely
             try:
                 device_type_select = self.query_one("#device-type-select", Select)
-                # Fix for Textual 3.3.0: options is now a property that returns a different format
-                device_options = [option.value for option in device_type_select.options]
+                device_type_options = self._get_select_options(device_type_select)
 
-                # Make sure the value is in the available options
-                if config.device_type in device_options:
-                    device_type_select.value = config.device_type
-                elif "generic" in device_options:
+                # Only set the value if it's valid
+                device_type = config.device_type
+                if device_type in device_type_options:
+                    device_type_select.value = device_type
+                elif "generic" in device_type_options:
+                    print(f"Device type '{device_type}' not found, using 'generic'")
                     device_type_select.value = "generic"
+                elif device_type_options:
                     print(
-                        f"Warning: Device type '{config.device_type}' not found in options, using 'generic' instead"
+                        f"Device type '{device_type}' not found, using '{device_type_options[0]}'"
                     )
-                elif device_options:
-                    device_type_select.value = device_options[0]
-                    print(
-                        f"Warning: Device type '{config.device_type}' not found in options, using '{device_options[0]}' instead"
-                    )
+                    device_type_select.value = device_type_options[0]
             except Exception as e:
                 print(f"Error setting device type: {e}")
 
@@ -286,32 +293,83 @@ class ConfigurationDialog(ModalScreen[BuildConfiguration]):
             self.query_one("#profile-duration-input", Input).value = str(
                 config.profile_duration
             )
-        except Exception:
+        except Exception as e:
             # If any field fails to populate, continue with defaults
-            pass
+            print(f"Error populating form fields: {e}")
+
+    def _get_select_options(self, select_widget: Select) -> list:
+        """Safely get options from a Select widget
+
+        Works with different versions of Textual by trying different approaches
+        """
+        try:
+            # First try the standard way (newer Textual versions)
+            if hasattr(select_widget, "options"):
+                return [option.value for option in select_widget.options]
+            # Then try the private attribute (older versions)
+            elif hasattr(select_widget, "_options"):
+                # Handle both tuple of values and list of objects
+                if select_widget._options and hasattr(
+                    select_widget._options[0], "value"
+                ):
+                    return [option.value for option in select_widget._options]
+                else:
+                    return list(select_widget._options)
+            # Fallback to empty list if no options found
+            return []
+        except Exception as e:
+            print(f"Error getting select options: {e}")
+            return []
+
+    def _sanitize_select_value(self, select: Select, fallback: str = "") -> str:
+        """Ensure a select value is valid, with fallback options"""
+        try:
+            # Get current value (might be None or Select.BLANK)
+            current_value = select.value
+            if current_value == Select.BLANK:
+                current_value = ""
+
+            options = self._get_select_options(select)
+
+            # If current value is valid, use it
+            if current_value and current_value in options:
+                return current_value
+
+            # Try fallback value if provided
+            if fallback and fallback in options:
+                print(f"Using fallback value: {fallback}")
+                return fallback
+
+            # Otherwise use first available option
+            if options:
+                print(f"Using first available option: {options[0]}")
+                return options[0]
+
+            # Last resort
+            print(f"No valid options found, using fallback: {fallback}")
+            return fallback
+        except Exception as e:
+            print(f"Error sanitizing select value: {e}")
+            return fallback
 
     def _create_config_from_form(self) -> BuildConfiguration:
         """Create BuildConfiguration from form values"""
         try:
             # Get device type safely
             device_type_select = self.query_one("#device-type-select", Select)
-            device_type = device_type_select.value
-            # Fix for Textual 3.3.0: options is now a property that returns a different format
-            device_options = [option.value for option in device_type_select.options]
+            device_type = self._sanitize_select_value(device_type_select, "generic")
 
-            # Fallback to generic if value is not set or invalid
-            if not device_type or device_type not in device_options:
-                # If generic is available, use it
-                if "generic" in device_options:
-                    device_type = "generic"
-                # Otherwise use the first available option or default to "generic"
-                elif device_options:
-                    device_type = device_options[0]
-                else:
-                    device_type = "generic"
+            # Get board type safely
+            board_type_select = self.query_one("#board-type-select", Select)
+            board_type_options = self._get_select_options(board_type_select)
+
+            # Use current value if valid, otherwise use default
+            board_type = board_type_select.value
+            if board_type == Select.BLANK and board_type_options:
+                board_type = board_type_options[0]
 
             return BuildConfiguration(
-                board_type=self.query_one("#board-type-select", Select).value,
+                board_type=board_type,
                 device_type=device_type,
                 name=self.query_one("#config-name-input", Input).value,
                 description=self.query_one("#config-description-input", Input).value,
@@ -334,16 +392,32 @@ class ConfigurationDialog(ModalScreen[BuildConfiguration]):
                 ).value,
                 donor_info_file=self.query_one("#donor-info-file-input", Input).value
                 or None,
-                profile_duration=float(
-                    self.query_one("#profile-duration-input", Input).value or "30.0"
+                profile_duration=self._parse_float_input(
+                    self.query_one("#profile-duration-input", Input), 30.0
                 ),
             )
         except (ValueError, TypeError) as e:
             # Return current config if form has invalid values
+            print(f"Error creating configuration from form: {e}")
             app = self.app
             if hasattr(app, "current_config"):
+                print("Using existing configuration as fallback")
                 return app.current_config
+            print("Creating default configuration as fallback")
             return BuildConfiguration()
+
+    def _parse_float_input(
+        self, input_widget: Input, default_value: float = 0.0
+    ) -> float:
+        """Safely parse a float value from an input widget"""
+        try:
+            value = input_widget.value
+            if not value:
+                return default_value
+            return float(value)
+        except (ValueError, TypeError) as e:
+            print(f"Error parsing float input: {e}, using default: {default_value}")
+            return default_value
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle dialog button presses"""
