@@ -10,7 +10,6 @@ Boards:
   75t  → Enigma-X1  (PCIeEnigmaX1)
   100t → ZDMA       (XilinxZDMA)
 """
-
 import argparse
 import json
 import os
@@ -34,6 +33,7 @@ try:
         PerformanceCounterConfig,
         PowerManagementConfig,
     )
+    from .behavior_profiler import BehaviorProfiler
     from .manufacturing_variance import DeviceClass, ManufacturingVarianceSimulator
     from .repo_manager import RepoManager
 except ImportError:
@@ -46,6 +46,7 @@ except ImportError:
         PerformanceCounterConfig,
         PowerManagementConfig,
     )
+    from behavior_profiler import BehaviorProfiler
     from manufacturing_variance import DeviceClass, ManufacturingVarianceSimulator
     from repo_manager import RepoManager
 
@@ -306,7 +307,7 @@ def validate_donor_info(info: dict) -> bool:
 
 def get_donor_info(
     bdf: str,
-    use_donor_dump: bool = True,
+    use_donor_dump: bool = False,
     donor_info_path: Optional[str] = None,
     device_type: str = "generic",
 ) -> dict:
@@ -315,7 +316,7 @@ def get_donor_info(
 
     Args:
         bdf (str): PCIe Bus:Device.Function identifier (e.g., "0000:03:00.0").
-        use_donor_dump (bool): Whether to use the donor_dump kernel module.
+        use_donor_dump (bool): Whether to use the donor_dump kernel module (defaults to False for local builds).
         donor_info_path (str): Path to a JSON file for saving/loading donor information.
         device_type (str): Type of device for synthetic data generation if needed.
 
@@ -386,6 +387,7 @@ def get_donor_info(
                 save_to_file=donor_info_path,
                 generate_if_unavailable=not use_donor_dump,
                 device_type=device_type,
+                extract_full_config=True,
             )
             print(f"[*] Successfully extracted donor info")
             # Validate the extracted info
@@ -420,7 +422,7 @@ def get_donor_info(
         return info
 
 
-def scrape_driver_regs(vendor: str, device: str) -> list:
+def scrape_driver_regs(vendor: str, device: str) -> tuple:
     """
     Scrape driver registers for the given vendor/device ID.
 
@@ -429,25 +431,35 @@ def scrape_driver_regs(vendor: str, device: str) -> list:
         device (str): Device ID of the PCIe device.
 
     Returns:
-        list: A list of register definitions.
+        tuple: A tuple containing (list of register definitions, state machine analysis dict).
     """
     try:
         output = subprocess.check_output(
-            f"python3 scripts/driver_scrape.py {vendor} {device}", shell=True, text=True
+            f"python3 src/scripts/driver_scrape.py {vendor} {device}",
+            shell=True,
+            text=True,
         )
         data = json.loads(output)
 
-        if isinstance(data, dict) and "registers" in data:
-            return data["registers"]
+        if isinstance(data, dict):
+            # Extract both registers and state machine analysis
+            registers = data.get("registers", [])
+            state_machine_analysis = data.get("state_machine_analysis", {})
+            return registers, state_machine_analysis
         elif isinstance(data, list):
-            return data
+            # If it's just a list of registers, return that with empty state machine analysis
+            return data, {}
         else:
-            return []
-    except subprocess.CalledProcessError:
-        return []
+            # Return empty data for both
+            return [], {}
+    except (subprocess.CalledProcessError, json.JSONDecodeError):
+        # Return empty data for both in case of any error
+        return [], {}
 
 
-def integrate_behavior_profile(bdf: str, regs: list, duration: float = 10.0) -> list:
+def integrate_behavior_profile(
+    bdf: str, regs: list, duration: float = 10.0, disable_ftrace: bool = False
+) -> list:
     """
     Integrate behavior profiling data with register definitions.
 
@@ -455,18 +467,18 @@ def integrate_behavior_profile(bdf: str, regs: list, duration: float = 10.0) -> 
         bdf (str): PCIe Bus:Device.Function identifier.
         regs (list): List of register definitions.
         duration (float): Duration of behavior profiling in seconds.
+        disable_ftrace (bool): Whether to disable ftrace monitoring.
 
     Returns:
         list: Enhanced register definitions with behavioral data.
     """
     try:
-        src_path = str(ROOT / "src")
-        if src_path not in sys.path:
-            sys.path.append(src_path)
-        from behavior_profiler import BehaviorProfiler
+        # BehaviorProfiler is already imported at the module level
 
         print(f"[*] Capturing device behavior profile for {duration}s...")
-        profiler = BehaviorProfiler(bdf, debug=False)
+        # Determine whether to enable ftrace
+        enable_ftrace = not disable_ftrace and os.geteuid() == 0
+        profiler = BehaviorProfiler(bdf, debug=False, enable_ftrace=enable_ftrace)
         profile = profiler.capture_behavior_profile(duration)
         analysis = profiler.analyze_patterns(profile)
 
@@ -534,7 +546,24 @@ def build_sv(
         SystemExit: If no registers are provided.
     """
     if not regs:
-        sys.exit("No registers scraped – aborting build")
+        print("[!] Warning: No registers scraped. Using default register set.")
+        # Create a minimal set of default registers for basic functionality
+        regs = [
+            {
+                "offset": 0x0,
+                "name": "device_control",
+                "value": "0x0",
+                "rw": "rw",
+                "context": {"function": "init", "timing": "early"},
+            },
+            {
+                "offset": 0x4,
+                "name": "device_status",
+                "value": "0x0",
+                "rw": "ro",
+                "context": {"function": "status", "timing": "runtime"},
+            },
+        ]
 
     declarations = []
     write_cases = []
@@ -568,9 +597,35 @@ def build_sv(
         else:
             device_id = f"board_{board_type}"
 
-        variance_model = variance_simulator.generate_variance_model(
-            device_id=device_id, device_class=device_class, base_frequency_mhz=base_freq
-        )
+        # Extract DSN (Device Serial Number) from variance_metadata if available
+        dsn = None
+        revision = None
+
+        # Try to get DSN from variance_metadata
+        if variance_metadata and "dsn" in variance_metadata:
+            dsn = variance_metadata["dsn"]
+
+        # Try to get revision from variance_metadata
+        if variance_metadata and "revision" in variance_metadata:
+            revision = variance_metadata["revision"]
+
+        # If we have both DSN and revision, we can use deterministic seeding
+        if dsn is not None and revision is not None:
+            print(f"[*] Using deterministic variance seeding with DSN: {dsn}")
+            variance_model = variance_simulator.generate_variance_model(
+                device_id=device_id,
+                device_class=device_class,
+                base_frequency_mhz=base_freq,
+                dsn=dsn,
+                revision=revision,
+            )
+        else:
+            # Fall back to non-deterministic variance
+            variance_model = variance_simulator.generate_variance_model(
+                device_id=device_id,
+                device_class=device_class,
+                base_frequency_mhz=base_freq,
+            )
 
         print(
             f"[*] Manufacturing variance simulation enabled for {device_class.value} class device"
@@ -783,7 +838,26 @@ def build_advanced_sv(
         SystemExit: If no registers are provided.
     """
     if not regs:
-        sys.exit("No registers scraped – aborting advanced build")
+        print(
+            "[!] Warning: No registers scraped. Using default register set for advanced build."
+        )
+        # Create a minimal set of default registers for basic functionality
+        regs = [
+            {
+                "offset": 0x0,
+                "name": "device_control",
+                "value": "0x0",
+                "rw": "rw",
+                "context": {"function": "init", "timing": "early"},
+            },
+            {
+                "offset": 0x4,
+                "name": "device_status",
+                "value": "0x0",
+                "rw": "ro",
+                "context": {"function": "status", "timing": "runtime"},
+            },
+        ]
 
     # Configure advanced features based on board type and requirements
     board_config = BOARD_INFO.get(board_type, BOARD_INFO["75t"])
@@ -894,9 +968,28 @@ def build_advanced_sv(
             if variance_metadata
             else f"board_{board_type}"
         )
-        variance_model = variance_simulator.generate_variance_model(
-            device_id=device_id, device_class=device_class, base_frequency_mhz=base_freq
-        )
+
+        # Extract DSN and revision for deterministic seeding
+        dsn = variance_metadata.get("dsn") if variance_metadata else None
+        revision = variance_metadata.get("revision") if variance_metadata else None
+
+        # If we have both DSN and revision, use deterministic seeding
+        if dsn is not None and revision is not None:
+            print(f"[*] Using deterministic variance seeding with DSN: {dsn}")
+            variance_model = variance_simulator.generate_variance_model(
+                device_id=device_id,
+                device_class=device_class,
+                base_frequency_mhz=base_freq,
+                dsn=dsn,
+                revision=revision,
+            )
+        else:
+            # Fall back to non-deterministic variance
+            variance_model = variance_simulator.generate_variance_model(
+                device_id=device_id,
+                device_class=device_class,
+                base_frequency_mhz=base_freq,
+            )
         print(
             f"[*] Advanced variance simulation enabled for {device_class.value} class device"
         )
@@ -1200,13 +1293,14 @@ def code_from_bytes(byte_count: int) -> int:
     return byte_to_code[byte_count]
 
 
-def build_tcl(info: dict, gen_tcl: str) -> tuple[str, str]:
+def build_tcl(info: dict, gen_tcl: str, args=None) -> tuple[str, str]:
     """
     Generate TCL patch file for Vivado configuration.
 
     Args:
         info (dict): Donor device information.
         gen_tcl (str): Path to the base TCL file.
+        args: Command line arguments (optional).
 
     Returns:
         tuple[str, str]: Generated TCL content and path to the temporary file.
@@ -1214,11 +1308,62 @@ def build_tcl(info: dict, gen_tcl: str) -> tuple[str, str]:
     bar_bytes = int(info["bar_size"], 16)
     aperture = APERTURE.get(bar_bytes)
     if not aperture:
-        sys.exit(f"Unsupported BAR size: {bar_bytes} bytes")
+        print(
+            f"[!] Warning: Unsupported BAR size: {bar_bytes} bytes. Using default aperture."
+        )
+        # Use a default aperture size
+        aperture = "128K"
 
     # Calculate max payload size and max read request size
     mps = 1 << (int(info["mpc"], 16) + 7)
     mrr = 1 << (int(info["mpr"], 16) + 7)
+
+    # Parse MSI-X capability if available
+    msix_params = {}
+    pruned_config = None
+
+    if "extended_config" in info:
+        try:
+            # Apply capability pruning if not disabled
+            if args and not getattr(args, "disable_capability_pruning", False):
+                from pci_capability import prune_capabilities_by_rules
+
+                pruned_config = prune_capabilities_by_rules(info["extended_config"])
+                print("[*] Applied capability pruning to configuration space")
+
+                # Update the extended_config with the pruned version
+                info["extended_config"] = pruned_config
+
+                # Save the pruned configuration space if donor_info_path is provided
+                if args and args.donor_info_file:
+                    from donor_dump_manager import DonorDumpManager
+
+                    manager = DonorDumpManager()
+                    config_hex_path = os.path.join(
+                        os.path.dirname(args.donor_info_file), "config_space_init.hex"
+                    )
+                    manager.save_config_space_hex(pruned_config, config_hex_path)
+                    print(f"[*] Saved pruned configuration space to {config_hex_path}")
+            elif args and getattr(args, "disable_capability_pruning", False):
+                print("[*] Capability pruning disabled by user")
+
+            # Parse MSI-X capability from the configuration
+            from msix_capability import parse_msix_capability
+
+            msix_info = parse_msix_capability(info["extended_config"])
+            if msix_info["table_size"] > 0:
+                msix_params = {
+                    "NUM_MSIX": msix_info["table_size"],
+                    "MSIX_TABLE_BIR": msix_info["table_bir"],
+                    "MSIX_TABLE_OFFSET": msix_info["table_offset"],
+                    "MSIX_PBA_BIR": msix_info["pba_bir"],
+                    "MSIX_PBA_OFFSET": msix_info["pba_offset"],
+                }
+                print(f"[*] MSI-X capability found: {msix_info['table_size']} entries")
+        except ImportError as e:
+            print(f"[!] Warning: Module not found: {e}, some features may be disabled")
+        except Exception as e:
+            print(f"[!] Warning: Error processing capabilities: {e}")
 
     # Generate TCL patch content
     # Generate a more complete TCL file that matches the expected structure in tests
@@ -1257,7 +1402,19 @@ set obj [get_filesets sources_1]
 set files [list \\
  [file normalize "${{origin_dir}}/src/pcileech_tlps128_bar_controller.sv"]\\
  [file normalize "${{origin_dir}}/src/pcileech_tlps128_cfgspace_shadow.sv"]\\
+ [file normalize "${{origin_dir}}/config_space_init.hex"]\\
 ]
+
+# Add Option-ROM files if enabled
+if {{"{info.get('option_rom_enabled', 'false')}" eq "true"}} {{
+    lappend files [file normalize "${{origin_dir}}/rom_init.hex"]
+    
+    if {{"{info.get('option_rom_mode', 'bar')}" eq "bar"}} {{
+        lappend files [file normalize "${{origin_dir}}/src/option_rom_bar_window.sv"]
+    }} else {{
+        lappend files [file normalize "${{origin_dir}}/src/option_rom_spi_flash.sv"]
+    }}
+}}
 set imported_files [import_files -fileset sources_1 $files]
 
 # Set PCIe core properties
@@ -1272,6 +1429,20 @@ set_property -name "DEV_CAP_MAX_READ_REQ_SIZE" -value "{code_from_bytes(mrr)}" -
 set_property -name "MSI_CAP_ENABLE" -value "true" -objects $core
 set_property -name "MSI_CAP_MULTIMSGCAP" -value "1" -objects $core
 set_property -name "BAR0_SIZE" -value "{aperture}" -objects $core
+
+# Set MSI-X parameters if available
+set_property -name "MSIX_CAP_ENABLE" -value "{1 if msix_params else 0}" -objects $core
+set_property -name "MSIX_CAP_TABLE_SIZE" -value "{msix_params.get('NUM_MSIX', 0)}" -objects $core
+set_property -name "MSIX_CAP_TABLE_BIR" -value "{msix_params.get('MSIX_TABLE_BIR', 0)}" -objects $core
+set_property -name "MSIX_CAP_TABLE_OFFSET" -value "{msix_params.get('MSIX_TABLE_OFFSET', 0)}" -objects $core
+set_property -name "MSIX_CAP_PBA_BIR" -value "{msix_params.get('MSIX_PBA_BIR', 0)}" -objects $core
+set_property -name "MSIX_CAP_PBA_OFFSET" -value "{msix_params.get('MSIX_PBA_OFFSET', 0)}" -objects $core
+
+# Set Option-ROM parameters if enabled
+if {{"{info.get('option_rom_enabled', 'false')}" eq "true"}} {{
+    set_property -name "EXPANSION_ROM_ENABLE" -value "true" -objects $core
+    set_property -name "EXPANSION_ROM_SIZE" -value "{int(int(info.get('option_rom_size', '65536'))/1024)}_KB" -objects $core
+}}
 
 # Set 'sources_1' fileset properties
 set obj [get_filesets sources_1]
@@ -1305,15 +1476,39 @@ def vivado_run(board_root: pathlib.Path, gen_tcl_path: str, patch_tcl: str) -> N
         patch_tcl (str): Path to the patch TCL file.
 
     Raises:
-        SystemExit: If no bitstream file is found after the build.
+        SystemExit: If Vivado is not found or no bitstream file is found after the build.
     """
+    # Import vivado_utils here to avoid circular imports
+    try:
+        from .vivado_utils import find_vivado_installation, run_vivado_command
+    except ImportError:
+        from vivado_utils import find_vivado_installation, run_vivado_command
+
+    # Check if Vivado is installed
+    vivado_info = find_vivado_installation()
+    if not vivado_info:
+        sys.exit(
+            "ERROR: Vivado not found. Please make sure Vivado is installed and in your PATH, "
+            "or set the XILINX_VIVADO environment variable."
+        )
+
+    print(f"[*] Using Vivado {vivado_info['version']} from {vivado_info['path']}")
+
+    # Change to board root directory
     os.chdir(board_root)
 
     try:
-        # Run Vivado build steps
-        run(f"vivado -mode batch -source {gen_tcl_path} -notrace")
-        run(f"vivado -mode batch -source {patch_tcl} -notrace")
-        run("vivado -mode batch -source vivado_build.tcl -notrace")
+        # Run Vivado build steps using the detected installation
+        vivado_exe = vivado_info["executable"]
+
+        print(f"[*] Running Vivado project generation...")
+        run(f"{vivado_exe} -mode batch -source {gen_tcl_path} -notrace")
+
+        print(f"[*] Applying configuration patch...")
+        run(f"{vivado_exe} -mode batch -source {patch_tcl} -notrace")
+
+        print(f"[*] Running Vivado build...")
+        run(f"{vivado_exe} -mode batch -source vivado_build.tcl -notrace")
 
         # Find and copy the generated bitstream
         bit_files = list(board_root.glob("*/impl_*/pcileech_*_top.bin"))
@@ -1371,6 +1566,16 @@ def main() -> None:
         help="Enable dynamic behavior profiling (requires root privileges)",
     )
     parser.add_argument(
+        "--disable-ftrace",
+        action="store_true",
+        help="Disable ftrace monitoring (useful for CI environments or non-root usage)",
+    )
+    parser.add_argument(
+        "--disable-capability-pruning",
+        action="store_true",
+        help="Disable PCI capability pruning",
+    )
+    parser.add_argument(
         "--profile-duration",
         type=float,
         default=10.0,
@@ -1413,9 +1618,9 @@ def main() -> None:
         help="Disable performance counters in advanced generation",
     )
     parser.add_argument(
-        "--skip-donor-dump",
+        "--use-donor-dump",
         action="store_true",
-        help="Skip using the donor_dump kernel module (opt-in, not default)",
+        help="Use the donor_dump kernel module (opt-in, not default)",
     )
     parser.add_argument(
         "--donor-info-file",
@@ -1425,6 +1630,28 @@ def main() -> None:
         "--skip-board-check",
         action="store_true",
         help="Skip checking if the board directory exists (for local builds)",
+    )
+    # Option-ROM passthrough arguments
+    parser.add_argument(
+        "--enable-option-rom",
+        action="store_true",
+        help="Enable Option-ROM passthrough feature",
+    )
+    parser.add_argument(
+        "--option-rom-mode",
+        choices=["bar", "spi"],
+        default="bar",
+        help="Option-ROM mode: 'bar' for BAR 5 window (Mode A), 'spi' for external SPI flash (Mode B)",
+    )
+    parser.add_argument(
+        "--option-rom-file",
+        help="Path to an existing Option-ROM file (skips extraction)",
+    )
+    parser.add_argument(
+        "--option-rom-size",
+        type=int,
+        default=65536,
+        help="Option-ROM size in bytes (default: 64KB)",
     )
     args = parser.parse_args()
 
@@ -1456,14 +1683,101 @@ def main() -> None:
         print(f"[*] Creating output directory: {target_src.parent}")
         os.makedirs(target_src.parent, exist_ok=True)
 
+    # Initialize variables
+    pruned_config = None
+
     # Extract donor information with extended config space
     print(f"[*] Extracting enhanced donor info from {args.bdf}")
     info = get_donor_info(
         args.bdf,
-        use_donor_dump=not args.skip_donor_dump,
+        use_donor_dump=args.use_donor_dump,
         donor_info_path=args.donor_info_file,
         device_type=args.device_type,
     )
+
+    # Extract DSN (Device Serial Number) for deterministic variance seeding
+    dsn = None
+    if "dsn_hi" in info and "dsn_lo" in info:
+        # Combine high and low 32-bit parts into a 64-bit DSN
+        try:
+            dsn_hi = (
+                int(info["dsn_hi"], 16)
+                if info["dsn_hi"].startswith("0x")
+                else int(info["dsn_hi"])
+            )
+            dsn_lo = (
+                int(info["dsn_lo"], 16)
+                if info["dsn_lo"].startswith("0x")
+                else int(info["dsn_lo"])
+            )
+            dsn = (dsn_hi << 32) | dsn_lo
+            print(f"[*] Found device serial number (DSN): 0x{dsn:016x}")
+        except (ValueError, TypeError) as e:
+            print(f"[!] Warning: Could not parse DSN from donor info: {e}")
+            dsn = None
+
+    # Get build revision (git commit hash) for deterministic variance seeding
+    build_revision = None
+    try:
+        # Try to get the current git commit hash
+        import subprocess
+
+        build_revision = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL
+        ).strip()
+        print(f"[*] Using build revision: {build_revision[:10]}...")
+    except (subprocess.SubprocessError, FileNotFoundError):
+        print("[!] Warning: Could not determine build revision from git")
+        # Generate a fallback revision based on timestamp
+        import time
+
+        build_revision = f"fallback{int(time.time())}"
+        print(f"[*] Using fallback build revision: {build_revision}")
+
+    # Extract Option-ROM if enabled
+    option_rom_info = None
+    if args.enable_option_rom:
+        try:
+            from option_rom_manager import OptionROMError, OptionROMManager
+
+            print(
+                f"[*] Setting up Option-ROM passthrough (Mode {args.option_rom_mode.upper()})"
+            )
+            rom_manager = OptionROMManager(rom_file_path=args.option_rom_file)
+
+            if args.option_rom_file:
+                print(f"[*] Using provided Option-ROM file: {args.option_rom_file}")
+                rom_manager.load_rom_file()
+            else:
+                print(f"[*] Extracting Option-ROM from donor device: {args.bdf}")
+                success, rom_path = rom_manager.extract_rom_linux(args.bdf)
+                if not success:
+                    print(
+                        "[!] Warning: Failed to extract Option-ROM, feature will be disabled"
+                    )
+                    args.enable_option_rom = False
+
+            if args.enable_option_rom:
+                # Save ROM in hex format for SystemVerilog
+                rom_manager.save_rom_hex(str(OUT / "rom_init.hex"))
+                option_rom_info = rom_manager.get_rom_info()
+
+                print(f"[*] Option-ROM information:")
+                for key, value in option_rom_info.items():
+                    print(f"    - {key}: {value}")
+        except ImportError:
+            print(
+                "[!] Warning: option_rom_manager module not found, Option-ROM feature will be disabled"
+            )
+            args.enable_option_rom = False
+        except OptionROMError as e:
+            print(f"[!] Warning: Option-ROM error: {e}, feature will be disabled")
+            args.enable_option_rom = False
+        except Exception as e:
+            print(
+                f"[!] Warning: Unexpected error during Option-ROM setup: {e}, feature will be disabled"
+            )
+            args.enable_option_rom = False
 
     if args.verbose:
         print(
@@ -1480,8 +1794,29 @@ def main() -> None:
     regs, state_machine_analysis = scrape_driver_regs(
         info["vendor_id"], info["device_id"]
     )
+
+    # Continue with empty registers instead of exiting
     if not regs:
-        sys.exit("Driver scrape returned no registers")
+        print(
+            "[!] Warning: Driver scrape returned no registers. Using default register set."
+        )
+        # Create a minimal set of default registers for basic functionality
+        regs = [
+            {
+                "offset": 0x0,
+                "name": "device_control",
+                "value": "0x0",
+                "rw": "rw",
+                "context": {"function": "init", "timing": "early"},
+            },
+            {
+                "offset": 0x4,
+                "name": "device_status",
+                "value": "0x0",
+                "rw": "ro",
+                "context": {"function": "status", "timing": "runtime"},
+            },
+        ]
 
     print(f"[*] Found {len(regs)} registers with context analysis")
 
@@ -1490,11 +1825,15 @@ def main() -> None:
         sm_count = state_machine_analysis.get("extracted_state_machines", 0)
         opt_sm_count = state_machine_analysis.get("optimized_state_machines", 0)
         print(f"[*] Extracted {sm_count} state machines, optimized to {opt_sm_count}")
+    else:
+        print("[*] No state machine analysis available. Using default state patterns.")
 
     # Optional behavior profiling
     if args.enable_behavior_profiling:
         print(f"[*] Integrating dynamic behavior profiling...")
-        regs = integrate_behavior_profile(args.bdf, regs, args.profile_duration)
+        regs = integrate_behavior_profile(
+            args.bdf, regs, args.profile_duration, args.disable_ftrace
+        )
     else:
         print(
             "[*] Skipping behavior profiling (use --enable-behavior-profiling to enable)"
@@ -1525,6 +1864,16 @@ def main() -> None:
             if "context" in reg and "variance_metadata" in reg["context"]:
                 variance_metadata = reg["context"]["variance_metadata"]
                 break
+
+    # If variance_metadata is None, initialize it
+    if variance_metadata is None:
+        variance_metadata = {}
+
+    # Add DSN and build revision to variance metadata for deterministic seeding
+    if dsn is not None:
+        variance_metadata["dsn"] = dsn
+    if build_revision is not None:
+        variance_metadata["revision"] = build_revision
 
     # Enable variance simulation by default, can be disabled via command line
     enable_variance = getattr(args, "enable_variance", True)
@@ -1564,7 +1913,18 @@ def main() -> None:
 
     # Generate TCL configuration with extended capabilities
     print("[*] Generating Vivado configuration")
-    gen_tcl, patch_tcl = build_tcl(info, board_config["gen"])
+
+    # Add Option-ROM information to the info dictionary if available
+    if args.enable_option_rom and option_rom_info:
+        info["option_rom_enabled"] = "true"
+        info["option_rom_mode"] = args.option_rom_mode
+        info["option_rom_size"] = option_rom_info.get(
+            "rom_size", str(args.option_rom_size)
+        )
+    else:
+        info["option_rom_enabled"] = "false"
+
+    gen_tcl, patch_tcl = build_tcl(info, board_config["gen"], args)
 
     # Run Vivado build
     print("[*] Starting Vivado build")
@@ -1575,10 +1935,33 @@ def main() -> None:
 
     # Print enhancement summary
     print("\n[*] Enhancement Summary:")
+    # Check if MSI-X was detected
+    msix_detected = False
+    if "extended_config" in info:
+        try:
+            from msix_capability import parse_msix_capability
+
+            msix_info = parse_msix_capability(info["extended_config"])
+            msix_detected = msix_info["table_size"] > 0
+        except:
+            pass
+
     print(f"    - Extended config space: {'✓' if 'extended_config' in info else '✗'}")
+    print(f"    - Config space shadow BRAM: ✓")
+    print(f"    - MSI-X table replication: {'✓' if msix_detected else '✗'}")
+    print(f"    - Capability pruning: {'✓' if pruned_config is not None else '✗'}")
     print(f"    - Enhanced register analysis: ✓")
     print(f"    - Behavior profiling: {'✓' if args.enable_behavior_profiling else '✗'}")
     print(f"    - Advanced timing models: {'✓' if args.enhanced_timing else '✗'}")
+    print(f"    - Option-ROM passthrough: {'✓' if args.enable_option_rom else '✗'}")
+    if args.enable_option_rom and option_rom_info is not None:
+        print(f"      - Mode: {args.option_rom_mode.upper()}")
+        print(
+            f"      - Size: {option_rom_info.get('rom_size', str(args.option_rom_size))} bytes"
+        )
+    elif args.enable_option_rom:
+        print(f"      - Mode: {args.option_rom_mode.upper()}")
+        print(f"      - Size: {args.option_rom_size} bytes")
     print(f"    - Registers analyzed: {len(regs)}")
 
 

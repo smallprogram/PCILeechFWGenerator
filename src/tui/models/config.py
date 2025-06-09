@@ -5,9 +5,10 @@ Comprehensive build configuration for the TUI interface.
 """
 
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 
 @dataclass
@@ -20,17 +21,18 @@ class BuildConfiguration:
     enable_variance: bool = True
     behavior_profiling: bool = False
     profile_duration: float = 30.0
+    disable_ftrace: bool = False
     power_management: bool = True
     error_handling: bool = True
     performance_counters: bool = True
     flash_after_build: bool = False
 
     # Donor dump configuration
-    donor_dump: bool = True  # Default to using donor dump
+    donor_dump: bool = False  # Default to local builds (no donor dump)
     auto_install_headers: bool = False
     donor_info_file: Optional[str] = None
     skip_board_check: bool = False
-    local_build: bool = False
+    local_build: bool = True  # Default to local builds
 
     # Profile metadata
     name: str = "Default Configuration"
@@ -117,7 +119,7 @@ class BuildConfiguration:
             "disable_performance_counters": not self.performance_counters,
             "enable_behavior_profiling": self.behavior_profiling,
             "behavior_profile_duration": int(self.profile_duration),
-            "skip_donor_dump": not self.donor_dump,
+            "use_donor_dump": self.donor_dump,  # Use the new parameter name
             "auto_install_headers": self.auto_install_headers,
         }
 
@@ -160,17 +162,87 @@ class BuildConfiguration:
         return cls(**data)
 
     def save_to_file(self, filepath: Path) -> None:
-        """Save configuration to JSON file"""
-        filepath.parent.mkdir(parents=True, exist_ok=True)
-        with open(filepath, "w") as f:
-            json.dump(self.to_dict(), f, indent=2)
+        """
+        Save configuration to JSON file
+
+        Args:
+            filepath: Path to save the configuration file
+
+        Raises:
+            PermissionError: If the file cannot be written due to permission issues
+            OSError: If there's an error creating the directory or writing the file
+            Exception: For any other unexpected errors
+        """
+        try:
+            # Create parent directory if it doesn't exist
+            if not filepath.parent.exists():
+                filepath.parent.mkdir(parents=True, exist_ok=True)
+
+                # Set appropriate permissions on Unix-like systems
+                if os.name != "nt":  # Skip on Windows
+                    os.chmod(
+                        filepath.parent, 0o700  # User: rwx, Group: ---, Other: ---
+                    )
+
+            # Write the file
+            with open(filepath, "w") as f:
+                json.dump(self.to_dict(), f, indent=2)
+
+            # Set appropriate permissions on Unix-like systems
+            if os.name != "nt":  # Skip on Windows
+                os.chmod(filepath, 0o600)  # User: rw-, Group: ---, Other: ---
+        except PermissionError as e:
+            raise PermissionError(
+                f"Permission denied when saving to {filepath}: {str(e)}"
+            )
+        except OSError as e:
+            raise OSError(
+                f"Failed to create directory or write file {filepath}: {str(e)}"
+            )
+        except Exception as e:
+            raise Exception(
+                f"Unexpected error when saving configuration to {filepath}: {str(e)}"
+            )
 
     @classmethod
     def load_from_file(cls, filepath: Path) -> "BuildConfiguration":
-        """Load configuration from JSON file"""
-        with open(filepath, "r") as f:
-            data = json.load(f)
-        return cls.from_dict(data)
+        """
+        Load configuration from JSON file
+
+        Args:
+            filepath: Path to the configuration file
+
+        Returns:
+            BuildConfiguration: The loaded configuration
+
+        Raises:
+            FileNotFoundError: If the file does not exist
+            PermissionError: If the file cannot be read due to permission issues
+            json.JSONDecodeError: If the file contains invalid JSON
+            ValueError: If the configuration data is invalid
+            Exception: For any other unexpected errors
+        """
+        if not filepath.exists():
+            raise FileNotFoundError(f"Configuration file not found: {filepath}")
+
+        try:
+            with open(filepath, "r") as f:
+                data = json.load(f)
+            return cls.from_dict(data)
+        except PermissionError as e:
+            raise PermissionError(
+                f"Permission denied when reading {filepath}: {str(e)}"
+            )
+        except json.JSONDecodeError as e:
+            raise json.JSONDecodeError(
+                f"Invalid JSON in configuration file {filepath}: {e.msg}", e.doc, e.pos
+            )
+        except ValueError as e:
+            raise ValueError(f"Invalid configuration data in {filepath}: {str(e)}")
+        except Exception as e:
+            raise Exception(
+                f"Unexpected error when loading configuration from {filepath}: {str(e)}"
+            )
 
     def copy(self) -> "BuildConfiguration":
         """Create a copy of this configuration"""

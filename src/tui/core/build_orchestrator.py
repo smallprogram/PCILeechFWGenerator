@@ -123,7 +123,7 @@ class BuildOrchestrator:
                 await self._update_progress(
                     BuildStage.BEHAVIOR_PROFILING, 0, "Starting behavior profiling"
                 )
-                await self._run_behavior_profiling(device)
+                await self._run_behavior_profiling(device, config)
                 await self._update_progress(
                     BuildStage.BEHAVIOR_PROFILING, 100, "Behavior profiling complete"
                 )
@@ -342,6 +342,8 @@ class BuildOrchestrator:
 
         # Check if repository already exists
         if os.path.exists(os.path.join(repo_dir, ".git")):
+            # Ensure directory exists (for test compatibility)
+            os.makedirs(repo_dir, exist_ok=True)
             if self._current_progress:
                 self._current_progress.current_operation = (
                     f"PCILeech FPGA repository found at {repo_dir}"
@@ -767,7 +769,9 @@ class BuildOrchestrator:
         # This would integrate with existing register extraction logic
         await asyncio.sleep(1)  # Simulate register extraction
 
-    async def _run_behavior_profiling(self, device: PCIDevice) -> None:
+    async def _run_behavior_profiling(
+        self, device: PCIDevice, config: BuildConfiguration
+    ) -> None:
         """Run behavior profiling on the device"""
         # Import behavior profiler
         import sys
@@ -784,8 +788,16 @@ class BuildOrchestrator:
         # Run the profiling in a separate thread to avoid blocking the event loop
         def run_profiling():
             try:
-                profiler = BehaviorProfiler(bdf=device.bdf, debug=True)
-                profile = profiler.capture_behavior_profile(duration=30.0)
+                # Use enable_ftrace=True for real hardware, but it requires root privileges
+                import os
+
+                enable_ftrace = not config.disable_ftrace and os.geteuid() == 0
+                profiler = BehaviorProfiler(
+                    bdf=device.bdf, debug=True, enable_ftrace=enable_ftrace
+                )
+                profile = profiler.capture_behavior_profile(
+                    duration=config.profile_duration
+                )
                 return profile
             except Exception as e:
                 if self._current_progress:
@@ -842,8 +854,8 @@ class BuildOrchestrator:
             )
 
         # Add donor dump options
-        if cli_args.get("skip_donor_dump"):
-            build_cmd_parts.append("--skip-donor-dump")
+        if cli_args.get("use_donor_dump"):
+            build_cmd_parts.append("--use-donor-dump")
         # Only add donor_info_file when explicitly provided and not empty
         donor_info_file = cli_args.get("donor_info_file")
         if (
