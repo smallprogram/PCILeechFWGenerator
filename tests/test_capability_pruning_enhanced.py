@@ -82,6 +82,32 @@ class TestCapabilityPruningEnhanced(unittest.TestCase):
 
         return config_space
 
+    def create_capability_in_space(
+        self, config_space, offset, cap_id, next_ptr, data="0000"
+    ):
+        """
+        Create a standard capability at the specified offset in given config space.
+
+        Args:
+            config_space: Configuration space to modify
+            offset: Offset in the configuration space
+            cap_id: Capability ID
+            next_ptr: Next capability pointer
+            data: Additional capability data (hex string)
+
+        Returns:
+            Updated configuration space
+        """
+        # Format: cap_id (1 byte) + next_ptr (1 byte) + data (variable)
+        cap = f"{cap_id:02x}{next_ptr:02x}{data}"
+
+        # Insert the capability at the specified offset
+        updated_config_space = (
+            config_space[: offset * 2] + cap + config_space[offset * 2 + len(cap) :]
+        )
+
+        return updated_config_space
+
     def create_ext_capability(
         self, offset, cap_id, next_ptr, version=1, data="00000000"
     ):
@@ -204,22 +230,24 @@ class TestCapabilityPruningEnhanced(unittest.TestCase):
         config_space = self.config_space
 
         # Add PCIe capability at offset 0x40
-        config_space = self.create_capability(
-            0x40, PCICapabilityID.PCI_EXPRESS.value, 0x50
+        config_space = self.create_capability_in_space(
+            config_space, 0x40, PCICapabilityID.PCI_EXPRESS.value, 0x50
         )
 
         # Add Power Management capability at offset 0x50
-        config_space = self.create_capability(
-            0x50, PCICapabilityID.POWER_MANAGEMENT.value, 0x60
+        config_space = self.create_capability_in_space(
+            config_space, 0x50, PCICapabilityID.POWER_MANAGEMENT.value, 0x60
         )
 
         # Add Vendor-specific capability at offset 0x60
-        config_space = self.create_capability(
-            0x60, PCICapabilityID.VENDOR_SPECIFIC.value, 0x70
+        config_space = self.create_capability_in_space(
+            config_space, 0x60, PCICapabilityID.VENDOR_SPECIFIC.value, 0x70
         )
 
         # Add MSI-X capability at offset 0x70
-        config_space = self.create_capability(0x70, PCICapabilityID.MSI_X.value, 0x00)
+        config_space = self.create_capability_in_space(
+            config_space, 0x70, PCICapabilityID.MSI_X.value, 0x00
+        )
 
         # Get all capabilities
         caps = get_all_capabilities(config_space)

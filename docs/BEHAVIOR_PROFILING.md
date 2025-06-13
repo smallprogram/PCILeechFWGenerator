@@ -58,13 +58,13 @@ To enable behavior profiling via the command line:
 
 ```bash
 # Basic usage
-pcileech-build --bdf 0000:03:00.0 --board 75t --enable-behavior-profiling
+pcileech-generate --bdf 0000:03:00.0 --board 75t --enable-behavior-profiling
 
 # With custom duration
-pcileech-build --bdf 0000:03:00.0 --board 75t --enable-behavior-profiling --profile-duration 60.0
+pcileech-generate --bdf 0000:03:00.0 --board 75t --enable-behavior-profiling --profile-duration 60.0
 
 # With advanced SystemVerilog and device-specific optimizations
-pcileech-build --bdf 0000:03:00.0 --board 75t --advanced-sv --device-type network --enable-behavior-profiling
+pcileech-generate --bdf 0000:03:00.0 --board 75t --advanced-sv --device-type network --enable-behavior-profiling
 ```
 
 ### TUI Interface
@@ -180,10 +180,10 @@ You can save behavior profiles for later use:
 
 ```bash
 # Save profile to file
-pcileech-build --bdf 0000:03:00.0 --enable-behavior-profiling --save-profile my_device_profile.json
+pcileech-generate --bdf 0000:03:00.0 --enable-behavior-profiling --save-profile my_device_profile.json
 
 # Load profile from file
-pcileech-build --bdf 0000:03:00.0 --load-profile my_device_profile.json
+pcileech-generate --bdf 0000:03:00.0 --load-profile my_device_profile.json
 ```
 
 ### Custom Analysis
@@ -191,10 +191,10 @@ pcileech-build --bdf 0000:03:00.0 --load-profile my_device_profile.json
 For advanced users, the behavior profiler can output detailed analysis data:
 
 ```bash
-pcileech-build --bdf 0000:03:00.0 --enable-behavior-profiling --save-analysis analysis.json
+pcileech-generate --bdf 0000:03:00.0 --enable-behavior-profiling --save-analysis analysis.json
 
 # Run without ftrace monitoring (no root required)
-pcileech-build --bdf 0000:03:00.0 --enable-behavior-profiling --disable-ftrace
+pcileech-generate --bdf 0000:03:00.0 --enable-behavior-profiling --disable-ftrace
 ```
 
 ## 🔬 Technical Details
@@ -222,4 +222,4 @@ This tool is intended for educational research and legitimate PCIe development p
 
 ---
 
-**Version 0.3.0** - Major release with TUI interface and professional packaging
+**Version 0.3.1** - Major release with TUI interface and professional packaging

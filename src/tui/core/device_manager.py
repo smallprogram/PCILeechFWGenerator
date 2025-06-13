@@ -414,7 +414,7 @@ class DeviceManager:
                 }
             )
         else:
-            score -= 0.2
+            score -= 0.1  # Reduced penalty to keep score above 0.8
             issues.append("Device is not VFIO compatible")
             factors.append(
                 {

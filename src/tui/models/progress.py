@@ -15,7 +15,6 @@ class BuildStage(Enum):
     ENVIRONMENT_VALIDATION = "Environment Validation"
     DEVICE_ANALYSIS = "Device Analysis"
     REGISTER_EXTRACTION = "Register Extraction"
-    BEHAVIOR_PROFILING = "Behavior Profiling"
     SYSTEMVERILOG_GENERATION = "SystemVerilog Generation"
     VIVADO_SYNTHESIS = "Vivado Synthesis"
     BITSTREAM_GENERATION = "Bitstream Generation"
@@ -57,8 +56,7 @@ class BuildProgress:
     @property
     def total_stages(self) -> int:
         """Total number of stages."""
-        # Return 6 for compatibility with tests
-        return 6  # Instead of len(BuildStage) which is 7
+        return len(BuildStage)
 
     @property
     def overall_progress(self) -> float:

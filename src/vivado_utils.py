@@ -87,7 +87,7 @@ def find_vivado_installation() -> Optional[Dict[str, str]]:
                                 bin_dir,
                                 "vivado" + (".exe" if system == "windows" else ""),
                             )
-                            if os.path.exists(vivado_exe):
+                            if os.path.isfile(vivado_exe):
                                 return {
                                     "path": vivado_dir,
                                     "bin_path": bin_dir,
@@ -106,7 +106,7 @@ def find_vivado_installation() -> Optional[Dict[str, str]]:
             vivado_exe = os.path.join(
                 bin_dir, "vivado" + (".exe" if system == "windows" else "")
             )
-            if os.path.exists(vivado_exe):
+            if os.path.isfile(vivado_exe):
                 # Try to extract version from path
                 path_parts = xilinx_vivado.split(os.path.sep)
                 version = next(
@@ -150,13 +150,13 @@ def get_vivado_version(vivado_path: str) -> str:
                     # Extract version like "v2022.2"
                     parts = line.split()
                     for part in parts:
-                        if part.startswith("v") and "." in part:
+                        if part.startswith("v") and "." in part and len(part) > 1:
                             return part[1:]  # Remove 'v' prefix
 
         # Try to extract version from path if command failed
         path_parts = vivado_path.split(os.path.sep)
         for part in path_parts:
-            if part[0].isdigit() and "." in part:
+            if part and len(part) > 0 and part[0].isdigit() and "." in part:
                 return part
 
     except (subprocess.SubprocessError, OSError):

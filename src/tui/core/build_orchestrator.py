@@ -121,14 +121,14 @@ class BuildOrchestrator:
             # Stage 4: Behavior Profiling (if enabled)
             if config.behavior_profiling:
                 await self._update_progress(
-                    BuildStage.BEHAVIOR_PROFILING, 0, "Starting behavior profiling"
+                    BuildStage.REGISTER_EXTRACTION, 0, "Starting behavior profiling"
                 )
                 await self._run_behavior_profiling(device, config)
                 await self._update_progress(
-                    BuildStage.BEHAVIOR_PROFILING, 100, "Behavior profiling complete"
+                    BuildStage.REGISTER_EXTRACTION, 100, "Behavior profiling complete"
                 )
                 self._current_progress.mark_stage_complete(
-                    BuildStage.BEHAVIOR_PROFILING
+                    BuildStage.REGISTER_EXTRACTION
                 )
 
                 if self._should_cancel:

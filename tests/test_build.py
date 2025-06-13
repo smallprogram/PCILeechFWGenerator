@@ -92,7 +92,7 @@ class TestDonorInfoExtraction:
     """Test donor device information extraction."""
 
     @patch("os.chdir")
-    @patch("build.run")
+    @patch("build_compat.run")
     @patch("subprocess.check_output")
     def test_get_donor_info_success(
         self, mock_output, mock_run, mock_chdir, mock_donor_info
@@ -123,7 +123,7 @@ mpr: 0x02"""
         mock_run.assert_any_call("rmmod donor_dump")
 
     @patch("os.chdir")
-    @patch("build.run")
+    @patch("build_compat.run")
     @patch("subprocess.check_output")
     def test_get_donor_info_missing_fields(self, mock_output, mock_run, mock_chdir):
         """Test donor info extraction with missing required fields."""
@@ -137,7 +137,7 @@ device_id: 0x1533"""
             build.get_donor_info("0000:03:00.0", use_donor_dump=True)
 
     @patch("os.chdir")
-    @patch("build.run")
+    @patch("build_compat.run")
     @patch("subprocess.check_output")
     def test_get_donor_info_malformed_output(self, mock_output, mock_run, mock_chdir):
         """Test donor info extraction with malformed output."""

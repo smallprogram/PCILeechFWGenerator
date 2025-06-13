@@ -1,6 +1,6 @@
 # PCILeech FPGA Firmware Generator Release Plan
 
-This document outlines the release plan for version 0.3.0 of the PCILeech FPGA firmware generator, which integrates all the implemented features:
+This document outlines the release plan for version 0.3.1 of the PCILeech FPGA firmware generator, which integrates all the implemented features:
 
 1. Full 4 KB config-space shadow in BRAM
 2. Auto-replicate MSI-X table exactly
@@ -30,7 +30,7 @@ This document outlines the release plan for version 0.3.0 of the PCILeech FPGA f
 | June 15, 2025 | Address feedback and fix issues |
 | June 16, 2025 | Release candidate 2 (RC2) if needed |
 | June 17, 2025 | Final review and approval |
-| June 18, 2025 | Official release of v0.3.0 |
+| June 18, 2025 | Official release of v0.3.1 |
 
 ## Pre-Release Tasks
 
@@ -119,15 +119,15 @@ This document outlines the release plan for version 0.3.0 of the PCILeech FPGA f
    ```
 5. Verify installation from PyPI:
    ```bash
-   pip install pcileech-fw-generator==0.3.0
+   pip install pcileech-fw-generator==0.3.1
    ```
 
 ### GitHub Release
 
 1. Create a new tag for the release:
    ```bash
-   git tag -a v0.3.0 -m "Version 0.3.0"
-   git push origin v0.3.0
+   git tag -a v0.3.1 -m "Version 0.3.1"
+   git push origin v0.3.1
    ```
 2. Create a new release on GitHub with release notes
 3. Upload built packages as release assets
@@ -137,12 +137,12 @@ This document outlines the release plan for version 0.3.0 of the PCILeech FPGA f
 
 1. Build the container image with the new version:
    ```bash
-   ./scripts/build_container.sh 0.3.0
+   ./scripts/build_container.sh 0.3.1
    ```
 2. Test the container image
 3. Push the container image to the registry:
    ```bash
-   podman push pcileech-fw-generator:0.3.0
+   podman push pcileech-fw-generator:0.3.1
    ```
 4. Update container documentation with new version
 

@@ -91,13 +91,13 @@ pcileech-tui-sudo  # Use sudo wrapper (preserves Python path)
 # OR
 sudo pcileech-tui  # Direct sudo (may have module import issues)
 
-# Command line interface
-pcileech-generate
+# Main orchestrator - handles device enumeration, driver binding, container execution
+pcileech-generate  # Interactive device selection and build
+# OR with sudo wrapper for full automation
+pcileech-build-sudo --bdf 0000:03:00.0 --board 75t  # Calls pcileech-generate with preserved Python path
 
-# Direct build command
-pcileech-build-sudo --bdf 0000:03:00.0 --board 75t  # Use sudo wrapper
-# OR
-sudo pcileech-build --bdf 0000:03:00.0 --board 75t  # Direct sudo
+# Direct orchestrator with sudo (recommended for automation)
+sudo pcileech-generate --bdf 0000:03:00.0 --board 75t
 ```
 
 ### Device Suitability Indicators
@@ -381,7 +381,7 @@ The Manufacturing Variance Simulation feature adds realistic hardware variations
 **Usage:**
 ```bash
 # Enable manufacturing variance (automatically applied with --advanced-sv)
-python3 src/build.py --bdf 0000:03:00.0 --board 75t --advanced-sv
+sudo pcileech-generate --bdf 0000:03:00.0 --board 75t --advanced-sv
 ```
 
 ### Advanced SystemVerilog Generation
@@ -421,17 +421,17 @@ The Advanced SystemVerilog Generation feature provides a comprehensive, modular 
 **Usage Examples:**
 ```bash
 # Enable all advanced features
-python3 src/build.py --bdf 0000:03:00.0 --board 75t --advanced-sv
+sudo pcileech-generate --bdf 0000:03:00.0 --board 75t --advanced-sv
 
 # Network device with specific optimizations
-python3 src/build.py --bdf 0000:03:00.0 --board 75t --advanced-sv --device-type network
+sudo pcileech-generate --bdf 0000:03:00.0 --board 75t --advanced-sv --device-type network
 
 # Disable specific features for minimal implementation
-python3 src/build.py --bdf 0000:03:00.0 --board 75t --advanced-sv \
+sudo pcileech-generate --bdf 0000:03:00.0 --board 75t --advanced-sv \
   --disable-power-management --disable-error-handling
 
 # Storage device with performance monitoring
-python3 src/build.py --bdf 0000:03:00.0 --board 75t --advanced-sv \
+sudo pcileech-generate --bdf 0000:03:00.0 --board 75t --advanced-sv \
   --device-type storage --enable-behavior-profiling
 ```
 
@@ -455,11 +455,11 @@ Dynamic behavior profiling captures real device operation patterns to enhance fi
 **Usage:**
 ```bash
 # Enable behavior profiling with custom duration
-python3 src/build.py --bdf 0000:03:00.0 --board 75t \
-  --enable-behavior-profiling --profile-duration 30.0
+sudo pcileech-generate --bdf 0000:03:00.0 --board 75t \
+  --enable-behavior-profiling --behavior-profile-duration 30.0
 
 # Enable profiling with device-specific optimizations
-python3 src/build.py --bdf 0000:03:00.0 --board 75t --advanced-sv \
+sudo pcileech-generate --bdf 0000:03:00.0 --board 75t --advanced-sv \
   --device-type network --enable-behavior-profiling
 ```
 
@@ -549,6 +549,7 @@ twine upload dist/*
 
 ## 📚 Documentation
 
+- **[Build System Architecture](docs/BUILD_SYSTEM_ARCHITECTURE.md)**: Entry points, build flow, and troubleshooting guide
 - **[Integrated Features](docs/INTEGRATED_FEATURES.md)**: Comprehensive documentation of integrated features
 - **[TUI Documentation](docs/TUI_README.md)**: Detailed TUI interface guide
 - **[TUI Design Document](docs/TUI_Design_Document.md)**: Technical architecture
@@ -658,5 +659,5 @@ This tool is intended for educational research and legitimate PCIe development p
 
 ---
 
-**Version 0.3.0** - Major release with integrated features for comprehensive PCIe device emulation
+**Version 0.3.1** - Major release with integrated features for comprehensive PCIe device emulation
 For educational research and legitimate PCIe development only. Misuse may violate laws and void warranties. The authors assume no liability.

@@ -795,6 +795,16 @@ class DonorDumpManager:
             # Create directory if it doesn't exist
             os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
 
+            # Ensure we have at least 4KB (8192 hex chars) or truncate if larger
+            target_size = 8192  # 4KB = 4096 bytes = 8192 hex chars
+            if len(config_hex_str) < target_size:
+                # Pad with zeros to reach target size
+                padding_needed = target_size - len(config_hex_str)
+                config_hex_str = config_hex_str + "0" * padding_needed
+            elif len(config_hex_str) > target_size:
+                # Truncate to 4KB
+                config_hex_str = config_hex_str[:target_size]
+
             # Format the hex data for $readmemh (32-bit words, one per line)
             with open(output_path, "w") as f:
                 # Process 8 hex characters (4 bytes) at a time to create 32-bit words
@@ -804,13 +814,14 @@ class DonorDumpManager:
                         # Extract 4 bytes (8 hex chars)
                         word_hex = config_hex_str[i : i + 8]
                         # Convert to little-endian format (reverse byte order)
-                        le_word = (
-                            word_hex[6:8]
-                            + word_hex[4:6]
-                            + word_hex[2:4]
-                            + word_hex[0:2]
-                        )
-                        f.write(f"{le_word}\n")
+                        # Take each pair of hex chars (1 byte) and reverse the order
+                        byte0 = word_hex[0:2]  # First byte
+                        byte1 = word_hex[2:4]  # Second byte
+                        byte2 = word_hex[4:6]  # Third byte
+                        byte3 = word_hex[6:8]  # Fourth byte
+                        # Reverse byte order for little-endian
+                        le_word = byte3 + byte2 + byte1 + byte0
+                        f.write(f"{le_word.lower()}\n")
 
             logger.info(f"Saved configuration space hex data to {output_path}")
             return True

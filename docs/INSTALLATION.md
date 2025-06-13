@@ -204,7 +204,7 @@ sudo usermod -a -G dialout $USER
 
 ### 4. Configure Container Engine (Rootless)
 
-By default, the PCILeech Firmware Generator uses local builds, but you can also use container builds with either Podman (default) or Docker.
+By default, the PCILeech Firmware Generator uses local builds, but you can also use container builds with Podman
 
 #### Podman Setup
 
@@ -250,7 +250,7 @@ pip list | grep pcileech-fw-generator
 # Test console scripts
 pcileech-generate --help
 pcileech-tui --help
-pcileech-build --help
+pcileech-generate --help
 ```
 
 ### TUI Verification
@@ -428,7 +428,7 @@ docker pull ghcr.io/ramseymcgrath/pcileechfwgenerator:latest
 
 ```bash
 # Uninstall package
-pip uninstall pcileech-fw-generator
+pip uninstall pcileechfwgenerator
 
 # Clean up dependencies (optional)
 pip autoremove
@@ -438,7 +438,7 @@ pip autoremove
 
 ```bash
 # Remove from pip
-pip uninstall pcileech-fw-generator
+pip uninstall pcileechfwgenerator
 
 # Remove source directory
 rm -rf PCILeechFWGenerator

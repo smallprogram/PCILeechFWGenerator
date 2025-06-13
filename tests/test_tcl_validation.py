@@ -14,10 +14,11 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add src directory to path for imports
+src_dir = Path(__file__).parent.parent / "src"
+sys.path.insert(0, str(src_dir))
 
-import build
+from build_compat import build_tcl
 from tests.utils import get_pcileech_wifi_tcl_file
 
 
@@ -64,7 +65,7 @@ class TestTCLValidation:
                     "mpc": "0x02",
                     "mpr": "0x02",
                 }
-                tcl_content, _ = build.build_tcl(mock_info, "test.tcl")
+                tcl_content, _ = build_tcl(mock_info, "test.tcl")
 
         # Extract the same sections from our generated TCL
         generated_sections = self._extract_tcl_sections(tcl_content)
@@ -85,9 +86,7 @@ class TestTCLValidation:
         # Generate TCL with the same device info as the example
         with patch("tempfile.mkstemp", return_value=(0, "test.tcl")):
             with patch("os.close"):
-                tcl_content, _ = build.build_tcl(
-                    mock_donor_info_from_example, "test.tcl"
-                )
+                tcl_content, _ = build_tcl(mock_donor_info_from_example, "test.tcl")
 
         # Check for device ID configuration patterns
         vendor_id_pattern = r'set_property -name "VENDOR_ID" -value "0x.*?1814"'
@@ -108,9 +107,7 @@ class TestTCLValidation:
         # Generate TCL with the same BAR size as the example
         with patch("tempfile.mkstemp", return_value=(0, "test.tcl")):
             with patch("os.close"):
-                tcl_content, _ = build.build_tcl(
-                    mock_donor_info_from_example, "test.tcl"
-                )
+                tcl_content, _ = build_tcl(mock_donor_info_from_example, "test.tcl")
 
         # Check for BAR size configuration pattern (128KB)
         bar_size_pattern = r'set_property -name "BAR0_SIZE" -value "128_KB"'
@@ -138,7 +135,7 @@ class TestTCLValidation:
                     "mpc": "0x02",
                     "mpr": "0x02",
                 }
-                tcl_content, _ = build.build_tcl(mock_info, "test.tcl")
+                tcl_content, _ = build_tcl(mock_info, "test.tcl")
 
         # Extract file inclusions from our generated TCL
         generated_files = self._extract_file_inclusions(tcl_content)

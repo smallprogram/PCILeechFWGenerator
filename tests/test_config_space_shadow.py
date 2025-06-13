@@ -60,8 +60,8 @@ class TestConfigSpaceShadow(unittest.TestCase):
         with open(self.config_hex_path, "r") as f:
             lines = f.readlines()
 
-        # Should have 1024 lines (4096 bytes / 4 bytes per line)
-        self.assertEqual(len(lines), 1024)
+        # Should have 512 lines (2048 bytes / 4 bytes per line)
+        self.assertEqual(len(lines), 512)
 
         # Verify the format of the first line (little-endian conversion)
         # Original: "01234567" -> Little-endian: "67452301"

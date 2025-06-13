@@ -48,9 +48,11 @@ class TestKernelModuleBuild:
             mock_run("make", shell=True, check=True)
 
             # Verify build commands were called
+            from unittest.mock import call
+
             expected_calls = [
-                Mock.call("make clean", shell=True, check=True),
-                Mock.call("make", shell=True, check=True),
+                call("make clean", shell=True, check=True),
+                call("make", shell=True, check=True),
             ]
             mock_run.assert_has_calls(expected_calls)
 

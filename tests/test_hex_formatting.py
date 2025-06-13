@@ -15,7 +15,7 @@ import pytest
 src_dir = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_dir))
 
-from build import sanitize_hex_value
+from build_compat import sanitize_hex_value
 
 
 class TestHexValueSanitization:
@@ -109,7 +109,7 @@ class TestTCLIntegration:
     def test_tcl_generation_with_sanitized_values(self):
         """Test that TCL generation uses sanitized hex values."""
         # Import the build_tcl function
-        from build import build_tcl
+        from build_compat import build_tcl
 
         # Create test donor info with various hex formats
         test_info = {
@@ -140,7 +140,7 @@ class TestTCLIntegration:
 
     def test_tcl_generation_with_edge_cases(self):
         """Test TCL generation with edge case hex values."""
-        from build import build_tcl
+        from build_compat import build_tcl
 
         # Test with edge case values
         test_info = {

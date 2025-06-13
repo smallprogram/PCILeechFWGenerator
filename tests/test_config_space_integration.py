@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from src.build import build_tcl, get_donor_info
+from src.build_compat import build_tcl, get_donor_info
 from src.donor_dump_manager import DonorDumpManager
 
 
@@ -48,7 +48,7 @@ class TestConfigSpaceIntegration(unittest.TestCase):
         """Clean up after tests."""
         self.temp_dir.cleanup()
 
-    @patch("src.build.DonorDumpManager")
+    @patch("src.build_compat.DonorDumpManager")
     def test_get_donor_info_with_config_space(self, mock_manager_class):
         """Test that get_donor_info properly handles configuration space extraction."""
         # Setup mock
@@ -100,7 +100,7 @@ class TestConfigSpaceIntegration(unittest.TestCase):
         mock_build_tcl.return_value = ("tcl_content", "tcl_path")
 
         # Create a mock for the build function
-        with patch("src.build.build_sv") as mock_build_sv:
+        with patch("src.build_compat.build_sv") as mock_build_sv:
             from src.build import main
 
             # Mock command line arguments

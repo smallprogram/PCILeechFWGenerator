@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from src.donor_dump_manager import DonorDumpManager
+from src.build_compat import DonorDumpManager
 
 
 class TestConfigSpaceShadowEnhanced(unittest.TestCase):
@@ -77,18 +77,18 @@ class TestConfigSpaceShadowEnhanced(unittest.TestCase):
         # Check a few specific offsets in the extended configuration space
         # Offset 0x100 (256 bytes, start of extended config space)
         # In our pattern, this would be DWORD 64 (0x40)
-        # Expected little-endian value: 0xBBAA4000
-        self.assertEqual(lines[64].strip(), "bbaa4000")
+        # Pattern: i=64 -> bytes [0x40, 0x00, 0xAA, 0xBB] -> hex "4000aabb" -> little-endian "bbaa0040"
+        self.assertEqual(lines[64].strip(), "bbaa0040")
 
         # Offset 0x400 (1024 bytes)
         # In our pattern, this would be DWORD 256 (0x100)
-        # Expected little-endian value: 0xBBAA0001
-        self.assertEqual(lines[256].strip(), "bbaa0001")
+        # Pattern: i=256 -> bytes [0x00, 0x01, 0xAA, 0xBB] -> hex "0001aabb" -> little-endian "bbaa0100"
+        self.assertEqual(lines[256].strip(), "bbaa0100")
 
         # Offset 0xFFC (4092 bytes, last DWORD)
         # In our pattern, this would be DWORD 1023 (0x3FF)
-        # Expected little-endian value: 0xBBAA3F03
-        self.assertEqual(lines[1023].strip(), "bbaa3f03")
+        # Pattern: i=1023 -> bytes [0xFF, 0x03, 0xAA, 0xBB] -> hex "ff03aabb" -> little-endian "bbaa03ff"
+        self.assertEqual(lines[1023].strip(), "bbaa03ff")
 
     def test_config_space_boundary_conditions(self):
         """Test boundary conditions for configuration space access."""

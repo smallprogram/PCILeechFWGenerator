@@ -139,7 +139,7 @@ sudo rmmod donor_dump
 You can now use the saved donor information with PCILeech Firmware Generator:
 
 ```bash
-sudo pcileech-build --bdf 0000:03:00.0 --board 75t --donor-info-file /path/to/donor_info.json
+sudo pcileech-generate --bdf 0000:03:00.0 --board 75t --donor-info-file /path/to/donor_info.json
 ```
 
 ## Alternative: Using the Python API
@@ -218,7 +218,7 @@ If you're using Secure Boot, you may need to:
 
 By following this guide, you've manually generated a donor dump file that can be used with the PCILeech Firmware Generator. This process gives you more control and insight into the donor information extraction process, which can be helpful for debugging or custom workflows.
 
-For most users, the automated process using `pcileech-build` or the TUI is recommended, but this manual approach provides an alternative when needed.
+For most users, the automated process using `pcileech-generate` or the TUI is recommended, but this manual approach provides an alternative when needed.
 
 ## Windows Support
 
@@ -268,7 +268,7 @@ The Windows script has some limitations compared to the Linux kernel module:
 After generating the donor info file on Windows, you can use it with PCILeech Firmware Generator on Linux:
 
 ```bash
-sudo pcileech-build --bdf 0000:03:00.0 --board 75t --donor-info-file /path/to/donor_info.json
+sudo pcileech-generate --bdf 0000:03:00.0 --board 75t --donor-info-file /path/to/donor_info.json
 ```
 
 ### Troubleshooting Windows Donor Dump

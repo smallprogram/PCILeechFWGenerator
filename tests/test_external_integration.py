@@ -414,22 +414,40 @@ class TestExternalExampleBasedRegisters:
                 if "status" in reg_name.lower():
                     rw_type = "ro"
 
-            reg_defs.append(
-                {
-                    "offset": 0x400
-                    + (i * 4),  # Assuming 4-byte aligned registers starting at 0x400
-                    "name": reg_name,
-                    "value": f"0x{reg_value}",
-                    "rw": rw_type,
-                    "context": {
-                        "function": f"example_derived_{reg_name}",
-                        "timing": "runtime",
-                        "access_pattern": (
-                            "read_heavy" if rw_type == "ro" else "balanced"
-                        ),
-                    },
-                }
-            )
+                # Convert reg_value to proper hex format
+                if reg_value == "0":
+                    # Use index + 327 to generate a meaningful value for testing
+                    hex_value = f"0x{(i + 327):08x}"
+                else:
+                    try:
+                        # Try to parse as hex
+                        val = (
+                            int(reg_value, 16)
+                            if isinstance(reg_value, str)
+                            else reg_value
+                        )
+                        hex_value = f"0x{val:08x}"
+                    except (ValueError, TypeError):
+                        hex_value = f"0x{(i + 327):08x}"
+
+                reg_defs.append(
+                    {
+                        "offset": 0x400
+                        + (
+                            i * 4
+                        ),  # Assuming 4-byte aligned registers starting at 0x400
+                        "name": reg_name,
+                        "value": hex_value,
+                        "rw": rw_type,
+                        "context": {
+                            "function": f"example_derived_{reg_name}",
+                            "timing": "runtime",
+                            "access_pattern": (
+                                "read_heavy" if rw_type == "ro" else "balanced"
+                            ),
+                        },
+                    }
+                )
 
         # Generate SystemVerilog using these register definitions
         generator = AdvancedSVGenerator()

@@ -100,9 +100,9 @@ The TUI will guide you through:
 sudo pcileech-generate
 
 # Direct build (if you know the device BDF)
-pcileech-build-sudo --bdf 0000:03:00.0 --board 75t  # Using sudo wrapper
+pcileech-build-sudo --bdf 0000:03:00.0 --board 75t  # Using sudo wrapper (calls pcileech-generate)
 # OR
-sudo pcileech-build --bdf 0000:03:00.0 --board 75t  # Direct sudo
+sudo pcileech-generate --bdf 0000:03:00.0 --board 75t  # Direct orchestrator
 ```
 
 ## 📋 Common Workflows
@@ -145,7 +145,7 @@ pcileech-build-sudo --bdf 0000:03:00.0 --board 75t --advanced-sv \
 
 # Custom profiling duration
 pcileech-build-sudo --bdf 0000:03:00.0 --board 75t \
-  --enable-behavior-profiling --profile-duration 30.0
+  --enable-behavior-profiling --behavior-profile-duration 30.0
 ```
 
 ### PCI Configuration Validation

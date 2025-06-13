@@ -592,11 +592,15 @@ def validate_environment() -> None:
             )
             print(f"[✓] Vivado {vivado_info['version']} detected")
         else:
-            logger.warning("Vivado not found. It will be used from the container.")
-            print("[!] Warning: Vivado not found locally. Will use container version.")
+            error_msg = "Vivado not found in PATH. Please install Vivado first."
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
     except ImportError:
-        logger.warning("Could not import vivado_utils. Skipping Vivado check.")
-        print("[!] Warning: Skipping Vivado check.")
+        error_msg = (
+            "Could not import vivado_utils. Please ensure Vivado is properly installed."
+        )
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
 
     # Check if container image exists
     try:
