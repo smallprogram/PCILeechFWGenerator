@@ -8,7 +8,6 @@ power management, error handling, performance counters, and main generator.
 
 import os
 import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -22,7 +21,6 @@ from src.advanced_sv_perf import (
 
 # Import the modules to test
 from src.advanced_sv_power import (
-    LinkState,
     PowerManagementConfig,
     PowerManagementGenerator,
     PowerState,
@@ -510,7 +508,8 @@ class TestAdvancedSVGenerator:
 
         register_logic = generator.generate_register_logic(regs, None)
 
-        # Check for special case handling of pcileech_tlps128_cfgspace_shadow_status
+        # Check for special case handling of
+        # pcileech_tlps128_cfgspace_shadow_status
         assert "pcileech_tlps128_cfgspace_shadow_status_reg = 32'h1" in register_logic
 
         # Check for other register names
@@ -572,7 +571,8 @@ class TestAdvancedSVGenerator:
             {"name": "invalid_hex", "offset": "0x100", "value": "invalid", "rw": "rw"},
         ]
 
-        # This should handle the errors gracefully or raise appropriate exceptions
+        # This should handle the errors gracefully or raise appropriate
+        # exceptions
         with pytest.raises(ValueError):
             generator.generate_register_logic(regs, None)
 

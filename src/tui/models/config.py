@@ -6,9 +6,9 @@ Comprehensive build configuration for the TUI interface.
 
 import json
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 
 @dataclass
@@ -201,7 +201,8 @@ class BuildConfiguration:
             )
         except Exception as e:
             raise Exception(
-                f"Unexpected error when saving configuration to {filepath}: {str(e)}"
+                f"Unexpected error when saving configuration to {filepath}: {
+                    str(e)}"
             )
 
     @classmethod
@@ -235,13 +236,20 @@ class BuildConfiguration:
             )
         except json.JSONDecodeError as e:
             raise json.JSONDecodeError(
-                f"Invalid JSON in configuration file {filepath}: {e.msg}", e.doc, e.pos
+                f"Invalid JSON in configuration file {filepath}: {
+                    e.msg}",
+                e.doc,
+                e.pos,
             )
         except ValueError as e:
-            raise ValueError(f"Invalid configuration data in {filepath}: {str(e)}")
+            raise ValueError(
+                f"Invalid configuration data in {filepath}: {
+                    str(e)}"
+            )
         except Exception as e:
             raise Exception(
-                f"Unexpected error when loading configuration from {filepath}: {str(e)}"
+                f"Unexpected error when loading configuration from {filepath}: {
+                    str(e)}"
             )
 
     def copy(self) -> "BuildConfiguration":

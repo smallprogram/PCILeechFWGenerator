@@ -2,25 +2,24 @@
 Comprehensive tests for generate.py - Main orchestrator functionality.
 """
 
-import os
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
+
+import generate
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
-    from src.build.controller import BuildController, create_build_controller
+    pass
 
     MODULAR_BUILD_AVAILABLE = True
 except ImportError:
     MODULAR_BUILD_AVAILABLE = False
-
-import generate
 
 
 class TestBDFValidation:
@@ -43,7 +42,7 @@ class TestBDFValidation:
             "0000:03:00.0.1",  # Extra component
             "gggg:03:00.0",  # Invalid hex
             "",  # Empty string
-            "not-a-bdf",  # Completely invalid
+            "not-a-bd",  # Completely invalid
         ]
         for bdf in invalid_bdfs:
             assert not generate.validate_bdf_format(bdf), f"BDF {bdf} should be invalid"
@@ -64,13 +63,13 @@ class TestPCIDeviceEnumeration:
         devices = generate.list_pci_devices()
 
         assert len(devices) == 3
-        assert devices[0]["bdf"] == "0000:00:00.0"
+        assert devices[0]["bd"] == "0000:00:00.0"
         assert devices[0]["ven"] == "8086"
         assert devices[0]["dev"] == "0c00"
         assert devices[0]["class"] == "0600"
         assert "Host bridge" in devices[0]["pretty"]
 
-        assert devices[1]["bdf"] == "0000:03:00.0"
+        assert devices[1]["bd"] == "0000:03:00.0"
         assert devices[1]["ven"] == "8086"
         assert devices[1]["dev"] == "1533"
 
@@ -141,7 +140,7 @@ class TestDriverManagement:
     def test_get_current_driver_invalid_bdf(self):
         """Test getting current driver with invalid BDF."""
         with pytest.raises(ValueError, match="Invalid BDF format"):
-            generate.get_current_driver("invalid-bdf")
+            generate.get_current_driver("invalid-bd")
 
     @patch("os.path.realpath")
     @patch("os.path.basename")
@@ -159,7 +158,7 @@ class TestDriverManagement:
     def test_get_iommu_group_invalid_bdf(self):
         """Test getting IOMMU group with invalid BDF."""
         with pytest.raises(ValueError, match="Invalid BDF format"):
-            generate.get_iommu_group("invalid-bdf")
+            generate.get_iommu_group("invalid-bd")
 
 
 class TestVFIOBinding:
@@ -205,7 +204,7 @@ class TestVFIOBinding:
     def test_bind_to_vfio_invalid_bdf(self):
         """Test VFIO binding with invalid BDF."""
         with pytest.raises(ValueError, match="Invalid BDF format"):
-            generate.bind_to_vfio("invalid-bdf", "8086", "1533", "e1000e")
+            generate.bind_to_vfio("invalid-bd", "8086", "1533", "e1000e")
 
 
 class TestDriverRestore:
@@ -256,7 +255,7 @@ class TestUSBDeviceManagement:
     @patch("subprocess.check_output")
     def test_list_usb_devices_success(self, mock_output):
         """Test successful USB device listing."""
-        mock_lsusb_output = """Bus 001 Device 002: ID 1d50:6130 OpenMoko, Inc. 
+        mock_lsusb_output = """Bus 001 Device 002: ID 1d50:6130 OpenMoko, Inc.
 Bus 001 Device 003: ID 0403:6010 Future Technology Devices International, Ltd FT2232C/D/H Dual UART/FIFO IC
 Bus 002 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub"""
 
@@ -408,9 +407,7 @@ class TestContainerExecution:
         mock_args.behavior_profile_duration = 30
 
         with pytest.raises(ValueError, match="Invalid BDF format"):
-            generate.run_build_container(
-                "invalid-bdf", "75t", "/dev/vfio/15", mock_args
-            )
+            generate.run_build_container("invalid-bd", "75t", "/dev/vfio/15", mock_args)
 
     @patch("subprocess.run")
     @patch("os.path.exists")

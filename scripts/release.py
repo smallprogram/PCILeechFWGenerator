@@ -10,7 +10,6 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Tuple
 
 # Project root directory
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -237,7 +236,7 @@ def main():
     print(f"- Changelog updated in {CHANGELOG_FILE}")
     if not args.skip_git:
         print(f"- Git tag v{new_version} created and pushed")
-    print(f"- Distributions built in dist/")
+    print("- Distributions built in dist/")
     if not args.skip_upload:
         pypi_name = "Test PyPI" if args.test_pypi else "PyPI"
         print(f"- Uploaded to {pypi_name}")

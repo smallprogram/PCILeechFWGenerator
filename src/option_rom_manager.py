@@ -238,7 +238,8 @@ class OptionROMManager:
             # Check if device exists
             device_path = f"/sys/bus/pci/devices/{bdf}"
             if not os.path.exists(device_path):
-                # For testing purposes, if the output file already exists, skip this check
+                # For testing purposes, if the output file already exists, skip
+                # this check
                 rom_path = self.output_dir / "donor.rom"
                 if not rom_path.exists():
                     raise OptionROMExtractionError(f"PCI device not found: {bdf}")
@@ -246,7 +247,8 @@ class OptionROMManager:
             # Check if ROM file exists
             rom_sysfs_path = f"{device_path}/rom"
             if not os.path.exists(rom_sysfs_path):
-                # For testing purposes, if the output file already exists, skip this check
+                # For testing purposes, if the output file already exists, skip
+                # this check
                 rom_path = self.output_dir / "donor.rom"
                 if not rom_path.exists():
                     raise OptionROMExtractionError(
@@ -291,13 +293,13 @@ class OptionROMManager:
             # Verify ROM file was created and has content
             if not rom_path.exists():
                 raise OptionROMExtractionError(
-                    f"ROM extraction failed: file not created"
+                    "ROM extraction failed: file not created"
                 )
 
             # Get the file size and verify it's not empty
             file_size = rom_path.stat().st_size
             if file_size == 0:
-                raise OptionROMExtractionError(f"ROM extraction failed: file is empty")
+                raise OptionROMExtractionError("ROM extraction failed: file is empty")
 
             # Load the ROM data
             with open(rom_path, "rb") as f:
@@ -469,7 +471,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Option-ROM Extraction Tool")
     parser.add_argument(
-        "--bdf", required=True, help="PCIe Bus:Device.Function (e.g., 0000:03:00.0)"
+        "--bd", required=True, help="PCIe Bus:Device.Function (e.g., 0000:03:00.0)"
     )
     parser.add_argument("--output-dir", help="Directory to save extracted ROM files")
     parser.add_argument(
@@ -507,7 +509,7 @@ def main():
 
         # Print ROM information
         rom_info = manager.get_rom_info()
-        print(f"Option-ROM Information:")
+        print("Option-ROM Information:")
         for key, value in rom_info.items():
             print(f"  {key}: {value}")
 

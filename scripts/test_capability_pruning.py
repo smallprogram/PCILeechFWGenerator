@@ -8,14 +8,9 @@ This script demonstrates the capability pruning feature by:
 3. Displaying the changes made to the configuration space
 """
 
-import json
-import os
 import sys
 import tempfile
 from pathlib import Path
-
-# Add the src directory to the Python path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.pci_capability import (
     PCICapabilityID,
@@ -26,6 +21,9 @@ from src.pci_capability import (
     get_all_ext_capabilities,
     prune_capabilities_by_rules,
 )
+
+# Add the src directory to the Python path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 def create_sample_config_space():
@@ -121,7 +119,9 @@ def create_sample_config_space():
 def print_capability_info(cap_type, cap_id, offset, name):
     """Print information about a capability."""
     print(
-        f"  {cap_type} Capability: {name} (ID: 0x{cap_id:02x}, Offset: 0x{offset:03x})"
+        f"  {cap_type} Capability: {name} (ID: 0x{
+            cap_id:02x}, Offset: 0x{
+            offset:03x})"
     )
 
 
@@ -153,7 +153,10 @@ def analyze_config_space(config_space, title):
             config_space[link_control_offset : link_control_offset + 4], 16
         )
         aspm_enabled = link_control & 0x0003
-        print(f"\nPCIe Link Control: ASPM {'enabled' if aspm_enabled else 'disabled'}")
+        print(
+            f"\nPCIe Link Control: ASPM {
+                'enabled' if aspm_enabled else 'disabled'}"
+        )
 
         # Check Device Control 2 register
         dev_control2_offset = 0x68 * 2
@@ -175,13 +178,18 @@ def analyze_config_space(config_space, title):
         d3hot_support = pm_cap & 0x0008
         pme_support = pm_cap & 0x0F78
         print(
-            f"\nPower Management: D1 {'supported' if d1_support else 'not supported'}, "
-            f"D2 {'supported' if d2_support else 'not supported'}, "
-            f"D3hot {'supported' if d3hot_support else 'not supported'}, "
-            f"PME {'supported' if pme_support else 'not supported'}"
+            f"\nPower Management: D1 {
+                'supported' if d1_support else 'not supported'}, "
+            f"D2 {
+                'supported' if d2_support else 'not supported'}, "
+            f"D3hot {
+                'supported' if d3hot_support else 'not supported'}, "
+            f"PME {
+                    'supported' if pme_support else 'not supported'}"
         )
 
-    # L1 PM Substates extended capability - direct check since find_ext_cap might fail due to invalid next pointer
+    # L1 PM Substates extended capability - direct check since find_ext_cap
+    # might fail due to invalid next pointer
     l1pm_present = False
     l1pm_offset = 0x100  # Known offset from our test data
     if len(config_space) >= (l1pm_offset + 2) * 2:
@@ -221,13 +229,13 @@ def main():
         original_path = f_original.name
         for i in range(0, len(original_config), 8):
             if i + 8 <= len(original_config):
-                f_original.write(f"{original_config[i:i+8]}\n".encode())
+                f_original.write(f"{original_config[i:i + 8]}\n".encode())
 
     with tempfile.NamedTemporaryFile(suffix=".hex", delete=False) as f_pruned:
         pruned_path = f_pruned.name
         for i in range(0, len(pruned_config), 8):
             if i + 8 <= len(pruned_config):
-                f_pruned.write(f"{pruned_config[i:i+8]}\n".encode())
+                f_pruned.write(f"{pruned_config[i:i + 8]}\n".encode())
 
     print(f"\nOriginal configuration space saved to: {original_path}")
     print(f"Pruned configuration space saved to: {pruned_path}")

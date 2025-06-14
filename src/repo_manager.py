@@ -8,9 +8,7 @@ Handles cloning and updating of required Git repositories.
 import datetime
 import os
 import subprocess
-import sys
 from pathlib import Path
-from typing import Dict, Optional, Union
 
 # Git repository information
 PCILEECH_FPGA_REPO = "https://github.com/ufrisk/pcileech-fpga.git"
@@ -109,7 +107,10 @@ class RepoManager:
                         # Change back to original directory
                         os.chdir(current_dir)
             except Exception as e:
-                print(f"[!] Warning: Error checking repository update status: {str(e)}")
+                print(
+                    f"[!] Warning: Error checking repository update status: {
+                        str(e)}"
+                )
         else:
             # Clone repository
             print(f"[*] Cloning PCILeech FPGA repository to {repo_dir}")
@@ -169,7 +170,7 @@ class RepoManager:
         if not board_path.exists():
             raise RuntimeError(
                 f"Board directory not found: {board_path}\n"
-                f"Make sure the pcileech-fpga repository is properly cloned."
+                "Make sure the pcileech-fpga repository is properly cloned."
             )
 
         return board_path

@@ -2,19 +2,17 @@
 Enhanced tests for VFIO binding functionality with improved error handling and stability.
 """
 
-import os
 import subprocess
 import sys
-import time
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, call, mock_open, patch
+from unittest.mock import Mock, call, mock_open, patch
 
 import pytest
 
+import generate
+
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-
-import generate
 
 
 class TestVFIOBindingEnhanced:

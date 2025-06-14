@@ -3,12 +3,7 @@
 Test suite for MSI-X capability parsing and table generation.
 """
 
-import json
-import os
-import tempfile
 import unittest
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 from src.msix_capability import (
     find_cap,

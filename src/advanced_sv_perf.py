@@ -11,7 +11,7 @@ Performance Counter feature for the PCILeechFWGenerator project.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 
 class DeviceType(Enum):
@@ -98,16 +98,25 @@ class PerformanceCounterGenerator:
 
         declarations.append("    // Performance Counter Signals")
         declarations.append(
-            f"    logic [{self.config.counter_width_bits-1}:0] transaction_counter = {self.config.counter_width_bits}'h0;"
+            f"    logic [{self.config.counter_width_bits - 1}:0] transaction_counter = {self.config.counter_width_bits}'h0;"
         )
         declarations.append(
-            f"    logic [{self.config.counter_width_bits-1}:0] bandwidth_counter = {self.config.counter_width_bits}'h0;"
+            f"    logic [{
+                self.config.counter_width_bits -
+                1}:0] bandwidth_counter = {
+                self.config.counter_width_bits}'h0;"
         )
         declarations.append(
-            f"    logic [{self.config.counter_width_bits-1}:0] latency_accumulator = {self.config.counter_width_bits}'h0;"
+            f"    logic [{
+                self.config.counter_width_bits -
+                1}:0] latency_accumulator = {
+                self.config.counter_width_bits}'h0;"
         )
         declarations.append(
-            f"    logic [{self.config.counter_width_bits-1}:0] error_rate_counter = {self.config.counter_width_bits}'h0;"
+            f"    logic [{
+                self.config.counter_width_bits -
+                1}:0] error_rate_counter = {
+                self.config.counter_width_bits}'h0;"
         )
         declarations.append("")
 
@@ -116,7 +125,10 @@ class PerformanceCounterGenerator:
         declarations.append("    logic [31:0] perf_window_counter = 32'h0;")
         declarations.append("    logic [15:0] latency_sample_counter = 16'h0;")
         declarations.append(
-            f"    logic [{self.config.timestamp_width_bits-1}:0] latency_start_time = {self.config.timestamp_width_bits}'h0;"
+            f"    logic [{
+                self.config.timestamp_width_bits -
+                1}:0] latency_start_time = {
+                self.config.timestamp_width_bits}'h0;"
         )
         declarations.append("    logic transaction_active = 1'b0;")
         declarations.append("    logic bandwidth_window_reset = 1'b0;")
@@ -148,7 +160,10 @@ class PerformanceCounterGenerator:
         if self.device_type == DeviceType.NETWORK_CONTROLLER:
             for counter in self.config.network_counters:
                 declarations.append(
-                    f"    logic [{self.config.counter_width_bits-1}:0] {counter} = {self.config.counter_width_bits}'h0;"
+                    f"    logic [{
+                        self.config.counter_width_bits -
+                        1}:0] {counter} = {
+                        self.config.counter_width_bits}'h0;"
                 )
             declarations.append("    logic link_utilization_high = 1'b0;")
             declarations.append("    logic [7:0] packet_loss_rate = 8'h0;")
@@ -156,7 +171,10 @@ class PerformanceCounterGenerator:
         elif self.device_type == DeviceType.STORAGE_CONTROLLER:
             for counter in self.config.storage_counters:
                 declarations.append(
-                    f"    logic [{self.config.counter_width_bits-1}:0] {counter} = {self.config.counter_width_bits}'h0;"
+                    f"    logic [{
+                        self.config.counter_width_bits -
+                        1}:0] {counter} = {
+                        self.config.counter_width_bits}'h0;"
                 )
             declarations.append("    logic [7:0] current_queue_depth = 8'h0;")
             declarations.append("    logic [15:0] average_io_latency = 16'h0;")
@@ -164,7 +182,10 @@ class PerformanceCounterGenerator:
         elif self.device_type == DeviceType.GRAPHICS_CONTROLLER:
             for counter in self.config.graphics_counters:
                 declarations.append(
-                    f"    logic [{self.config.counter_width_bits-1}:0] {counter} = {self.config.counter_width_bits}'h0;"
+                    f"    logic [{
+                        self.config.counter_width_bits -
+                        1}:0] {counter} = {
+                        self.config.counter_width_bits}'h0;"
                 )
             declarations.append("    logic [7:0] frame_rate = 8'h3C;  // 60 FPS")
             declarations.append("    logic [15:0] render_time = 16'h0;")
@@ -219,11 +240,13 @@ class PerformanceCounterGenerator:
         bandwidth_logic.append("            high_bandwidth_detected <= 1'b0;")
         bandwidth_logic.append("        end else begin")
         bandwidth_logic.append(
-            f"            if (perf_window_counter >= {self.config.bandwidth_window_cycles}) begin"
+            f"            if (perf_window_counter >= {
+                self.config.bandwidth_window_cycles}) begin"
         )
         bandwidth_logic.append("                // End of measurement window")
         bandwidth_logic.append(
-            f"                high_bandwidth_detected <= (bandwidth_counter >= {self.config.high_bandwidth_threshold});"
+            f"                high_bandwidth_detected <= (bandwidth_counter >= {
+                self.config.high_bandwidth_threshold});"
         )
         bandwidth_logic.append("                bandwidth_counter <= 32'h0;")
         bandwidth_logic.append("                perf_window_counter <= 32'h0;")
@@ -273,7 +296,8 @@ class PerformanceCounterGenerator:
             "            if ((bar_wr_en || bar_rd_en) && !latency_measurement_active) begin"
         )
         latency_logic.append(
-            f"                if (latency_sample_counter >= {self.config.latency_sample_rate}) begin"
+            f"                if (latency_sample_counter >= {
+                self.config.latency_sample_rate}) begin"
         )
         latency_logic.append(
             "                    latency_start_time <= {32'h0, perf_window_counter};"
@@ -299,7 +323,8 @@ class PerformanceCounterGenerator:
             "                latency_accumulator <= latency_accumulator + measured_latency;"
         )
         latency_logic.append(
-            f"                high_latency_detected <= (measured_latency >= {self.config.high_latency_threshold});"
+            f"                high_latency_detected <= (measured_latency >= {
+                self.config.high_latency_threshold});"
         )
         latency_logic.append("                latency_measurement_active <= 1'b0;")
         latency_logic.append("            end")
@@ -348,7 +373,10 @@ class PerformanceCounterGenerator:
             "                error_rate_percent <= (error_rate_counter * 10000) / total_operations;"
         )
         error_logic.append(
-            f"                high_error_rate_detected <= (error_rate_percent >= {int(self.config.error_rate_threshold * 10000)});"
+            f"                high_error_rate_detected <= (error_rate_percent >= {
+                int(
+                    self.config.error_rate_threshold *
+                    10000)});"
         )
         error_logic.append("            end")
         error_logic.append("        end")

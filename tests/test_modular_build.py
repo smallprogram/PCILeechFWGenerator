@@ -8,7 +8,6 @@ it provides the expected performance improvements and maintains backward compati
 
 import asyncio
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -124,14 +123,14 @@ class TestModularBuildArchitecture:
         validator = ConfigValidator()
 
         # Test valid config
-        valid_config = {"bdf": "0000:03:00.0", "board": "75t", "device_type": "generic"}
+        valid_config = {"bd": "0000:03:00.0", "board": "75t", "device_type": "generic"}
 
         result = await validator.validate_build_config_async(valid_config)
         assert result["valid"] is True
         assert len(result["errors"]) == 0
 
         # Test invalid config
-        invalid_config = {"bdf": "invalid", "board": "invalid_board"}
+        invalid_config = {"bd": "invalid", "board": "invalid_board"}
 
         result = await validator.validate_build_config_async(invalid_config)
         assert result["valid"] is False
@@ -269,7 +268,7 @@ if __name__ == "__main__":
 
             validator = ConfigValidator()
             result = await validator.validate_build_config_async(
-                {"bdf": "0000:03:00.0", "board": "75t"}
+                {"bd": "0000:03:00.0", "board": "75t"}
             )
             print(f"✓ Async validation works: {result['valid']}")
 

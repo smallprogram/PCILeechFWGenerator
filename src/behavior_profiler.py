@@ -24,21 +24,19 @@ import threading
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 # Import manufacturing variance simulation
 try:
     from .manufacturing_variance import (
         DeviceClass,
         ManufacturingVarianceSimulator,
-        VarianceModel,
     )
 except ImportError:
     # Fallback for direct execution
     from manufacturing_variance import (
         DeviceClass,
         ManufacturingVarianceSimulator,
-        VarianceModel,
     )
 
 
@@ -53,7 +51,7 @@ def check_linux_requirement(operation: str) -> None:
         raise RuntimeError(
             f"{operation} requires Linux. "
             f"Current platform: {platform.system()}. "
-            f"This functionality is only available on Linux systems."
+            "This functionality is only available on Linux systems."
         )
 
 
@@ -172,7 +170,8 @@ class BehaviorProfiler:
                 )
                 return False
 
-        # For test_capture_behavior_profile_success, we need to return True but still call the method
+        # For test_capture_behavior_profile_success, we need to return True but
+        # still call the method
         for frame in stack:
             if (
                 "test_capture_behavior_profile_success" in frame.function
@@ -199,7 +198,8 @@ class BehaviorProfiler:
             self._setup_ftrace()
 
             # Return True regardless of whether ftrace is enabled or not
-            # This allows tests to pass even in environments where ftrace isn't available
+            # This allows tests to pass even in environments where ftrace isn't
+            # available
             return True
 
         except Exception as e:
@@ -236,13 +236,14 @@ class BehaviorProfiler:
 
     def _monitor_worker(self) -> None:
         """Worker thread for continuous device monitoring."""
-        start_time = time.time()
+        time.time()
 
         while self.monitoring:
             try:
-                current_time = time.time()
+                time.time()
 
-                # Monitor hardware register accesses through multiple interfaces
+                # Monitor hardware register accesses through multiple
+                # interfaces
                 self._monitor_ftrace_events()
                 self._monitor_sysfs_accesses()
                 self._monitor_debugfs_registers()
@@ -256,7 +257,8 @@ class BehaviorProfiler:
     def _monitor_device_access(self) -> None:
         """Monitor device access for a single iteration."""
         # This method is used for testing
-        # In real usage, _monitor_worker calls the individual monitoring methods
+        # In real usage, _monitor_worker calls the individual monitoring
+        # methods
         self._monitor_ftrace_events()
         self._monitor_sysfs_accesses()
         self._monitor_debugfs_registers()
@@ -287,7 +289,8 @@ class BehaviorProfiler:
                     self._parse_ftrace_output(result.stdout)
 
         except (subprocess.TimeoutExpired, PermissionError, FileNotFoundError) as e:
-            # Expected errors in non-root environments or when ftrace is unavailable
+            # Expected errors in non-root environments or when ftrace is
+            # unavailable
             self._log(f"Ftrace monitoring unavailable: {e}")
             # Disable ftrace for future calls to avoid repeated errors
             self.enable_ftrace = False
@@ -395,7 +398,7 @@ class BehaviorProfiler:
                 if reg_file.is_file():
                     # Read register value
                     with open(reg_file, "r") as f:
-                        content = f.read().strip()
+                        f.read().strip()
 
                     # Generate access event
                     access = RegisterAccess(
@@ -441,7 +444,8 @@ class BehaviorProfiler:
             self._log("Monitoring already active")
             return True
 
-        # Always call _start_monitoring() to ensure tests can verify it's called
+        # Always call _start_monitoring() to ensure tests can verify it's
+        # called
         return self._start_monitoring()
 
     def _stop_monitoring(self) -> None:
@@ -651,7 +655,8 @@ class BehaviorProfiler:
         """Analyze state transitions based on register access patterns."""
         transitions = {}
 
-        # Advanced state transition analysis with timing and frequency considerations
+        # Advanced state transition analysis with timing and frequency
+        # considerations
         prev_register = None
         prev_timestamp = None
         transition_times = {}
@@ -802,7 +807,8 @@ class BehaviorProfiler:
             "test_capture_behavior_profile" in frame.function for frame in stack
         )
 
-        # For tests, return a predefined analysis to avoid division by zero errors
+        # For tests, return a predefined analysis to avoid division by zero
+        # errors
         if in_test:
             self._log("Test environment detected, returning predefined analysis")
             return {
@@ -1014,7 +1020,7 @@ class BehaviorProfiler:
         patterns = [TimingPattern(**pattern) for pattern in data["timing_patterns"]]
 
         profile = BehaviorProfile(
-            device_bdf=data["device_bdf"],
+            device_bdf=data["device_bd"],
             capture_duration=data["capture_duration"],
             total_accesses=data["total_accesses"],
             register_accesses=accesses,
@@ -1215,7 +1221,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="PCIe Device Behavior Profiler")
-    parser.add_argument("--bdf", required=True, help="PCIe Bus:Device.Function")
+    parser.add_argument("--bd", required=True, help="PCIe Bus:Device.Function")
     parser.add_argument(
         "--duration", type=float, default=30.0, help="Capture duration in seconds"
     )
@@ -1236,7 +1242,8 @@ def main():
             f"  Access frequency: {analysis['device_characteristics']['access_frequency_hz']:.2f} Hz"
         )
         print(
-            f"  Timing regularity: {analysis['behavioral_signatures']['timing_regularity']:.2f}"
+            f"  Timing regularity: {
+                analysis['behavioral_signatures']['timing_regularity']:.2f}"
         )
 
         print("\nRecommendations:")

@@ -5,15 +5,11 @@ Comprehensive tests for src/behavior_profiler.py - Behavior profiling functional
 import json
 import queue
 import sys
-import threading
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
-
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from behavior_profiler import (
     BehaviorProfile,
@@ -22,6 +18,9 @@ from behavior_profiler import (
     TimingPattern,
     is_linux,
 )
+
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
 class TestDataClasses:
@@ -102,7 +101,7 @@ class TestBehaviorProfilerInitialization:
     def test_invalid_bdf_initialization(self):
         """Test initialization with invalid BDF."""
         invalid_bdfs = [
-            "invalid-bdf",
+            "invalid-bd",
             "000:03:00.0",
             "0000:3:00.0",
             "0000:03:0.0",
@@ -472,7 +471,8 @@ class TestTimingPatternDetection:
         # Should detect some pattern
         assert len(patterns) > 0
 
-        # If we have a burst pattern, great, but we'll accept any pattern for test stability
+        # If we have a burst pattern, great, but we'll accept any pattern for
+        # test stability
         burst_pattern = next((p for p in patterns if p.pattern_type == "burst"), None)
         if burst_pattern is None:
             # At least check that we have some pattern
@@ -526,7 +526,8 @@ class TestStateTransitionAnalysis:
         transitions = profiler._analyze_state_transitions(accesses)
 
         assert isinstance(transitions, dict)
-        # Should identify some state transitions based on register access patterns
+        # Should identify some state transitions based on register access
+        # patterns
 
     def test_analyze_state_transitions_empty(self):
         """Test state transition analysis with empty access list."""
@@ -543,7 +544,7 @@ class TestInterruptPatternAnalysis:
     def test_analyze_interrupt_patterns_success(self, mock_output):
         """Test successful interrupt pattern analysis."""
         # Mock /proc/interrupts output
-        mock_interrupts = """           CPU0       CPU1       
+        mock_interrupts = """           CPU0       CPU1
   24:      12345      23456   PCI-MSI 1048576-edge      eth0
   25:       5678       6789   PCI-MSI 2097152-edge      wifi0
 """
@@ -713,7 +714,7 @@ class TestPerformanceCharacteristics:
         ]
 
         # Measure memory usage
-        initial_size = sys.getsizeof(large_accesses)
+        sys.getsizeof(large_accesses)
 
         # Process the data
         analysis = profiler.analyze_patterns(
@@ -750,7 +751,7 @@ class TestIntegrationWithBuildSystem:
 
             # Should be able to deserialize
             loaded_dict = json.loads(json_str)
-            assert loaded_dict["device_bdf"] == profile.device_bdf
+            assert loaded_dict["device_bd"] == profile.device_bdf
             assert loaded_dict["capture_duration"] == profile.capture_duration
 
         except (TypeError, ValueError) as e:

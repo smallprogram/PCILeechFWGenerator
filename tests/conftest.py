@@ -2,13 +2,12 @@
 Pytest configuration and shared fixtures for PCILeech firmware generator tests.
 """
 
-import json
 import os
 import shutil
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -25,7 +24,7 @@ def temp_dir():
 def mock_pci_device():
     """Mock PCIe device data for testing."""
     return {
-        "bdf": "0000:03:00.0",
+        "bd": "0000:03:00.0",
         "ven": "8086",
         "dev": "1533",
         "class": "0200",
@@ -186,7 +185,7 @@ module pcileech_tlps128_bar_controller
 
     logic [31:0] reg_ctrl_reg = 32'h00000000;
     logic [31:0] reg_status_reg = 32'h00000001;
-    
+
     always_comb begin
         unique case(bar_addr)
             32'h00000400: bar_rd_data = reg_ctrl_reg;
@@ -194,7 +193,7 @@ module pcileech_tlps128_bar_controller
             default: bar_rd_data = 32'h0;
         endcase
     end
-    
+
 endmodule
 """
 
@@ -296,7 +295,7 @@ def generate_test_pci_devices(count: int) -> List[Dict[str, str]]:
     for i in range(count):
         devices.append(
             {
-                "bdf": f"0000:0{i:01x}:00.0",
+                "bd": f"0000:0{i:01x}:00.0",
                 "ven": f"80{i:02x}",
                 "dev": f"15{i:02x}",
                 "class": "0200",

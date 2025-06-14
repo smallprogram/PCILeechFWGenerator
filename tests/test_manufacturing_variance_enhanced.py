@@ -12,14 +12,10 @@ This test suite focuses on:
 import hashlib
 import struct
 import unittest
-from unittest.mock import MagicMock, patch
 
 from src.manufacturing_variance import (
     DeviceClass,
     ManufacturingVarianceSimulator,
-    VarianceModel,
-    VarianceParameters,
-    VarianceType,
 )
 
 
@@ -39,7 +35,7 @@ class TestDeterministicVarianceSeedingEnhanced(unittest.TestCase):
             ),  # All zeros
             (
                 0xFFFFFFFFFFFFFFFF,
-                "ffffffffffffffffffffffffffffffffffffffff",
+                "fffffffffffffffffffffffffffffffffffffff",
             ),  # All ones
             (
                 0x1234567890ABCDEF,
@@ -83,7 +79,8 @@ class TestDeterministicVarianceSeedingEnhanced(unittest.TestCase):
         seed = simulator.deterministic_seed(dsn, revision)
 
         # Manually implement the algorithm to verify correctness
-        # Pack the DSN as a 64-bit integer and the first 20 chars of revision as bytes
+        # Pack the DSN as a 64-bit integer and the first 20 chars of revision
+        # as bytes
         blob = struct.pack("<Q", dsn) + bytes.fromhex(revision[:20])
         # Generate a SHA-256 hash and convert to integer (little-endian)
         expected_seed = int.from_bytes(hashlib.sha256(blob).digest(), "little")
@@ -180,7 +177,7 @@ class TestDeterministicVarianceSeedingEnhanced(unittest.TestCase):
 
         # Test with maximum DSN value
         max_dsn = 0xFFFFFFFFFFFFFFFF
-        max_revision = "ffffffffffffffffffffffffffffffffffffffff"
+        max_revision = "fffffffffffffffffffffffffffffffffffffff"
         max_seed = simulator.deterministic_seed(max_dsn, max_revision)
         self.assertIsInstance(max_seed, int)
         self.assertGreaterEqual(max_seed, 0)

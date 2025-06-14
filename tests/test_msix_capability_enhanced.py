@@ -9,17 +9,11 @@ This test suite focuses on:
 4. Testing edge cases and boundary conditions
 """
 
-import json
-import os
-import tempfile
 import unittest
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 from src.msix_capability import (
     find_cap,
     generate_msix_table_sv,
-    msix_size,
     parse_msix_capability,
 )
 
@@ -64,7 +58,8 @@ class TestMSIXCapabilityEnhanced(unittest.TestCase):
         """
         # Capability ID: 0x11 (MSI-X)
         # Next pointer: next_ptr
-        # Message Control: table_size (bits 0-10), function_mask (bit 14), msix_enable (bit 15)
+        # Message Control: table_size (bits 0-10), function_mask (bit 14),
+        # msix_enable (bit 15)
         message_control = table_size & 0x7FF  # 11 bits for table size
         if function_mask:
             message_control |= 0x4000  # Bit 14
@@ -321,7 +316,8 @@ class TestMSIXCapabilityEnhanced(unittest.TestCase):
         # Parse the capability
         msix_info = parse_msix_capability(config_space)
 
-        # Verify the offset value (should be as specified, alignment is enforced in hardware)
+        # Verify the offset value (should be as specified, alignment is
+        # enforced in hardware)
         self.assertEqual(msix_info["table_offset"], 0x2004)
 
         # Generate SystemVerilog code

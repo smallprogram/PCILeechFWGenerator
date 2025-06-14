@@ -185,7 +185,8 @@ class PowerManagementGenerator:
         power_logic.append("            PM_D1_TO_D0: begin")
         power_logic.append("                power_state_changing = 1'b1;")
         power_logic.append(
-            f"                if (power_transition_timer >= {self.config.d1_to_d0_cycles}) begin"
+            f"                if (power_transition_timer >= {
+                self.config.d1_to_d0_cycles}) begin"
         )
         power_logic.append("                    pm_next_state = PM_D0_ACTIVE;")
         power_logic.append("                end")
@@ -194,7 +195,8 @@ class PowerManagementGenerator:
         power_logic.append("            PM_D0_TO_D3: begin")
         power_logic.append("                power_state_changing = 1'b1;")
         power_logic.append(
-            f"                if (power_transition_timer >= {self.config.d0_to_d3_cycles}) begin"
+            f"                if (power_transition_timer >= {
+                self.config.d0_to_d3_cycles}) begin"
         )
         power_logic.append("                    pm_next_state = PM_D3_SUSPEND;")
         power_logic.append("                end")
@@ -210,7 +212,8 @@ class PowerManagementGenerator:
         power_logic.append("            PM_D3_TO_D0: begin")
         power_logic.append("                power_state_changing = 1'b1;")
         power_logic.append(
-            f"                if (power_transition_timer >= {self.config.d3_to_d0_cycles}) begin"
+            f"                if (power_transition_timer >= {
+                self.config.d3_to_d0_cycles}) begin"
         )
         power_logic.append("                    pm_next_state = PM_D0_ACTIVE;")
         power_logic.append("                end")
@@ -260,7 +263,8 @@ class PowerManagementGenerator:
             "                        link_idle_counter <= link_idle_counter + 1;"
         )
         link_logic.append(
-            f"                        if (link_idle_counter >= {self.config.l0_to_l0s_cycles}) begin"
+            f"                        if (link_idle_counter >= {
+                self.config.l0_to_l0s_cycles}) begin"
         )
         link_logic.append("                            link_state <= LINK_L0S;")
         link_logic.append("                            link_transition_timer <= 16'h0;")
@@ -277,7 +281,8 @@ class PowerManagementGenerator:
             "                        link_transition_timer <= link_transition_timer + 1;"
         )
         link_logic.append(
-            f"                        if (link_transition_timer >= {self.config.l0_to_l1_cycles}) begin"
+            f"                        if (link_transition_timer >= {
+                self.config.l0_to_l1_cycles}) begin"
         )
         link_logic.append("                            link_state <= LINK_L1;")
         link_logic.append("                        end")

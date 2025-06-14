@@ -23,7 +23,7 @@ import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional
 
 
 # ANSI color codes for output formatting
@@ -279,7 +279,10 @@ class SecurityScanner:
                 try:
                     vulnerabilities = json.loads(result.stdout)
                     if vulnerabilities:
-                        Logger.error(f"Found {len(vulnerabilities)} vulnerabilities:")
+                        Logger.error(
+                            f"Found {
+                                len(vulnerabilities)} vulnerabilities:"
+                        )
                         for vuln in vulnerabilities[:5]:  # Show first 5
                             Logger.error(
                                 f"  - {vuln.get('package', 'Unknown')}: {vuln.get('vulnerability', 'Unknown')}"
@@ -537,7 +540,7 @@ class PyPIUploader:
     @staticmethod
     def upload_to_pypi(test_pypi: bool = False) -> None:
         """Upload distributions to PyPI or Test PyPI."""
-        repository = "testpypi" if test_pypi else "pypi"
+        "testpypi" if test_pypi else "pypi"
         pypi_name = "Test PyPI" if test_pypi else "PyPI"
 
         Logger.info(f"Uploading to {pypi_name}...")
@@ -573,7 +576,10 @@ class PackageGenerator:
         """Run the complete package generation process."""
         start_time = time.time()
 
-        Logger.info(f"Starting PyPI package generation for version {self.version}")
+        Logger.info(
+            f"Starting PyPI package generation for version {
+                self.version}"
+        )
         Logger.info(f"Project root: {PROJECT_ROOT}")
 
         try:
@@ -609,7 +615,8 @@ class PackageGenerator:
             # Summary
             elapsed_time = time.time() - start_time
             Logger.success(
-                f"Package generation completed successfully in {elapsed_time:.1f}s"
+                f"Package generation completed successfully in {
+                    elapsed_time:.1f}s"
             )
 
             self._print_summary(distributions)
@@ -628,7 +635,7 @@ class PackageGenerator:
         Logger.info("\n" + "=" * 60)
         Logger.info("PACKAGE GENERATION SUMMARY")
         Logger.info("=" * 60)
-        Logger.info(f"Package: pcileechfwgenerator")
+        Logger.info("Package: pcileechfwgenerator")
         Logger.info(f"Version: {self.version}")
         Logger.info(f"Distributions built: {len(distributions)}")
 

@@ -4,22 +4,20 @@ Tests for PCI configuration validation functionality.
 These tests verify that the validation of PCI configuration values works correctly.
 """
 
-import json
-import os
 import sys
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
+
+from src import build
+from src.donor_dump_manager import DonorDumpManager
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 # Import after path setup
-from src import build
-from src.donor_dump_manager import DonorDumpManager
 
 
 class TestPCIValidation:

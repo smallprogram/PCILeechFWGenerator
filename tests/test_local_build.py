@@ -12,17 +12,18 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
+
+from src import build
+from src.donor_dump_manager import DonorDumpManager
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 # Import after path setup
-from src import build
-from src.donor_dump_manager import DonorDumpManager
 
 
 class TestLocalBuild:
@@ -37,7 +38,8 @@ class TestLocalBuild:
 
             info = build.get_donor_info(bdf="0000:00:00.0")  # Only provide BDF
 
-            # Verify generate_donor_info was called (since use_donor_dump defaults to False)
+            # Verify generate_donor_info was called (since use_donor_dump
+            # defaults to False)
             mock_generate.assert_called_once_with("generic")
 
             # Verify the info matches the expected values
@@ -261,7 +263,6 @@ class TestBuildOrchestratorLocalBuild:
         from src.tui.core.build_orchestrator import BuildOrchestrator
         from src.tui.models.config import BuildConfiguration
         from src.tui.models.device import PCIDevice
-        from src.tui.models.progress import BuildProgress
 
         # Mock the validation to avoid the build.py not found error
         mock_validate_env.return_value = None
@@ -289,7 +290,8 @@ class TestBuildOrchestratorLocalBuild:
             compatibility_issues=[],
         )
 
-        # Create a configuration with default settings (donor_dump=False is now default)
+        # Create a configuration with default settings (donor_dump=False is now
+        # default)
         config = BuildConfiguration(
             board_type="75t",
             device_type="network",  # Use default behavior (donor_dump=False)
@@ -331,7 +333,6 @@ class TestBuildOrchestratorLocalBuild:
         from src.tui.core.build_orchestrator import BuildOrchestrator
         from src.tui.models.config import BuildConfiguration
         from src.tui.models.device import PCIDevice
-        from src.tui.models.progress import BuildProgress
 
         # Mock the validation to avoid the build.py not found error
         mock_validate_env.return_value = None
@@ -384,6 +385,7 @@ class TestBuildOrchestratorLocalBuild:
         # Check that the command includes the expected arguments
         assert "--bdf 0000:00:00.0" in " ".join(cmd)
         assert "--board 75t" in " ".join(cmd)
-        # No need to assert --skip-donor-dump since local builds are now default
+        # No need to assert --skip-donor-dump since local builds are now
+        # default
         assert "--donor-info-file" in " ".join(cmd)
         assert "sample_donor_info.json" in " ".join(cmd)

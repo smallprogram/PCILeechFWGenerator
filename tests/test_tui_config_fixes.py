@@ -11,11 +11,11 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
 from tui.core.config_manager import ConfigManager
 from tui.models.config import BuildConfiguration
+
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
 class TestConfigurationFixes:

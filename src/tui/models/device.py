@@ -106,7 +106,7 @@ class PCIDevice:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
-            "bdf": self.bdf,
+            "bd": self.bdf,
             "vendor_id": self.vendor_id,
             "device_id": self.device_id,
             "vendor_name": self.vendor_name,

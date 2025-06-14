@@ -4,7 +4,6 @@ Test TUI Core Modules
 Tests for the TUI core modules (build_orchestrator, config_manager, device_manager, status_monitor).
 """
 
-import asyncio
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import AsyncMock, MagicMock, mock_open, patch
@@ -53,7 +52,7 @@ class TestDeviceManager:
         # Mock raw device data
         raw_devices = [
             {
-                "bdf": "0000:03:00.0",
+                "bd": "0000:03:00.0",
                 "ven": "8086",
                 "dev": "10d3",
                 "class": "0200",
@@ -445,7 +444,8 @@ class TestBuildOrchestrator:
 
         assert result is True
         assert not orchestrator.is_building()  # Should be done
-        assert len(progress_updates) > 0  # Should have received progress updates
+        # Should have received progress updates
+        assert len(progress_updates) > 0
 
     @pytest.mark.unit
     async def test_build_already_running(self):

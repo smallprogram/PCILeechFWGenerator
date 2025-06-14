@@ -14,7 +14,6 @@ Requires root privileges (sudo) for driver rebinding and VFIO operations.
 """
 
 import argparse
-import datetime
 import logging
 import os
 import pathlib
@@ -116,7 +115,7 @@ def check_linux_requirement(operation: str) -> None:
         raise RuntimeError(
             f"{operation} requires Linux. "
             f"Current platform: {platform.system()}. "
-            f"Please run this on a Linux system with VFIO support."
+            "Please run this on a Linux system with VFIO support."
         )
 
 
@@ -198,7 +197,8 @@ def list_usb_devices() -> List[Tuple[str, str]]:
         )
         if match:
             vid_pid = match.group(1)
-            description = match.group(2).strip()  # Strip whitespace from description
+            # Strip whitespace from description
+            description = match.group(2).strip()
             devices.append((vid_pid, description))
 
     return devices
@@ -298,17 +298,18 @@ def _validate_vfio_prerequisites() -> None:
 
 
 def _check_device_in_use(bdf: str) -> bool:
-    """Check if device is currently in use by checking for open file descriptors."""
+    """Check if device is currently in use by checking for open file
+    descriptors."""
     try:
         # Check if device has any open file descriptors
         lsof_output = run_command(
-            f"lsof /dev/vfio/* 2>/dev/null | grep -v COMMAND || true", timeout=5
+            "lsof /dev/vfio/* 2>/dev/null | grep -v COMMAND || true", timeout=5
         )
         if bdf in lsof_output:
             logger.warning(f"Device {bdf} may be in use by another process")
             return True
     except Exception:
-        logger.debug("Could not check device usage with lsof")
+        logger.debug("Could not check device usage with lso")
     return False
 
 
@@ -330,7 +331,10 @@ def _wait_for_device_state(
                 )
                 time.sleep(1)
         except Exception as e:
-            logger.debug(f"Error checking device state (attempt {attempt + 1}): {e}")
+            logger.debug(
+                f"Error checking device state (attempt {
+                    attempt + 1}): {e}"
+            )
             if attempt < max_retries - 1:
                 time.sleep(1)
 
@@ -355,7 +359,8 @@ def bind_to_vfio(
         raise ValueError(f"Invalid device ID format: {device}. Expected 4-digit hex.")
 
     logger.info(
-        f"Binding device {bdf} (vendor:{vendor} device:{device}) to vfio-pci driver (current driver: {original_driver or 'none'})"
+        f"Binding device {bdf} (vendor:{vendor} device:{device}) to vfio-pci driver (current driver: {
+            original_driver or 'none'})"
     )
 
     # Early exit if already bound to vfio-pci
@@ -407,7 +412,8 @@ def bind_to_vfio(
             max_retries = 3
             for attempt in range(max_retries):
                 try:
-                    # Use direct file writing instead of shell redirection to avoid I/O errors
+                    # Use direct file writing instead of shell redirection to
+                    # avoid I/O errors
                     new_id_path = "/sys/bus/pci/drivers/vfio-pci/new_id"
                     with open(new_id_path, "w") as f:
                         f.write(f"{vendor} {device}\n")
@@ -427,7 +433,8 @@ def bind_to_vfio(
                         break
                     elif attempt < max_retries - 1:
                         logger.warning(
-                            f"Failed to register device ID (attempt {attempt + 1}): {e}, retrying..."
+                            f"Failed to register device ID (attempt {
+                                attempt + 1}): {e}, retrying..."
                         )
                         import time
 
@@ -455,7 +462,8 @@ def bind_to_vfio(
                         break
                     elif attempt < max_retries - 1:
                         logger.warning(
-                            f"Device still bound after unbind (attempt {attempt + 1}), retrying..."
+                            f"Device still bound after unbind (attempt {
+                                attempt + 1}), retrying..."
                         )
                         import time
 
@@ -474,7 +482,8 @@ def bind_to_vfio(
                         break
                     elif attempt < max_retries - 1:
                         logger.warning(
-                            f"Failed to unbind from current driver (attempt {attempt + 1}): {e}, retrying..."
+                            f"Failed to unbind from current driver (attempt {
+                                attempt + 1}): {e}, retrying..."
                         )
                         import time
 
@@ -513,7 +522,10 @@ def bind_to_vfio(
 
             except (OSError, IOError) as e:
                 if "Device or resource busy" in str(e):
-                    logger.warning(f"Device {bdf} is busy (attempt {attempt + 1})")
+                    logger.warning(
+                        f"Device {bdf} is busy (attempt {
+                            attempt + 1})"
+                    )
                     if attempt < max_retries - 1:
                         import time
 
@@ -580,7 +592,8 @@ def restore_original_driver(bdf: str, original_driver: Optional[str]) -> None:
         return
 
     logger.info(
-        f"Restoring original driver binding for {bdf} (target driver: {original_driver or 'none'})"
+        f"Restoring original driver binding for {bdf} (target driver: {
+            original_driver or 'none'})"
     )
     print("[*] Restoring original driver binding...")
 
@@ -683,7 +696,8 @@ def restore_original_driver(bdf: str, original_driver: Optional[str]) -> None:
                         break
                     elif attempt < max_retries - 1:
                         logger.warning(
-                            f"Restore command succeeded but device not bound to {original_driver} (attempt {attempt + 1}), retrying..."
+                            f"Restore command succeeded but device not bound to {original_driver} (attempt {
+                                attempt + 1}), retrying..."
                         )
                         import time
 
@@ -692,7 +706,8 @@ def restore_original_driver(bdf: str, original_driver: Optional[str]) -> None:
                 except (OSError, IOError) as e:
                     if "Device or resource busy" in str(e):
                         logger.warning(
-                            f"Device {bdf} is busy during restore (attempt {attempt + 1})"
+                            f"Device {bdf} is busy during restore (attempt {
+                                attempt + 1})"
                         )
                         if attempt < max_retries - 1:
                             import time
@@ -706,7 +721,8 @@ def restore_original_driver(bdf: str, original_driver: Optional[str]) -> None:
                         break
                     elif attempt < max_retries - 1:
                         logger.warning(
-                            f"Failed to restore to {original_driver} (attempt {attempt + 1}): {e}, retrying..."
+                            f"Failed to restore to {original_driver} (attempt {
+                                attempt + 1}): {e}, retrying..."
                         )
                         import time
 
@@ -726,10 +742,12 @@ def restore_original_driver(bdf: str, original_driver: Optional[str]) -> None:
                     print(f"[✓] Device is bound to {original_driver} driver")
                 else:
                     logger.warning(
-                        f"Failed to restore {bdf} to {original_driver}, current driver: {final_driver or 'none'}"
+                        f"Failed to restore {bdf} to {original_driver}, current driver: {
+                            final_driver or 'none'}"
                     )
                     print(
-                        f"Warning: Failed to restore to {original_driver}, current driver: {final_driver or 'none'}"
+                        f"Warning: Failed to restore to {original_driver}, current driver: {
+                            final_driver or 'none'}"
                     )
         else:
             logger.info(f"No original driver to restore for {bdf}")
@@ -806,7 +824,8 @@ def _validate_container_environment() -> None:
             )
 
             try:
-                # Use the proper build script which handles the container building correctly
+                # Use the proper build script which handles the container
+                # building correctly
                 build_script_path = "scripts/build_container.sh"
                 if os.path.exists(build_script_path):
                     logger.info("Using build script for container creation")
@@ -831,7 +850,8 @@ def _validate_container_environment() -> None:
                 logger.info("Container image built successfully")
                 print("[✓] Container image built successfully")
             except subprocess.CalledProcessError as e:
-                error_msg = f"Failed to build container image automatically: {e.stderr}\nPlease build manually with: make container"
+                error_msg = f"Failed to build container image automatically: {
+                    e.stderr}\nPlease build manually with: make container"
                 logger.error(error_msg)
                 raise RuntimeError(error_msg)
     except subprocess.CalledProcessError:
@@ -853,7 +873,7 @@ def _validate_container_environment() -> None:
                 )
             else:
                 # Fallback to direct container build
-                build_result = subprocess.run(
+                subprocess.run(
                     "podman build -t pcileech-fw-generator:latest -f Containerfile .",
                     shell=True,
                     check=True,
@@ -864,7 +884,8 @@ def _validate_container_environment() -> None:
             logger.info("Container image built successfully")
             print("[✓] Container image built successfully")
         except subprocess.CalledProcessError as e:
-            error_msg = f"Failed to build container image: {e.stderr}\nPlease build manually with: make container"
+            error_msg = f"Failed to build container image: {
+                e.stderr}\nPlease build manually with: make container"
             logger.error(error_msg)
             raise RuntimeError(error_msg)
 
@@ -888,7 +909,10 @@ def run_build_container(
         advanced_features.append(f"Device-specific optimizations ({args.device_type})")
 
     if advanced_features:
-        logger.info(f"Advanced features enabled: {', '.join(advanced_features)}")
+        logger.info(
+            f"Advanced features enabled: {
+                ', '.join(advanced_features)}"
+        )
         print(f"[*] Advanced features: {', '.join(advanced_features)}")
 
     logger.info(f"Starting container build for device {bdf} on board {board}")
@@ -909,7 +933,8 @@ def run_build_container(
     # Validate VFIO device access
     _validate_vfio_device_access(vfio_device, bdf)
 
-    # Build the build.py command with all arguments - use modular build system if available
+    # Build the build.py command with all arguments - use modular build system
+    # if available
     build_cmd_parts = [f"sudo python3 /app/src/build.py --bdf {bdf} --board {board}"]
 
     # Add advanced features arguments
@@ -936,11 +961,11 @@ def run_build_container(
             f"--behavior-profile-duration {args.behavior_profile_duration}"
         )
 
-    build_cmd = " ".join(build_cmd_parts)
+    " ".join(build_cmd_parts)
 
     # Construct Podman command
     container_cmd = textwrap.dedent(
-        f"""
+        """
         podman run --rm -it --privileged \
           --device={vfio_device} \
           --device=/dev/vfio/vfio \
@@ -957,17 +982,22 @@ def run_build_container(
     try:
         subprocess.run(container_cmd, shell=True, check=True)
         elapsed_time = time.time() - start_time
-        logger.info(f"Build completed successfully in {elapsed_time:.1f} seconds")
+        logger.info(
+            f"Build completed successfully in {
+                elapsed_time:.1f} seconds"
+        )
         print(f"[✓] Build completed in {elapsed_time:.1f} seconds")
 
     except subprocess.CalledProcessError as e:
         elapsed_time = time.time() - start_time
-        error_msg = f"Container build failed after {elapsed_time:.1f} seconds: {e}"
+        error_msg = f"Container build failed after {
+            elapsed_time:.1f} seconds: {e}"
         logger.error(error_msg)
         raise RuntimeError(error_msg) from e
     except Exception as e:
         elapsed_time = time.time() - start_time
-        error_msg = f"Unexpected error during container build after {elapsed_time:.1f} seconds: {e}"
+        error_msg = f"Unexpected error during container build after {
+            elapsed_time:.1f} seconds: {e}"
         logger.error(error_msg)
         raise RuntimeError(error_msg) from e
 
@@ -1016,8 +1046,11 @@ def ensure_git_repo(repo_url: str, local_dir: str, update: bool = False) -> str:
                 # Change back to original directory
                 os.chdir(current_dir)
 
-                logger.info(f"Repository updated successfully: {result.stdout.strip()}")
-                print(f"[✓] Repository updated successfully")
+                logger.info(
+                    f"Repository updated successfully: {
+                        result.stdout.strip()}"
+                )
+                print("[✓] Repository updated successfully")
             except subprocess.CalledProcessError as e:
                 logger.warning(f"Failed to update repository: {e.stderr}")
                 print(f"[!] Warning: Failed to update repository: {e.stderr}")
@@ -1051,8 +1084,8 @@ def ensure_git_repo(repo_url: str, local_dir: str, update: bool = False) -> str:
                 text=True,
             )
 
-            logger.info(f"Repository cloned successfully")
-            print(f"[✓] Repository cloned successfully")
+            logger.info("Repository cloned successfully")
+            print("[✓] Repository cloned successfully")
         except subprocess.CalledProcessError as e:
             error_msg = f"Failed to clone repository: {e.stderr}"
             logger.error(error_msg)
@@ -1092,13 +1125,15 @@ def validate_environment() -> None:
         vivado_info = find_vivado_installation()
         if vivado_info:
             logger.info(
-                f"Found Vivado {vivado_info['version']} at {vivado_info['path']}"
+                f"Found Vivado {
+                    vivado_info['version']} at {
+                    vivado_info['path']}"
             )
             print(f"[✓] Vivado {vivado_info['version']} detected")
         else:
             # Show what paths were checked using the utility function
             checked_paths = get_vivado_search_paths()
-            error_msg = f"Vivado not found. Checked paths:\n" + "\n".join(
+            error_msg = "Vivado not found. Checked paths:\n" + "\n".join(
                 f"  • {path}" for path in checked_paths
             )
             logger.error(error_msg)
@@ -1163,7 +1198,8 @@ def validate_environment() -> None:
             )
 
             try:
-                # Use the proper build script which handles the container building correctly
+                # Use the proper build script which handles the container
+                # building correctly
                 build_script_path = "scripts/build_container.sh"
                 if os.path.exists(build_script_path):
                     logger.info("Using build script for container creation")
@@ -1221,16 +1257,16 @@ def main() -> int:
                   # Basic usage
                   sudo python3 generate.py --board 75t
                   sudo python3 generate.py --board 100t --flash
-                  
+
                   # Advanced SystemVerilog generation
                   sudo python3 generate.py --board 75t --advanced-sv --device-type network
-                  
+
                   # Manufacturing variance simulation
                   sudo python3 generate.py --board 100t --enable-variance --behavior-profile-duration 60
-                  
+
                   # Advanced features with selective disabling
                   sudo python3 generate.py --board 75t --advanced-sv --disable-power-management --disable-error-handling
-                  
+
                   # Full advanced configuration
                   sudo python3 generate.py --board 100t --advanced-sv --device-type storage --enable-variance --behavior-profile-duration 45 --flash
             """
@@ -1370,7 +1406,10 @@ def main() -> int:
         if args.disable_performance_counters:
             config_info.append("no_perf_counters=True")
         if args.behavior_profile_duration != 30:
-            config_info.append(f"profile_duration={args.behavior_profile_duration}s")
+            config_info.append(
+                f"profile_duration={
+                    args.behavior_profile_duration}s"
+            )
 
         logger.info(f"Configuration: {', '.join(config_info)}")
 
@@ -1382,7 +1421,7 @@ def main() -> int:
             raise RuntimeError(error_msg)
 
         selected_device = choose_device(devices)
-        bdf = selected_device["bdf"]
+        bdf = selected_device["bd"]
         vendor = selected_device["ven"]
         device = selected_device["dev"]
 

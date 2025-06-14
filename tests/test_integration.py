@@ -5,22 +5,22 @@ Integration tests for PCILeech firmware generator workflow.
 import json
 import os
 import sys
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
+
+import generate
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import generate
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 try:
-    from build.controller import BuildController, create_build_controller
+    pass
 
     MODULAR_BUILD_AVAILABLE = True
 except ImportError:
@@ -185,7 +185,7 @@ class TestDataFlow:
         profile_json = json.dumps(profile_dict, default=str)
         deserialized_profile = json.loads(profile_json)
 
-        assert deserialized_profile["device_bdf"] == mock_behavior_profile.device_bdf
+        assert deserialized_profile["device_bd"] == mock_behavior_profile.device_bdf
         assert (
             deserialized_profile["capture_duration"]
             == mock_behavior_profile.capture_duration
@@ -362,7 +362,7 @@ class TestHardwareSimulation:
     def test_simulated_usb_device_enumeration(self, mock_output, mock_exists):
         """Test simulated USB device enumeration."""
         # Mock lsusb output
-        mock_lsusb_output = """Bus 001 Device 002: ID 1d50:6130 OpenMoko, Inc. 
+        mock_lsusb_output = """Bus 001 Device 002: ID 1d50:6130 OpenMoko, Inc.
 Bus 001 Device 003: ID 0403:6010 Future Technology Devices International, Ltd"""
 
         mock_output.return_value = mock_lsusb_output
@@ -532,7 +532,8 @@ class TestRegressionPrevention:
         # Test 1: Empty register list
         try:
             result = build.scrape_driver_regs("0000", "0000")  # Invalid IDs
-            assert isinstance(result, list)  # Should return empty list, not crash
+            # Should return empty list, not crash
+            assert isinstance(result, list)
         except Exception:
             pass  # Expected in test environment
 

@@ -6,8 +6,6 @@ This module tests the state machine extraction capabilities for analyzing
 driver code patterns and generating SystemVerilog state machines.
 """
 
-import re
-from unittest.mock import patch
 
 import pytest
 
@@ -186,7 +184,8 @@ class TestStateMachine:
         # Calculate complexity
         complexity = sm.calculate_complexity()
 
-        # 3 states * 0.5 + 2 transitions * 0.3 + 1 register * 0.2 + 1 conditional * 0.1 = 2.2
+        # 3 states * 0.5 + 2 transitions * 0.3 + 1 register * 0.2 + 1
+        # conditional * 0.1 = 2.2
         assert complexity == 2.2
         assert sm.complexity_score == 2.2
 
@@ -346,7 +345,7 @@ class TestStateMachineExtractor:
             int ret = 0;
             return ret;
         }
-        
+
         int test_probe(struct pci_dev *pdev) {
             int status;
             status = device_init(pdev);
@@ -445,7 +444,7 @@ class TestStateMachineExtractor:
             writel(0x1, dev->base + REG_CONTROL);
             udelay(100);
             writel(0x2, dev->base + REG_CONFIG);
-            
+
             status = readl(dev->base + REG_STATUS);
             if (status & 0x1) {
                 writel(0x3, dev->base + REG_COMMAND);
@@ -480,17 +479,17 @@ class TestStateMachineExtractor:
             writel(0x1, dev->base + REG_CONTROL);
             return 0;
         }
-        
+
         static int device_config(struct device *dev) {
             writel(0x2, dev->base + REG_CONFIG);
             return 0;
         }
-        
+
         static int device_start(struct device *dev) {
             writel(0x3, dev->base + REG_COMMAND);
             return 0;
         }
-        
+
         static void device_stop(struct device *dev) {
             writel(0x0, dev->base + REG_CONTROL);
         }
@@ -514,7 +513,7 @@ class TestStateMachineExtractor:
         code_block = """
             writel(0x1, dev->base + REG_CONTROL);
             dev_state = STATE_ACTIVE;
-            
+
             if (readl(dev->base + REG_STATUS) & 0x1) {
                 dev_state = STATE_DONE;
             }
@@ -539,9 +538,9 @@ class TestStateMachineExtractor:
             writel(0x1, dev->base + REG_CONTROL);
             udelay(100);
             writel(0x2, dev->base + REG_CONFIG);
-            
+
             mdelay(10);
-            
+
             writel(0x3, dev->base + REG_COMMAND);
         """
 
@@ -667,20 +666,20 @@ class TestStateMachineExtractor:
         #define REG_CONTROL 0x1000
         #define REG_STATUS  0x1004
         #define REG_CONFIG  0x1008
-        
+
         enum device_state {
             STATE_IDLE,
             STATE_ACTIVE,
             STATE_DONE,
             STATE_ERROR
         };
-        
+
         static int device_init(struct device *dev) {
             dev->state = STATE_IDLE;
             writel(0x1, dev->base + REG_CONTROL);
             return 0;
         }
-        
+
         static int device_process(struct device *dev) {
             switch (dev->state) {
                 case STATE_IDLE:
@@ -702,7 +701,7 @@ class TestStateMachineExtractor:
             }
             return 0;
         }
-        
+
         static void device_cleanup(struct device *dev) {
             writel(0x0, dev->base + REG_CONTROL);
             dev->state = STATE_IDLE;

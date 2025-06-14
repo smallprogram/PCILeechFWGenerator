@@ -2,25 +2,21 @@
 Tests for src/vivado_utils.py
 """
 
-import os
-import platform
-import subprocess
-
-# Add src to path for imports
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
+# Add src to path for imports
 from src.vivado_utils import (
     find_vivado_installation,
     get_vivado_executable,
     get_vivado_version,
     run_vivado_command,
 )
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 class TestVivadoDetection:
@@ -147,7 +143,8 @@ class TestVivadoDetection:
         """
         version = get_vivado_version("/dummy/path")
 
-        # Since we can't actually run Vivado, we'll just check the function logic
+        # Since we can't actually run Vivado, we'll just check the function
+        # logic
         with patch("subprocess.run") as mock_run:
             mock_process = Mock()
             mock_process.returncode = 0

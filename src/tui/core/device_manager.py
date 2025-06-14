@@ -23,7 +23,8 @@ class DeviceManager:
 
     def _load_vendor_database(self) -> None:
         """Load PCI vendor database for enhanced device names."""
-        # Basic vendor database - in production this could be loaded from pci.ids
+        # Basic vendor database - in production this could be loaded from
+        # pci.ids
         self._vendor_db = {
             "8086": "Intel Corporation",
             "10de": "NVIDIA Corporation",
@@ -52,7 +53,7 @@ class DeviceManager:
                 except Exception as e:
                     # Log error but continue with other devices
                     print(
-                        f"Warning: Failed to enhance device {raw_device.get('bdf', 'unknown')}: {e}"
+                        f"Warning: Failed to enhance device {raw_device.get('bd', 'unknown')}: {e}"
                     )
                     continue
 
@@ -76,7 +77,7 @@ class DeviceManager:
 
     async def _enhance_device_info(self, raw_device: Dict[str, str]) -> PCIDevice:
         """Enhance raw device information with additional details."""
-        bdf = raw_device["bdf"]
+        bdf = raw_device["bd"]
         vendor_id = raw_device["ven"]
         device_id = raw_device["dev"]
         device_class = raw_device["class"]
@@ -112,7 +113,8 @@ class DeviceManager:
             "bars_available": len(bars) > 0,
         }
 
-        # Calculate suitability score and compatibility issues with enhanced checks
+        # Calculate suitability score and compatibility issues with enhanced
+        # checks
         suitability_score, compatibility_issues = self._assess_device_suitability(
             device_class, driver, bars, is_valid, vfio_compatible, iommu_enabled
         )
@@ -282,7 +284,8 @@ class DeviceManager:
                 # Check if device is detached (bound to vfio-pci or similar)
                 is_detached = driver in ["vfio-pci", "pci-stub"]
 
-                # Also check if driver directory exists but device is not actively using it
+                # Also check if driver directory exists but device is not
+                # actively using it
                 driver_path = f"/sys/bus/pci/devices/{bdf}/driver"
                 if os.path.islink(driver_path):
                     # Driver is bound
@@ -307,7 +310,8 @@ class DeviceManager:
 
             # Check if device can be bound to VFIO
             # This is a simplified check - in practice, you'd want to verify
-            # that the device doesn't have dependencies that prevent VFIO binding
+            # that the device doesn't have dependencies that prevent VFIO
+            # binding
             device_path = f"/sys/bus/pci/devices/{bdf}"
             if not os.path.exists(device_path):
                 return False

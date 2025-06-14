@@ -4,25 +4,22 @@ Build Orchestrator
 Orchestrates the build process with real-time monitoring and progress tracking.
 """
 
-import argparse
 import asyncio
 import datetime
 import os
-import shutil
 import subprocess
-import time
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Callable, Optional
 
 import psutil
-
-# Git repository information
-PCILEECH_FPGA_REPO = "https://github.com/ufrisk/pcileech-fpga.git"
-REPO_CACHE_DIR = Path(os.path.expanduser("~/.cache/pcileech-fw-generator/repos"))
 
 from ..models.config import BuildConfiguration
 from ..models.device import PCIDevice
 from ..models.progress import BuildProgress, BuildStage, ValidationResult
+
+# Git repository information
+PCILEECH_FPGA_REPO = "https://github.com/ufrisk/pcileech-fpga.git"
+REPO_CACHE_DIR = Path(os.path.expanduser("~/.cache/pcileech-fw-generator/repos"))
 
 
 class BuildOrchestrator:
@@ -375,7 +372,7 @@ class BuildOrchestrator:
                 if update_needed:
                     if self._current_progress:
                         self._current_progress.current_operation = (
-                            f"Updating PCILeech FPGA repository"
+                            "Updating PCILeech FPGA repository"
                         )
                         await self._notify_progress()
 
@@ -395,7 +392,7 @@ class BuildOrchestrator:
 
                         if self._current_progress:
                             self._current_progress.current_operation = (
-                                f"PCILeech FPGA repository updated successfully"
+                                "PCILeech FPGA repository updated successfully"
                             )
                             await self._notify_progress()
                     except Exception as e:
@@ -430,7 +427,7 @@ class BuildOrchestrator:
 
                 if self._current_progress:
                     self._current_progress.current_operation = (
-                        f"PCILeech FPGA repository cloned successfully"
+                        "PCILeech FPGA repository cloned successfully"
                     )
                     await self._notify_progress()
             except Exception as e:
@@ -485,7 +482,8 @@ class BuildOrchestrator:
                     if fixes:
                         self._current_progress.add_warning(f"Suggested fix: {fixes[0]}")
 
-                    # If auto_install_headers is enabled, try to fix common issues
+                    # If auto_install_headers is enabled, try to fix common
+                    # issues
                     if (
                         config.auto_install_headers
                         and status == "not_built"
@@ -708,12 +706,14 @@ class BuildOrchestrator:
                 except FileNotFoundError:
                     if self._current_progress:
                         self._current_progress.add_error(
-                            f"Donor info file not found: {config.donor_info_file}"
+                            f"Donor info file not found: {
+                                config.donor_info_file}"
                         )
                 except json.JSONDecodeError:
                     if self._current_progress:
                         self._current_progress.add_error(
-                            f"Invalid JSON in donor info file: {config.donor_info_file}"
+                            f"Invalid JSON in donor info file: {
+                                config.donor_info_file}"
                         )
                 except Exception as e:
                     if self._current_progress:
@@ -721,7 +721,8 @@ class BuildOrchestrator:
                             f"Error validating PCI configuration: {str(e)}"
                         )
 
-            # For non-local builds with donor_dump, validation happens during donor_dump extraction
+            # For non-local builds with donor_dump, validation happens during
+            # donor_dump extraction
             elif not config.local_build and config.donor_dump:
                 if self._current_progress:
                     self._current_progress.current_operation = (
@@ -786,13 +787,16 @@ class BuildOrchestrator:
 
         # Log the start of profiling
         if self._current_progress:
-            self._current_progress.current_operation = f"Profiling device {device.bdf}"
+            self._current_progress.current_operation = f"Profiling device {
+                device.bdf}"
             await self._notify_progress()
 
-        # Run the profiling in a separate thread to avoid blocking the event loop
+        # Run the profiling in a separate thread to avoid blocking the event
+        # loop
         def run_profiling():
             try:
-                # Use enable_ftrace=True for real hardware, but it requires root privileges
+                # Use enable_ftrace=True for real hardware, but it requires
+                # root privileges
                 import os
 
                 enable_ftrace = not config.disable_ftrace and os.geteuid() == 0
@@ -989,5 +993,6 @@ class BuildOrchestrator:
             if self._current_progress:
                 self._current_progress.add_error(f"Build command failed: {error_msg}")
             raise RuntimeError(
-                f"Build command failed with code {self._build_process.returncode}"
+                f"Build command failed with code {
+                    self._build_process.returncode}"
             )

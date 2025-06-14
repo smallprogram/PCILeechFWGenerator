@@ -6,14 +6,14 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
+import flash_fpga
+
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-import flash_fpga
 
 
 class TestCommandExecution:
@@ -376,7 +376,8 @@ class TestSecurityConsiderations:
 
             # Should not execute embedded commands
             assert isinstance(resolved, Path)
-            # The dangerous parts should be treated as literal filename components
+            # The dangerous parts should be treated as literal filename
+            # components
 
     @patch("subprocess.run")
     def test_safe_command_execution(self, mock_run):

@@ -13,23 +13,17 @@ import json
 import os
 import tempfile
 import unittest
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 from src.donor_dump_manager import DonorDumpManager
 from src.manufacturing_variance import DeviceClass, ManufacturingVarianceSimulator
 from src.msix_capability import (
     find_cap,
     generate_msix_table_sv,
-    msix_size,
     parse_msix_capability,
 )
 from src.pci_capability import (
     PCICapabilityID,
     PCIExtCapabilityID,
-)
-from src.pci_capability import find_cap as pci_find_cap
-from src.pci_capability import (
     find_ext_cap,
     prune_capabilities_by_rules,
 )
@@ -101,7 +95,8 @@ class TestFeatureIntegrationEnhanced(unittest.TestCase):
             + config_space[0x50 * 2 + len(link_control) :]
         )
 
-        # Add Device Control 2 Register at offset 0x68 (part of PCIe capability)
+        # Add Device Control 2 Register at offset 0x68 (part of PCIe
+        # capability)
         dev_control2 = "6400" + "0000"  # OBFF and LTR enabled
         config_space = (
             config_space[: 0x68 * 2]

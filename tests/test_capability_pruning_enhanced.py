@@ -9,22 +9,15 @@ This test suite focuses on:
 4. Testing complex capability configurations
 """
 
-import json
-import os
 import sys
-import tempfile
 import unittest
 from pathlib import Path
-
-# Add the src directory to the Python path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.pci_capability import (
     EmulationCategory,
     PCICapabilityID,
     PCIExtCapabilityID,
     PruningAction,
-    categorize_capabilities,
     determine_pruning_actions,
     find_cap,
     find_ext_cap,
@@ -33,6 +26,9 @@ from src.pci_capability import (
     prune_capabilities,
     prune_capabilities_by_rules,
 )
+
+# Add the src directory to the Python path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 class TestCapabilityPruningEnhanced(unittest.TestCase):
@@ -124,7 +120,8 @@ class TestCapabilityPruningEnhanced(unittest.TestCase):
         Returns:
             Updated configuration space
         """
-        # Format: cap_id (16 bits) + version (4 bits) + next_ptr (12 bits) + data (variable)
+        # Format: cap_id (16 bits) + version (4 bits) + next_ptr (12 bits) +
+        # data (variable)
         header = (cap_id << 16) | (version << 4) | next_ptr
         header_hex = f"{header:08x}"
 
@@ -367,7 +364,8 @@ class TestCapabilityPruningEnhanced(unittest.TestCase):
         # Verify pruning results
         pruned_ext_caps = get_all_ext_capabilities(pruned_config)
 
-        # Should have fewer capabilities (L1 PM, SR-IOV, and LTR should be removed)
+        # Should have fewer capabilities (L1 PM, SR-IOV, and LTR should be
+        # removed)
         self.assertLess(len(pruned_ext_caps), 4)
 
         # Verify L1 PM Substates is removed or zeroed out
@@ -506,7 +504,8 @@ class TestCapabilityPruningEnhanced(unittest.TestCase):
             + config_space[0x50 * 2 + len(link_control) :]
         )
 
-        # Add Device Control 2 Register at offset 0x68 (part of PCIe capability)
+        # Add Device Control 2 Register at offset 0x68 (part of PCIe
+        # capability)
         dev_control2 = "6400" + "0000"  # OBFF and LTR enabled
         config_space = (
             config_space[: 0x68 * 2]

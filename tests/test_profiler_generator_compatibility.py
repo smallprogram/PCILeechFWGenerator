@@ -5,16 +5,10 @@ This test suite verifies that the behavior profiler returns data that is
 compatible with the advanced SystemVerilog generator.
 """
 
-import json
-import os
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.advanced_sv_generator import (
     AdvancedSVGenerator,
@@ -25,12 +19,13 @@ from src.advanced_sv_generator import (
     PowerManagementConfig,
 )
 from src.behavior_profiler import (
-    BehaviorProfile,
     BehaviorProfiler,
-    RegisterAccess,
-    TimingPattern,
 )
 from src.manufacturing_variance import DeviceClass, ManufacturingVarianceSimulator
+
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 
 # We're using the mock_behavior_profile fixture from conftest.py
 
@@ -78,7 +73,8 @@ def enhance_registers_with_profile(profile, regs):
         reg_name = reg["name"].lower()
 
         # Add behavioral timing information if available
-        # We need to be more flexible with matching since the register names might differ slightly
+        # We need to be more flexible with matching since the register names
+        # might differ slightly
         for pattern in profile.timing_patterns:
             pattern_reg_names = [r.lower() for r in pattern.registers]
 
@@ -172,7 +168,7 @@ class TestProfilerGeneratorCompatibility:
         """Test that the generator can use the profiler data."""
         # Create a mock profiler to analyze the profile
         profiler = BehaviorProfiler("0000:03:00.0", debug=False, enable_ftrace=False)
-        analysis = profiler.analyze_patterns(mock_behavior_profile)
+        profiler.analyze_patterns(mock_behavior_profile)
 
         # Enhance registers with profile data
         enhanced_regs = enhance_registers_with_profile(

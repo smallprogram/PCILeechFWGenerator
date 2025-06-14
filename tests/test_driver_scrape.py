@@ -3,20 +3,16 @@ Comprehensive tests for src/scripts/driver_scrape.py - Driver analysis functiona
 """
 
 import json
-import os
 import subprocess
 import sys
-import tarfile
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, mock_open, patch
+from unittest.mock import mock_open, patch
 
+import driver_scrape
 import pytest
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src" / "scripts"))
-
-import driver_scrape
 
 
 class TestHelperFunctions:
@@ -498,7 +494,8 @@ class TestMainWorkflow:
         # Mock sys.argv
         with patch("sys.argv", ["driver_scrape.py", "8086", "1533"]):
             with patch("builtins.print") as mock_print:
-                # This would normally call main(), but we'll test the workflow components
+                # This would normally call main(), but we'll test the workflow
+                # components
                 pass
 
         # Verify workflow steps would be called
@@ -564,7 +561,7 @@ class TestPerformanceAndScaling:
         # Generate large source content
         large_content = []
         for i in range(1000):
-            large_content.append(f"#define REG_{i:04d}    0x{i*4:04X}")
+            large_content.append(f"#define REG_{i:04d}    0x{i * 4:04X}")
             large_content.append(f"static void func_{i}(void) {{")
             large_content.append(f"    writel(0x{i}, REG_{i:04d});")
             large_content.append("}")
@@ -609,7 +606,7 @@ class TestPerformanceAndScaling:
             )
 
         # Measure memory usage
-        initial_size = sys.getsizeof(large_registers)
+        sys.getsizeof(large_registers)
 
         # Process the data (simulate JSON serialization)
         json_output = json.dumps(large_registers)

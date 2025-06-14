@@ -112,7 +112,7 @@ def run_code_quality_checks():
             results[description] = False
 
     # Summary
-    print(f"\n[*] Code Quality Summary:")
+    print("\n[*] Code Quality Summary:")
     for check, passed in results.items():
         status = "✓" if passed else "✗"
         print(f"  {status} {check}")
@@ -280,7 +280,7 @@ def run_security_tests():
             results[description] = False
 
     # Summary
-    print(f"\n[*] Security Test Summary:")
+    print("\n[*] Security Test Summary:")
     for check, passed in results.items():
         status = "✓" if passed else "✗"
         print(f"  {status} {check}")
@@ -298,9 +298,9 @@ def generate_test_report(results):
     passed_tests = sum(1 for result in results.values() if result)
 
     print(f"\nOverall Results: {passed_tests}/{total_tests} test suites passed")
-    print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
+    print(f"Success Rate: {(passed_tests / total_tests) * 100:.1f}%")
 
-    print(f"\nDetailed Results:")
+    print("\nDetailed Results:")
     for test_name, passed in results.items():
         status = "✓ PASS" if passed else "✗ FAIL"
         print(f"  {status} {test_name}")
@@ -322,7 +322,7 @@ def generate_test_report(results):
             artifacts.append(artifact)
 
     if artifacts:
-        print(f"\nGenerated Artifacts:")
+        print("\nGenerated Artifacts:")
         for artifact in artifacts:
             print(f"  - {artifact}")
 
@@ -439,10 +439,10 @@ Examples:
     success = generate_test_report(results)
 
     if success:
-        print(f"\n🎉 All tests passed successfully!")
+        print("\n🎉 All tests passed successfully!")
         return 0
     else:
-        print(f"\n⚠️  Some tests failed. Please review the output above.")
+        print("\n⚠️  Some tests failed. Please review the output above.")
         return 1
 
 

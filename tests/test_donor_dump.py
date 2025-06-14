@@ -5,10 +5,8 @@ Comprehensive tests for src/donor_dump/ kernel module functionality.
 import os
 import re
 import subprocess
-import sys
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, mock_open, patch
+from unittest.mock import Mock, mock_open, patch
 
 import pytest
 
@@ -94,7 +92,7 @@ class TestModuleParameters:
             "0000:3:00.0",  # Too short bus
             "0000:03:0.0",  # Too short device
             "0000:03:00.8",  # Invalid function
-            "invalid-bdf",  # Completely invalid
+            "invalid-bd",  # Completely invalid
         ]
 
         # These would be validated by the kernel module
@@ -117,7 +115,7 @@ class TestModuleParameters:
         """Test module parameter parsing simulation."""
         # Simulate module parameter parsing
         test_parameters = {
-            "bdf": "0000:03:00.0",
+            "bd": "0000:03:00.0",
             "enable_extended_config": "1",
             "enable_enhanced_caps": "1",
             "debug": "0",
@@ -129,7 +127,7 @@ class TestModuleParameters:
             assert isinstance(value, str)
 
             # BDF parameter should match expected format
-            if param == "bdf":
+            if param == "bd":
                 import re
 
                 bdf_pattern = re.compile(
@@ -609,7 +607,8 @@ class TestMakefileValidation:
                 if re.search(target_pattern, makefile_content, re.MULTILINE):
                     found_optional.append(target)
 
-            # Verify we found some optional targets (indicates a well-structured Makefile)
+            # Verify we found some optional targets (indicates a
+            # well-structured Makefile)
             assert (
                 len(found_optional) > 0
             ), "No optional targets found - Makefile may be incomplete"
@@ -647,11 +646,12 @@ class TestMakefileValidation:
                     f"Kernel version {major}.{minor} may not support all required features (4.10+ recommended)"
                 )
 
-            # Check for known compatibility issues with specific kernel versions
+            # Check for known compatibility issues with specific kernel
+            # versions
             if major == 5 and 0 <= minor <= 3:
                 # Log a warning about known compatibility issues
                 print(
-                    f"WARNING: Kernel 5.0-5.3 has known issues with VFIO passthrough for some devices"
+                    "WARNING: Kernel 5.0-5.3 has known issues with VFIO passthrough for some devices"
                 )
 
         # Extract major.minor version from kernel release
@@ -720,7 +720,8 @@ class TestMakefileValidation:
                 f"kernel_feature_{len(pytest.current_test_info)}"
             ] = message
         except (ImportError, AttributeError):
-            # pytest not available or not in test context, continue with standard logging
+            # pytest not available or not in test context, continue with
+            # standard logging
             pass
 
 
@@ -877,7 +878,7 @@ class TestDonorDumpManager:
         manager = DonorDumpManager()
 
         with pytest.raises(ModuleLoadError, match="Invalid BDF format"):
-            manager.load_module("invalid_bdf")
+            manager.load_module("invalid_bd")
 
     @patch("subprocess.run")
     @patch("os.path.exists")
@@ -969,7 +970,8 @@ class TestDonorDumpManager:
                     with patch.object(
                         manager, "read_device_info", return_value=mock_device_info
                     ):
-                        # Pass save_to_file parameter to ensure json.dump is called
+                        # Pass save_to_file parameter to ensure json.dump is
+                        # called
                         result = manager.setup_module(
                             "0000:03:00.0", save_to_file="test_output.json"
                         )
@@ -1003,7 +1005,8 @@ class TestDonorDumpIntegration:
 
             # Test CLI args conversion
             cli_args = config.to_cli_args()
-            # The key in cli_args is actually "skip_donor_dump", not "donor_dump"
+            # The key in cli_args is actually "skip_donor_dump", not
+            # "donor_dump"
             assert "skip_donor_dump" in cli_args
             assert "auto_install_headers" in cli_args
 

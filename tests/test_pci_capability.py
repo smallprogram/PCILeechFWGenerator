@@ -3,12 +3,7 @@
 Test suite for PCI capability analysis and pruning.
 """
 
-import json
-import os
-import tempfile
 import unittest
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 from src.pci_capability import (
     EmulationCategory,
@@ -69,7 +64,8 @@ class TestPCICapability(unittest.TestCase):
             + self.config_space[0x50 * 2 + len(link_control) :]
         )
 
-        # Add Device Control 2 Register at offset 0x68 (part of PCIe capability)
+        # Add Device Control 2 Register at offset 0x68 (part of PCIe
+        # capability)
         dev_control2 = "6400" + "0000"  # OBFF and LTR enabled
         self.config_space = (
             self.config_space[: 0x68 * 2]
@@ -104,13 +100,13 @@ class TestPCICapability(unittest.TestCase):
         # Add Extended capabilities
 
         # Add L1 PM Substates extended capability at offset 0x100
-        # Extended Capability ID: 0x001E (L1 PM Substates)
-        # Capability Version: 0x1
-        # Next Capability Offset: 0x140
-        # L1 Substates Capabilities: 0x00000001 (L1.1 supported)
-        # L1 Substates Control 1: 0x00000002
-        # L1 Substates Control 2: 0x00000003
-        l1pm_cap = "001E" + "1140" + "00000001" + "00000002" + "00000003"
+        # Extended Capability Header format (32-bit little-endian):
+        # Bits [15:0] = Capability ID (0x001E)
+        # Bits [19:16] = Capability Version (0x1)
+        # Bits [31:20] = Next Capability Offset (0x140)
+        # Header = (0x140 << 20) | (0x1 << 16) | 0x001E = 0x1401001E
+        l1pm_header = f"{0x1401001E:08x}"
+        l1pm_cap = l1pm_header + "00000001" + "00000002" + "00000003"
         self.config_space = (
             self.config_space[: 0x100 * 2]
             + l1pm_cap
@@ -118,14 +114,13 @@ class TestPCICapability(unittest.TestCase):
         )
 
         # Add SR-IOV extended capability at offset 0x140
-        # Extended Capability ID: 0x0010 (SR-IOV)
-        # Capability Version: 0x1
-        # Next Capability Offset: 0x000 (end of list)
-        # SR-IOV Control: 0x00000000
-        # SR-IOV Status: 0x00000000
-        # Initial VFs: 0x00000004
-        # Total VFs: 0x00000008
-        sriov_cap = "0010" + "1000" + "00000000" + "00000000" + "00000004" + "00000008"
+        # Extended Capability Header format (32-bit little-endian):
+        # Bits [15:0] = Capability ID (0x0010)
+        # Bits [19:16] = Capability Version (0x1)
+        # Bits [31:20] = Next Capability Offset (0x000 - end of list)
+        # Header = (0x000 << 20) | (0x1 << 16) | 0x0010 = 0x00010010
+        sriov_header = f"{0x00010010:08x}"
+        sriov_cap = sriov_header + "00000000" + "00000000" + "00000004" + "00000008"
         self.config_space = (
             self.config_space[: 0x140 * 2]
             + sriov_cap
@@ -325,7 +320,8 @@ class TestPCICapability(unittest.TestCase):
             self.assertEqual(
                 pm_cap & 0x0007, 0
             )  # D1, D2, D3cold bits should be cleared
-            self.assertEqual(pm_cap & 0x0008, 0x0008)  # D3hot bit should be set
+            # D3hot bit should be set
+            self.assertEqual(pm_cap & 0x0008, 0x0008)
             self.assertEqual(
                 pm_cap & 0x0F70, 0
             )  # PME support bits should be cleared (excluding D3hot bit)
@@ -382,7 +378,8 @@ class TestPCICapability(unittest.TestCase):
             self.assertEqual(
                 pm_cap & 0x0007, 0
             )  # D1, D2, D3cold bits should be cleared
-            self.assertEqual(pm_cap & 0x0008, 0x0008)  # D3hot bit should be set
+            # D3hot bit should be set
+            self.assertEqual(pm_cap & 0x0008, 0x0008)
             self.assertEqual(
                 pm_cap & 0x0F70, 0
             )  # PME support bits should be cleared (excluding D3hot bit)

@@ -4,8 +4,7 @@ Test TUI Main Module
 Tests for the main TUI entry point and core functionality from src/tui/main.py.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -24,11 +23,11 @@ except ImportError:
             return lambda f: f
 
     pytest_asyncio = DummyModule()
-    # Create a dummy asyncio marker that just returns the function
-    asyncio_mark = lambda f: f
 
-from textual.app import App
-from textual.widgets import Button, DataTable, ProgressBar, Static
+    # Create a dummy asyncio marker that just returns the function
+    def asyncio_mark(f):
+        return f
+
 
 # Import TUI main modules
 from src.tui.main import ConfigurationDialog, PCILeechTUI

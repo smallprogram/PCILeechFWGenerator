@@ -10,7 +10,7 @@ import platform
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict
 
 import psutil
 
@@ -133,7 +133,8 @@ class StatusMonitor:
                                 if os.path.exists(bin_dir):
                                     vivado_exe = os.path.join(bin_dir, "vivado")
                                     if os.path.isfile(vivado_exe):
-                                        # Try to get version using discovered executable
+                                        # Try to get version using discovered
+                                        # executable
                                         result = await self._run_command(
                                             f'"{vivado_exe}" -version'
                                         )
@@ -378,7 +379,10 @@ class StatusMonitor:
         # USB devices
         usb = status.get("usb_devices", {})
         count = usb.get("count", 0)
-        summary["usb"] = f"🔌 {count} USB Device{'s' if count != 1 else ''} Found"
+        summary["usb"] = (
+            f"🔌 {count} USB Device{
+            's' if count != 1 else ''} Found"
+        )
 
         # Disk space
         disk = status.get("disk_space", {})

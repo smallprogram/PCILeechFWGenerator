@@ -11,11 +11,10 @@ Classes:
     StateMachineExtractor: Main class for extracting state machines from driver code
 """
 
-import json
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 
 
 class StateType(Enum):
@@ -154,9 +153,7 @@ class StateMachine:
             return ""
 
         # Generate state enumeration
-        state_enum = (
-            f"typedef enum logic [{max(1, (len(self.states)-1).bit_length()-1)}:0] {{\n"
-        )
+        state_enum = f"typedef enum logic [{max(1, (len(self.states) - 1).bit_length() - 1)}:0] {{\n"
         for i, state in enumerate(sorted(self.states)):
             state_enum += f"        {state.upper()} = {i}"
             if i < len(self.states) - 1:
@@ -165,13 +162,13 @@ class StateMachine:
         state_enum += f"    }} {self.name}_state_t;\n"
 
         # Generate state machine logic
-        sm_logic = f"""
+        sm_logic = """
     // State machine: {self.name}
     {state_enum}
-    
+
     {self.name}_state_t {self.name}_current_state = {self.initial_state.upper() if self.initial_state else list(self.states)[0].upper()};
     {self.name}_state_t {self.name}_next_state;
-    
+
     // State transition logic for {self.name}
     always_ff @(posedge clk) begin
         if (!reset_n) begin
@@ -180,7 +177,7 @@ class StateMachine:
             {self.name}_current_state <= {self.name}_next_state;
         end
     end
-    
+
     // Next state combinational logic for {self.name}
     always_comb begin
         {self.name}_next_state = {self.name}_current_state;
@@ -203,13 +200,17 @@ class StateMachine:
                 for transition in transitions_by_state[state_upper]:
                     condition = self._generate_transition_condition(transition)
                     if condition:
-                        sm_logic += f"\n                if ({condition}) {self.name}_next_state = {transition.to_state.upper()};"
+                        sm_logic += f"\n                if ({condition}) {
+                            self.name}_next_state = {
+                            transition.to_state.upper()};"
                     else:
-                        sm_logic += f"\n                {self.name}_next_state = {transition.to_state.upper()};"
+                        sm_logic += f"\n                {
+                            self.name}_next_state = {
+                            transition.to_state.upper()};"
 
             sm_logic += "\n            end"
 
-        sm_logic += f"""
+        sm_logic += """
             default: {self.name}_next_state = {self.initial_state.upper() if self.initial_state else list(self.states)[0].upper()};
         endcase
     end"""
@@ -225,14 +226,16 @@ class StateMachine:
             and transition.register_offset
         ):
             conditions.append(
-                f"bar_wr_en && bar_addr == 32'h{transition.register_offset:08X}"
+                f"bar_wr_en && bar_addr == 32'h{
+                    transition.register_offset:08X}"
             )
         elif (
             transition.transition_type == TransitionType.REGISTER_READ
             and transition.register_offset
         ):
             conditions.append(
-                f"bar_rd_en && bar_addr == 32'h{transition.register_offset:08X}"
+                f"bar_rd_en && bar_addr == 32'h{
+                    transition.register_offset:08X}"
             )
         elif transition.transition_type == TransitionType.TIMEOUT:
             conditions.append("timeout_expired")
@@ -409,7 +412,8 @@ class StateMachineExtractor:
         """Extract explicit state machines from switch statements or if-else chains."""
         sm = None
 
-        # Special case for the test_extract_explicit_state_machine_if_chain test
+        # Special case for the test_extract_explicit_state_machine_if_chain
+        # test
         if (
             "if (dev_state == STATE_IDLE)" in func_body
             and "else if (dev_state == STATE_ACTIVE)" in func_body
@@ -538,7 +542,8 @@ class StateMachineExtractor:
 
                     # Extract transitions from the if-chain
                     if_blocks = re.finditer(
-                        rf"if\s*\(\s*{re.escape(state_var)}\s*==\s*(\w+)\s*\)\s*\{{([^}}]+?)\s*\}}",
+                        rf"if\s*\(\s*{
+                            re.escape(state_var)}\s*==\s*(\w+)\s*\)\s*\{{([^}}]+?)\s*\}}",
                         if_chain_match.group(0),
                         re.DOTALL,
                     )
@@ -591,7 +596,7 @@ class StateMachineExtractor:
 
             # Create transition to next state
             if i < len(reg_accesses) - 1:
-                next_state = f"access_{i+1}_{reg_accesses[i+1][1].lower()}"
+                next_state = f"access_{i + 1}_{reg_accesses[i + 1][1].lower()}"
 
                 transition = StateTransition(
                     from_state=state_name,

@@ -6,7 +6,6 @@ This script performs a quick validation of the package build process.
 
 import subprocess
 import sys
-import tempfile
 import zipfile
 from pathlib import Path
 

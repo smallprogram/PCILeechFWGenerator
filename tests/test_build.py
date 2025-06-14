@@ -6,9 +6,8 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -16,7 +15,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 try:
-    from build.controller import BuildController, create_build_controller
+    pass
 
     MODULAR_BUILD_AVAILABLE = True
 except ImportError:
