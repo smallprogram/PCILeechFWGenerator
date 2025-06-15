@@ -60,12 +60,19 @@ Generate spoofed PCIe DMA firmware from real donor hardware with a single comman
 - **🐳 Automated Build Pipeline**: Containerized synthesis and bit-stream generation
 - **🔌 USB-JTAG Flashing**: Direct firmware deployment to DMA boards
 - **🖥️ Interactive TUI**: Modern text-based interface with real-time monitoring and guided workflows
-- **📦 Professional Packaging**: Easy installation via pip with proper dependency management
+- **🔁Regular Updating**: Users can update their own features and even swap between presets.
 
-The TCL is mostly templated out using Jinja in the templates dir. Python does most of the template generation and runs in a container using podman by default. It usually autodiscovers Vivado for the final TCL compilation but you can also pass in the TCL yourself. The template generation is pretty quick but depending on your PC it might take a while to compile. 
+## Read this first
+
+The TCL is mostly templated out using Jinja in the templates dir. Python does most of the template generation and runs in a container using podman by default. It usually autodiscovers Vivado for the final TCL compilation but you can also pass in the TCL yourself. The template generation is pretty quick but depending on your PC it might take a while to compile.
+
+I tried to align all of the python versions and paths up to be as reliable as possible, and podman helps, but you may need to edit some paths if you see issues. Please PR it back into this codebase if its something that will help the community.
+This codebase is modular enough to be imported into other code bases as well.
 
 It'll best effort clone any pcie device you give it, but generally linux-compatible network/storage/media cards that work best. I don't recommend using the unit test default values outside of local testing. 
+Please avoid adding those UUIDs when making tickets.
 
+This tool is designed to make DMA firmware transparent. 
 
 ## 🚀 Quick Start
 
