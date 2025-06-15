@@ -64,15 +64,22 @@ Generate spoofed PCIe DMA firmware from real donor hardware with a single comman
 
 ## Read this first
 
+### About the code
+
 The TCL is mostly templated out using Jinja in the templates dir. Python does most of the template generation and runs in a container using podman by default. It usually autodiscovers Vivado for the final TCL compilation but you can also pass in the TCL yourself. The template generation is pretty quick but depending on your PC it might take a while to compile.
 
 I tried to align all of the python versions and paths up to be as reliable as possible, and podman helps, but you may need to edit some paths if you see issues. Please PR it back into this codebase if its something that will help the community.
 This codebase is modular enough to be imported into other code bases as well.
 
+### Supported Donor Devices
+
 It'll best effort clone any pcie device you give it, but generally linux-compatible network/storage/media cards that work best. I don't recommend using the unit test default values outside of local testing. 
 Please avoid adding those UUIDs when making tickets.
 
-This tool is designed to make DMA firmware transparent. 
+### Goals
+
+This tool is designed to make DMA firmware transparent. A pcileech device can access all of your PCs memory and you should know whats running on it, and what it's limits are. 
+This tool also provides a replacement for huge pools of firmware with identical IDs by making it easy to use your own donor card.
 
 ## 🚀 Quick Start
 
@@ -454,6 +461,15 @@ sudo pcileech-generate --bdf 0000:03:00.0 --board 75t \
 - Rebind the donor back to its original driver if you keep it around.
 - Keep the generated firmware private; it contains identifiers from the donor.
 - Advanced features require appropriate privileges for hardware access.
+- Don't try to use a donor card and fpga at the same time. I don't think Windows will really like that tbh
+
+## Uniqueness
+
+When you run the generator against a donor PCIe device, almost everything that an operating system or driver probes becomes an exact clone of that donor. The build script copies the full 256-byte configuration header, any extended-capability blocks, the vendor and device IDs, subsystem IDs, BAR sizes and flags, MSI/MSI-X descriptors, power-management numbers, and every vendor-defined capability byte-for-byte into a tiny ROM baked into the FPGA. It also resynthesises the BAR aperture and decode logic so the address map aligns perfectly with what the real silicon advertises. That means lspci, Windows Device Manager, or any normal driver will see a register footprint that is indistinguishable from the original card, and the FPGA bitstream’s checksum will change for every new donor because those ROM contents ripple through synthesis.
+
+What doesn’t change from build to build is the plumbing that actually pushes data: the AXI/Avalon bridges, DMA engines, FIFOs, debug UART, JTAG CSR map, performance-counter scaffolding, and other house-keeping IP. They stay generic and parameter-driven, so you get the same timing characteristics and resource utilisation no matter which donor you point at the generator. That gives you a predictable, maintainable hardware core while still spoofing the critical identity markers upstream.
+
+The result is “unique enough” for most red-team and research tasks—software that limits access by PCI IDs, or that sanity-checks capability chains, will be fully satisfied.
 
 ## ⚠️ Disclaimer
 
