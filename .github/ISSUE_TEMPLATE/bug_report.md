@@ -6,19 +6,19 @@ labels: ''
 assignees: ''
 
 ---
-
+*Please no uuids in this*
 ## 📦 Environment
-	•Host OS:
+
+Host OS:
 e.g., Ubuntu 22.04 / Windows 11 WSL / Arch Linux
-	• Python Version:
+Python Version:
 e.g., 3.11.8
-	• Vivado Version:
+Vivado Version:
 e.g., 2022.2
-	• Board Target:
+Board Target:
 e.g., pcileech_35t325_x4 or pcileech_75t
-	• BDF or Vendor:Device ID:
-e.g., 0000:03:00.0 or 8086:1533
-	• Device type
+Device type
+Audio Network etc
 
 ##❗️Problem or Feature Description
 
@@ -31,12 +31,14 @@ What did you expect to happen?
 e.g., “Expected synthesized firmware to build successfully with correct BAR size and MSI-X table emulated”
 
 ## 📎 Attachments (optional)
-	• config.json
-	• Synth log or crash dump (*.log)
-	• Screenshot of GUI or waveform
-	• Custom .tcl or .sv file
+
+config.json
+Synth log or crash dump (*.log)
+Screenshot of GUI or waveform
+Custom .tcl or .sv file
 
 ## ✅ Checklist
-	• I’m using the latest main branch
-	• I’ve checked for similar issues
-	• I’ve read the relevant modules (device_emulator, cap_parser, svgen, etc
+
+I’m using the latest main branch
+I’ve checked for similar issues
+I’ve read the relevant modules (device_emulator, cap_parser, svgen, etc
