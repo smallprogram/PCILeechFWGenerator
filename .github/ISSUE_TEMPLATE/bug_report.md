@@ -2,11 +2,12 @@
 name: Bug report
 about: Create a report to help us improve
 title: ''
-labels: ''
+labels: 'bug'
 assignees: ''
 
 ---
 *Please no uuids in this*
+
 ## 📦 Environment
 
 Host OS:
@@ -20,7 +21,7 @@ e.g., pcileech_35t325_x4 or pcileech_75t
 Device type
 Audio Network etc
 
-##❗️Problem or Feature Description
+## 🚨Problem or Feature Description
 
 Describe what’s happening or what you need. Include exact error messages, crash logs, or feature descriptions.
 Please use backticks or attach txt for logs
