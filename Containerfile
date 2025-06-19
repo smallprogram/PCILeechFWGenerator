@@ -23,14 +23,15 @@ RUN pip3 install --no-cache-dir -r requirements.txt -r requirements-tui.txt
 
 # Copy only what you need
 COPY src ./src
+COPY utils ./utils
 COPY generate.py .
 COPY entrypoint.sh /usr/local/bin/entrypoint
 RUN chmod 755 /usr/local/bin/entrypoint
 
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app:/app/src
 RUN mkdir -p /app/output && chown appuser /app/output
 
 HEALTHCHECK CMD python3 - <<'PY'\nimport psutil, pydantic, sys; sys.exit(0)\nPY
 
 USER appuser
-ENTRYPOINT [\"entrypoint\"]
+ENTRYPOINT ["entrypoint"]

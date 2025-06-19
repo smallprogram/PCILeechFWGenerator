@@ -11,6 +11,7 @@ import sys
 import textwrap
 import time
 from dataclasses import dataclass, field
+from typing import List, Optional
 from pathlib import Path
 from typing import List, Optional
 
@@ -55,6 +56,10 @@ class BuildConfig:
     auto_fix: bool = True  # hand to VFIOBinder
     container_tag: str = "latest"
     container_image: str = "pcileech-fw-generator"
+    # fallback control options
+    fallback_mode: str = "none"  # "none", "prompt", or "auto"
+    allowed_fallbacks: List[str] = field(default_factory=list)
+    denied_fallbacks: List[str] = field(default_factory=list)
 
     def cmd_args(self) -> List[str]:
         """Translate config to build.py flags"""
@@ -73,6 +78,15 @@ class BuildConfig:
             args.append("--disable-performance-counters")
         if self.behavior_profile_duration != 30:
             args.append(f"--behavior-profile-duration {self.behavior_profile_duration}")
+
+        # Add fallback control arguments
+        if self.fallback_mode != "none":
+            args.append(f"--fallback-mode {self.fallback_mode}")
+        if self.allowed_fallbacks:
+            args.append(f"--allow-fallbacks {','.join(self.allowed_fallbacks)}")
+        if self.denied_fallbacks:
+            args.append(f"--deny-fallbacks {','.join(self.denied_fallbacks)}")
+
         return args
 
 
@@ -125,32 +139,54 @@ def run_build(cfg: BuildConfig) -> None:
     # Ensure host output dir exists and is absolute
     output_dir = (Path.cwd() / "output").resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
-    with VFIOBinder(cfg.bdf, auto_fix=cfg.auto_fix) as vfio_node:
-        logger.info(
-            "Launching build container – board=%s, tag=%s", cfg.board, cfg.container_tag
-        )
 
-        cmd_args = " ".join(cfg.cmd_args())
-        podman_cmd = textwrap.dedent(
-            f"""
-            podman run --rm --privileged \
-              --device={vfio_node} \
-              --entrypoint python3 \
-              --device=/dev/vfio/vfio \
-              -v {output_dir}:/app/output \
-              {cfg.container_image}:{cfg.container_tag} \
-              /app/src/build.py {cmd_args}
-        """
-        ).strip()
+    try:
+        with VFIOBinder(cfg.bdf, auto_fix=cfg.auto_fix) as vfio_node:
+            logger.info(
+                "Launching build container – board=%s, tag=%s",
+                cfg.board,
+                cfg.container_tag,
+            )
 
-        logger.debug("Container command: %s", podman_cmd)
-        start = time.time()
-        try:
-            subprocess.run(podman_cmd, shell=True, check=True)
-        except subprocess.CalledProcessError as e:
-            raise ContainerError(f"Build failed (exit {e.returncode})") from e
-        duration = time.time() - start
-        logger.info("Build completed in %.1fs", duration)
+            cmd_args = " ".join(cfg.cmd_args())
+            podman_cmd = textwrap.dedent(
+                f"""
+                podman run --rm --privileged \
+                  --device={vfio_node} \
+                  --entrypoint python3 \
+                  --device=/dev/vfio/vfio \
+                  -v {output_dir}:/app/output \
+                  {cfg.container_image}:{cfg.container_tag} \
+                  /app/src/build.py {cmd_args}
+                """
+            ).strip()
+
+            logger.debug("Container command: %s", podman_cmd)
+            start = time.time()
+            try:
+                subprocess.run(podman_cmd, shell=True, check=True)
+            except subprocess.CalledProcessError as e:
+                raise ContainerError(f"Build failed (exit {e.returncode})") from e
+            duration = time.time() - start
+            logger.info("Build completed in %.1fs", duration)
+    except RuntimeError as e:
+        if "VFIO" in str(e):
+            # VFIO binding failed, diagnostics have already been run
+            logger.error("Build aborted due to VFIO issues: %s", e)
+            from .vfio_diagnostics import Diagnostics, render
+
+            # Run diagnostics one more time to ensure user sees the report
+            diag = Diagnostics(cfg.bdf)
+            report = diag.run()
+            if not report.can_proceed:
+                logger.error(
+                    "VFIO diagnostics indicate system is not ready for VFIO operations"
+                )
+                logger.error("Please fix the issues reported above and try again")
+            sys.exit(1)
+        else:
+            # Re-raise other runtime errors
+            raise
 
 
 # ──────────────────────────────────────────────────────────────────────────────
