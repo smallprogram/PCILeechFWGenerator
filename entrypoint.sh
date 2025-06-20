@@ -55,5 +55,15 @@ if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     exit 0
 fi
 
+# Make sure the backend module is present
+modprobe -q vfio_iommu_type1 || true
+
+# Enable unsafe-interrupts in *this* mount-NS
+echo 1 > /sys/module/vfio_iommu_type1/parameters/allow_unsafe_interrupts 2>/dev/null || true
+
+# (optional) print the value for debugging
+printf "vfio_iommu_type1.allow_unsafe_interrupts = %s\n" \
+       "$(cat /sys/module/vfio_iommu_type1/parameters/allow_unsafe_interrupts)"
+
 # Execute the command
 exec "$@"
