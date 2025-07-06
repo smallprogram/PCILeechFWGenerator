@@ -1,4 +1,3 @@
-# PCILeech Custom
 # PCILeech Firmware Generator
 
 [![CI](https://github.com/ramseymcgrath/PCILeechFWGenerator/workflows/CI/badge.svg)](https://github.com/ramseymcgrath/PCILeechFWGenerator/actions)
