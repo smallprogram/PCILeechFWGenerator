@@ -9,6 +9,15 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
+# Import template mapping for backward compatibility
+try:
+    from ..templates.template_mapping import update_template_path
+except ImportError:
+    # Fallback if mapping not available
+    def update_template_path(template_name: str) -> str:
+        return template_name
+
+
 try:
     from jinja2 import Environment, FileSystemLoader, Template, TemplateError
 except ImportError:
@@ -36,10 +45,16 @@ class TemplateRenderer:
                          defaults to src/templates/
         """
         if template_dir is None:
-            # Default to templates directory relative to this file
-            template_dir = Path(__file__).parent / "templates"
+            # Default to the new flattened templates directory
+            template_dir = Path(__file__).parent.parent / "templates"
 
         self.template_dir = Path(template_dir)
+        if not self.template_dir.exists():
+            # Fallback to old location for backward compatibility
+            old_dir = Path(__file__).parent / "templates"
+            if old_dir.exists():
+                self.template_dir = old_dir
+
         self.template_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize Jinja2 environment
@@ -134,9 +149,11 @@ class TemplateRenderer:
         def log2(value: int) -> int:
             """Calculate log2 (ceiling) of a value for SystemVerilog bit width calculations."""
             import math
+
             if value <= 0:
                 return 0
             return int(math.ceil(math.log2(value)))
+
         def python_list(value) -> str:
             """Format value as Python list literal."""
             if isinstance(value, list):
@@ -152,7 +169,7 @@ class TemplateRenderer:
             """Format value as Python representation."""
             return repr(value)
 
-        def log2(value) -> int:
+        def calc_log2(value) -> int:
             """Calculate log base 2 of a value."""
             import math
 
@@ -168,7 +185,7 @@ class TemplateRenderer:
         self.env.filters["python_repr"] = python_repr
 
         # Math filters
-        self.env.filters["log2"] = log2
+        self.env.filters["log2"] = calc_log2
 
         # SystemVerilog filters
         self.env.filters["sv_hex"] = sv_hex
@@ -177,7 +194,6 @@ class TemplateRenderer:
         self.env.filters["sv_signal"] = sv_signal
         self.env.filters["sv_identifier"] = sv_identifier
         self.env.filters["sv_comment"] = sv_comment
-        self.env.filters["log2"] = log2
 
     def _setup_global_functions(self):
         """Setup global functions available in templates."""
@@ -191,6 +207,18 @@ class TemplateRenderer:
         self.env.globals["generate_tcl_header_comment"] = generate_tcl_header_comment
 
     def render_template(self, template_name: str, context: Dict[str, Any]) -> str:
+        """
+        Render a template with the given context.
+
+        Args:
+            template_name: Name of the template file (with path mapping support)
+            context: Dictionary of variables to pass to the template
+
+        Returns:
+            Rendered template as string
+        """
+        # Map old template paths to new structure
+        template_name = update_template_path(template_name)
         """
         Render a template file with the given context.
 

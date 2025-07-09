@@ -20,7 +20,7 @@ from typing import List, Optional
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 # Import and setup proper colored logging
-from utils.logging import setup_logging, get_logger
+from src.log_config import get_logger, setup_logging
 
 # Setup logging with color support
 setup_logging(level=logging.INFO)
@@ -132,9 +132,7 @@ def run_pcileech_generation(args, allowed_fallbacks, denied_fallbacks):
     try:
         # Import with proper path relative to project root
         from src.device_clone.pcileech_generator import (
-            PCILeechGenerationConfig,
-            PCILeechGenerator,
-        )
+            PCILeechGenerationConfig, PCILeechGenerator)
 
         logger.info(
             f"Starting PCILeech firmware generation for {args.bdf} on {args.board}"

@@ -14,94 +14,15 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional
 
-# Import string utilities for safe formatting
-try:
-    from ..string_utils import generate_sv_header_comment
-except ImportError:
-    try:
-        from ..string_utils import generate_sv_header_comment
-    except ImportError:
-
-        def generate_sv_header_comment(title, **kwargs):
-            return f"// {title}\n// Generated SystemVerilog Module\n"
-
-
-# Import template renderer
-try:
-    from templating.template_renderer import TemplateRenderer, TemplateRenderError
-except ImportError:
-    try:
-        from templating.template_renderer import TemplateRenderer, TemplateRenderError
-    except ImportError:
-        # Fallback if template renderer is not available
-        class TemplateRenderError(Exception):
-            pass
-
-        class TemplateRenderer:
-            def render_template(self, template_name, context):
-                raise ImportError("Template renderer not available")
-
-
 # Import device configuration system
-try:
-    from device_clone.device_config import DeviceConfiguration as NewDeviceConfiguration
-    from device_clone.device_config import (
-        get_device_config,
-    )
-except ImportError:
-    try:
-        from device_clone.device_config import (
-            DeviceConfiguration as NewDeviceConfiguration,
-        )
-        from device_clone.device_config import (
-            get_device_config,
-        )
-    except ImportError:
-        # Fallback for missing device config
-        class NewDeviceConfiguration:
-            def __init__(self, **kwargs):
-                self.identification = type(
-                    "obj",
-                    (object,),
-                    {"vendor_id_hex": "0x1234", "device_id_hex": "0x5678"},
-                )()
-                self.capabilities = type(
-                    "obj", (object,), {"max_payload_size": 256, "msi_vectors": 1}
-                )()
-
-        def get_device_config(profile_name="generic"):
-            return NewDeviceConfiguration()
-
-
-try:
-    from device_clone.manufacturing_variance import (
-        DeviceClass,
-        ManufacturingVarianceSimulator,
-        VarianceModel,
-    )
-except ImportError:
-    try:
-        from device_clone.manufacturing_variance import (
-            DeviceClass,
-            ManufacturingVarianceSimulator,
-            VarianceModel,
-        )
-    except ImportError:
-        # Fallback definitions
-        class DeviceClass(Enum):
-            CONSUMER = "consumer"
-            ENTERPRISE = "enterprise"
-            INDUSTRIAL = "industrial"
-            AUTOMOTIVE = "automotive"
-
-        class VarianceModel:
-            def __init__(self):
-                self.process_variation = 0.0
-                self.temperature_coefficient = 0.0
-                self.voltage_variation = 0.0
-
-        class ManufacturingVarianceSimulator:
-            pass
+from src.device_clone import DeviceConfiguration as NewDeviceConfiguration
+from src.device_clone import (ManufacturingVarianceSimulator, VarianceModel,
+                              get_device_config)
+from src.device_clone.manufacturing_variance import DeviceClass
+# Import template renderer
+from src.templating import TemplateRenderer, TemplateRenderError
+# Import from centralized utils
+from src.utils import generate_sv_header_comment
 
 
 class PowerState(Enum):

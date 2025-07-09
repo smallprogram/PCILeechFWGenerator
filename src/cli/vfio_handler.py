@@ -8,6 +8,7 @@ performance optimizations, and better maintainability.
 from __future__ import annotations
 
 import ctypes
+import errno
 import fcntl
 import json
 import logging
@@ -21,81 +22,31 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Generator, Optional, Tuple, Union
 
-# Import vfio_assist with fallback for missing module
+# Import vfio_assist - make it optional
 try:
     import vfio_assist
+
+    HAS_VFIO_ASSIST = True
 except ImportError:
-    # Create minimal stubs if vfio_assist is not available
-    class _MockVfioAssist:
-        class Diagnostics:
-            def __init__(self, *args, **kwargs):
-                pass
-
-            def run(self):
-                from dataclasses import dataclass, field
-
-                @dataclass
-                class _Result:
-                    overall: str = "ok"
-                    can_proceed: bool = True
-                    checks: list = field(default_factory=list)
-
-                return _Result()
-
-    vfio_assist = _MockVfioAssist()
-
-# Import proper VFIO constants with kernel-compatible ioctl generation
-from .vfio_constants import (
-    VFIO_DEVICE_GET_REGION_INFO,
-    VFIO_GROUP_SET_CONTAINER,
-    VFIO_GROUP_GET_DEVICE_FD,
-    VFIO_GROUP_GET_STATUS,
-    VFIO_REGION_INFO_FLAG_READ,
-    VFIO_REGION_INFO_FLAG_WRITE,
-    VFIO_REGION_INFO_FLAG_MMAP,
-    VFIO_SET_IOMMU,
-    VFIO_TYPE1_IOMMU,
-    vfio_region_info,
-    vfio_group_status,
-    VfioRegionInfo,  # legacy alias
-    VfioGroupStatus,  # legacy alias
-)
-from .vfio_helpers import get_device_fd
+    vfio_assist = None
+    HAS_VFIO_ASSIST = False
 
 # Import safe logging functions
-try:
-    from ..string_utils import (
-        log_info_safe,
-        log_error_safe,
-        log_warning_safe,
-        log_debug_safe,
-    )
-except ImportError:
-    # Fallback implementations with better error handling
-    def log_info_safe(logger, template, **kwargs):
-        try:
-            logger.info(template.format(**kwargs))
-        except (KeyError, ValueError) as e:
-            logger.info(f"Log formatting error: {e}, template: {template}")
+from string_utils import (log_debug_safe, log_error_safe, log_info_safe,
+                          log_warning_safe)
 
-    def log_error_safe(logger, template, **kwargs):
-        try:
-            logger.error(template.format(**kwargs))
-        except (KeyError, ValueError) as e:
-            logger.error(f"Log formatting error: {e}, template: {template}")
-
-    def log_warning_safe(logger, template, **kwargs):
-        try:
-            logger.warning(template.format(**kwargs))
-        except (KeyError, ValueError) as e:
-            logger.warning(f"Log formatting error: {e}, template: {template}")
-
-    def log_debug_safe(logger, template, **kwargs):
-        try:
-            logger.debug(template.format(**kwargs))
-        except (KeyError, ValueError) as e:
-            logger.debug(f"Log formatting error: {e}, template: {template}")
-
+# Import proper VFIO constants with kernel-compatible ioctl generation
+from .vfio_constants import VfioGroupStatus  # legacy alias
+from .vfio_constants import VfioRegionInfo  # legacy alias
+from .vfio_constants import (VFIO_DEVICE_GET_REGION_INFO,
+                             VFIO_GROUP_GET_DEVICE_FD, VFIO_GROUP_GET_STATUS,
+                             VFIO_GROUP_SET_CONTAINER,
+                             VFIO_REGION_INFO_FLAG_MMAP,
+                             VFIO_REGION_INFO_FLAG_READ,
+                             VFIO_REGION_INFO_FLAG_WRITE, VFIO_SET_IOMMU,
+                             VFIO_TYPE1_IOMMU, vfio_group_status,
+                             vfio_region_info)
+from .vfio_helpers import get_device_fd
 
 # Configure global logger
 logger = logging.getLogger(__name__)
@@ -626,7 +577,9 @@ class VFIOBinderImpl:
 
             # Tie the group to the container
             try:
-                fcntl.ioctl(group_fd, VFIO_GROUP_SET_CONTAINER, ctypes.c_int(container_fd))
+                fcntl.ioctl(
+                    group_fd, VFIO_GROUP_SET_CONTAINER, ctypes.c_int(container_fd)
+                )
                 log_debug_safe(
                     logger, "Successfully linked group to container", prefix="VFIO"
                 )
@@ -634,7 +587,7 @@ class VFIOBinderImpl:
                 log_error_safe(
                     logger,
                     "Failed to link group {group} to container: {e}",
-                    group=group,
+                    group=self.group_id,
                     e=str(e),
                     prefix="VFIO",
                 )
@@ -650,7 +603,7 @@ class VFIOBinderImpl:
                         "EBUSY: Group is busy - may be in use by another container",
                         prefix="VFIO",
                     )
-                raise OSError(f"Failed to link group {group} to container: {e}")
+                raise OSError(f"Failed to link group {self.group_id} to container: {e}")
 
             # Enable the Type-1 IOMMU backend
             fcntl.ioctl(container_fd, VFIO_SET_IOMMU, VFIO_TYPE1_IOMMU)
@@ -803,6 +756,14 @@ def run_diagnostics(bdf: Optional[str] = None) -> Dict[str, Any]:
     Returns:
         Dictionary containing diagnostic results
     """
+    if not HAS_VFIO_ASSIST:
+        return {
+            "overall": "skipped",
+            "can_proceed": True,
+            "checks": [],
+            "message": "vfio_assist module not available - diagnostics skipped",
+        }
+
     try:
         diagnostics = vfio_assist.Diagnostics(bdf)
         result = diagnostics.run()
@@ -839,7 +800,7 @@ def render_pretty(diagnostic_result: Dict[str, Any]) -> str:
     """
     try:
         # Use vfio_assist color functions if available
-        from vfio_assist import colour, Fore
+        from vfio_assist import Fore, colour
 
         output = []
         overall = diagnostic_result.get("overall", "unknown")

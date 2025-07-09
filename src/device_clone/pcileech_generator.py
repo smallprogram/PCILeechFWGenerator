@@ -23,24 +23,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from src.templating.tcl_builder import BuildContext
-
-# Import string utilities
-from ..exceptions import PCILeechGenerationError
-from ..error_utils import extract_root_cause
-from ..string_utils import log_error_safe, log_info_safe, log_warning_safe
-
-# Import templating infrastructure
-from ..templating.systemverilog_generator import AdvancedSVGenerator
-from ..templating.template_renderer import TemplateRenderer, TemplateRenderError
+from src.exceptions import PCILeechGenerationError
+# Import from centralized locations
+from src.string_utils import log_error_safe, log_info_safe, log_warning_safe
+from src.templating import (AdvancedSVGenerator, BuildContext,
+                            TemplateRenderer, TemplateRenderError)
 
 # Import existing infrastructure components
 from .behavior_profiler import BehaviorProfile, BehaviorProfiler
 from .config_space_manager import ConfigSpaceManager
-from .msix_capability import (
-    parse_msix_capability,
-    validate_msix_configuration,
-)
+from .msix_capability import parse_msix_capability, validate_msix_configuration
 from .pcileech_context import PCILeechContextBuilder
 
 logger = logging.getLogger(__name__)
@@ -211,7 +203,9 @@ class PCILeechGenerator:
                 config_space_data = self._analyze_configuration_space_with_vfio()
 
                 # Step 3: Process MSI-X capabilities (prefer preloaded data)
-                msix_data = preloaded_msix or self._process_msix_capabilities(config_space_data)
+                msix_data = preloaded_msix or self._process_msix_capabilities(
+                    config_space_data
+                )
 
                 # Step 3a: Handle interrupt strategy fallback if MSI-X not available
                 if msix_data is None or msix_data.get("table_size", 0) == 0:
@@ -262,7 +256,6 @@ class PCILeechGenerator:
                     interrupt_strategy,
                     interrupt_vectors,
                 )
-                
 
             # VFIO cleanup happens here automatically when exiting the 'with' block
             log_info_safe(
@@ -975,16 +968,16 @@ class PCILeechGenerator:
     def _preload_msix_data_early(self) -> Optional[Dict[str, Any]]:
         """
         Preload MSI-X data from sysfs before VFIO binding to ensure availability.
-        
+
         Returns:
             MSI-X data dictionary if available, None otherwise
         """
         try:
             import os
-            
+
             # Try to read config space from sysfs before VFIO binding
             config_space_path = f"/sys/bus/pci/devices/{self.config.device_bdf}/config"
-            
+
             if not os.path.exists(config_space_path):
                 log_info_safe(
                     self.logger,
@@ -992,21 +985,21 @@ class PCILeechGenerator:
                     prefix="MSIX",
                 )
                 return None
-                
+
             log_info_safe(
                 self.logger,
                 "Preloading MSI-X data from sysfs before VFIO binding",
                 prefix="MSIX",
             )
-            
+
             with open(config_space_path, "rb") as f:
                 config_space_bytes = f.read()
-                
+
             config_space_hex = config_space_bytes.hex()
-            
+
             # Parse MSI-X capability
             msix_info = parse_msix_capability(config_space_hex)
-            
+
             if msix_info["table_size"] > 0:
                 log_info_safe(
                     self.logger,
@@ -1016,10 +1009,10 @@ class PCILeechGenerator:
                     offset=msix_info["table_offset"],
                     prefix="MSIX",
                 )
-                
+
                 # Validate MSI-X configuration
                 is_valid, validation_errors = validate_msix_configuration(msix_info)
-                
+
                 # Build comprehensive MSI-X data
                 msix_data = {
                     "capability_info": msix_info,
@@ -1034,7 +1027,7 @@ class PCILeechGenerator:
                     "is_valid": is_valid,
                     "preloaded": True,
                 }
-                
+
                 return msix_data
             else:
                 log_info_safe(
@@ -1043,7 +1036,7 @@ class PCILeechGenerator:
                     prefix="MSIX",
                 )
                 return None
-                
+
         except Exception as e:
             log_warning_safe(
                 self.logger,
