@@ -6,6 +6,7 @@ plugins:
 title: "PCILeech Firmware Generator"
 description: "Generate custom PCIe firmware for PCILeech"
 url: https://pcileechfwgenerator.ramseymcgrath.com  # the base hostname and protocol for your site, e.g. http://example.com
+base_url: pcileechfwgenerator.ramseymcgrath.com
 readme_index:
   enabled:          true
   remove_originals: false
