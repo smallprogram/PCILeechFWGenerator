@@ -6,6 +6,7 @@ Handles PCI configuration space reading via VFIO and synthetic configuration
 space generation for PCILeech firmware building.
 """
 
+import importlib
 import logging
 import os
 import subprocess
@@ -15,12 +16,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 try:
-    from ..string_utils import (
-        log_debug_safe,
-        log_error_safe,
-        log_info_safe,
-        log_warning_safe,
-    )
+    from ..string_utils import (log_debug_safe, log_error_safe, log_info_safe,
+                                log_warning_safe)
 except ImportError:
     # Fallback for when string_utils is not available
     def log_info_safe(logger, template, **kwargs):
@@ -44,7 +41,7 @@ except ImportError:
     DeviceConfiguration = None
 
     def get_device_config(
-        profile_name: str = "generic",
+        profile_name: str,
     ) -> Optional[Any]:
         return None
 
@@ -224,8 +221,6 @@ class ConfigSpaceManager:
         """Run VFIO diagnostics to help troubleshoot issues."""
         try:
             # Try to import and run VFIO diagnostics if available
-            import importlib
-
             vfio_diag_module = importlib.import_module(
                 "..cli.vfio_diagnostics", package=__name__
             )
@@ -1096,7 +1091,8 @@ class ConfigSpaceManager:
                 )
                 bar_info.size = size_found
                 # Generate proper encoding for the size
-                from src.device_clone.bar_size_converter import BarSizeConverter
+                from src.device_clone.bar_size_converter import \
+                    BarSizeConverter
 
                 try:
                     bar_info.size_encoding = BarSizeConverter.size_to_encoding(

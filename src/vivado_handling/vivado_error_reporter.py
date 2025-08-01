@@ -835,12 +835,23 @@ def create_enhanced_vivado_runner(
 
 # Example usage functions
 def run_vivado_with_error_reporting(
-    tcl_script: Path, output_dir: Path, vivado_executable: Optional[str] = None
+    tcl_script: Path,
+    output_dir: Path,
+    vivado_executable: Optional[str] = None,
+    vivado_jobs: int = 4,
+    vivado_timeout: int = 3600,
 ) -> Tuple[int, str]:
     """Run Vivado with enhanced error reporting."""
-    from .vivado_utils import get_vivado_executable
-
+    # Avoid circular import by dynamically importing only when needed
     if not vivado_executable:
+        # Import locally to prevent circular imports
+        import importlib
+
+        vivado_utils_module = importlib.import_module(
+            ".vivado_utils", package="src.vivado_handling"
+        )
+        get_vivado_executable = getattr(vivado_utils_module, "get_vivado_executable")
+
         vivado_executable = get_vivado_executable()
         if not vivado_executable:
             raise FileNotFoundError("Vivado executable not found")
@@ -862,6 +873,10 @@ def run_vivado_with_error_reporting(
         str(log_file),
     ]
 
+    # Add jobs parameter if specified and greater than 1
+    if vivado_jobs > 1:
+        cmd.extend(["-jobs", str(vivado_jobs)])
+
     try:
         process = subprocess.Popen(
             cmd,
@@ -875,6 +890,19 @@ def run_vivado_with_error_reporting(
         return_code, errors, warnings = reporter.monitor_vivado_process(
             process, log_file
         )
+
+        # Check if process exceeded timeout
+        if return_code == 0 or return_code is None:
+            try:
+                # Wait for process completion with timeout
+                process.wait(timeout=vivado_timeout)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                error_msg = (
+                    f"Vivado process exceeded timeout of {vivado_timeout} seconds"
+                )
+                logging.error(error_msg)
+                return -1, error_msg
 
         # Generate comprehensive report
         report = reporter.generate_error_report(

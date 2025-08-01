@@ -24,12 +24,9 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple, Union
 
 # Import board functions from the correct module
-from .device_clone.board_config import (
-    get_board_info,
-    get_pcileech_board_config,
-    validate_board,
-)
-
+from .device_clone.board_config import (get_board_info,
+                                        get_pcileech_board_config,
+                                        validate_board)
 # Import msix_capability at the module level to avoid late imports
 from .device_clone.msix_capability import parse_msix_capability
 from .exceptions import PlatformCompatibilityError
@@ -915,48 +912,47 @@ class FirmwareBuilder:
 
     def run_vivado(self) -> None:
         """
-        Hand-off to Vivado in batch mode using the generated scripts.
+        Hand-off to Vivado in batch mode using the simplified VivadoRunner.
 
         Raises:
             VivadoIntegrationError: If Vivado integration fails
         """
         try:
-            from .vivado_handling import (
-                find_vivado_installation,
-                integrate_pcileech_build,
-                run_vivado_with_error_reporting,
-            )
+            from .vivado_handling import VivadoRunner, find_vivado_installation
         except ImportError as e:
             raise VivadoIntegrationError("Vivado handling modules not available") from e
 
-        vivado = find_vivado_installation(self.config.vivado_path)
-        if not vivado:
-            raise VivadoIntegrationError("Vivado not found in PATH")
+        # Determine Vivado path
+        if self.config.vivado_path:
+            # User provided explicit path
+            vivado_path = self.config.vivado_path
+            self.logger.info(f"Using user-specified Vivado path: {vivado_path}")
+        else:
+            # Auto-detect Vivado installation
+            vivado_info = find_vivado_installation()
+            if not vivado_info:
+                raise VivadoIntegrationError(
+                    "Vivado not found in PATH. Use --vivado-path to specify installation directory."
+                )
+            # Extract root path from executable path
+            # e.g., /tools/Xilinx/2025.1/Vivado/bin/vivado -> /tools/Xilinx/2025.1/Vivado
+            vivado_exe_path = Path(vivado_info["executable"])
+            vivado_path = str(vivado_exe_path.parent.parent)
+            self.logger.info(f"Auto-detected Vivado at: {vivado_path}")
 
-        try:
-            # Use integrated build if available
-            build_script = integrate_pcileech_build(
-                self.config.board,
-                self.config.output_dir,
-                device_config=(
-                    self._device_config.__dict__ if self._device_config else None
-                ),
-            )
-            self.logger.info(f"Using integrated build script: {build_script}")
-            build_tcl = build_script
-        except Exception as e:
-            self.logger.warning(
-                f"Failed to use integrated build, falling back to generated scripts: {e}"
-            )
-            build_tcl = self.config.output_dir / "vivado_build.tcl"
-
-        rc, rpt = run_vivado_with_error_reporting(
-            build_tcl, self.config.output_dir, vivado["executable"]
+        # Create and run VivadoRunner
+        runner = VivadoRunner(
+            board=self.config.board,
+            output_dir=self.config.output_dir,
+            vivado_path=vivado_path,
+            logger=self.logger,
+            device_config=(
+                self._device_config.__dict__ if self._device_config else None
+            ),
         )
-        if rc:
-            raise VivadoIntegrationError(f"Vivado failed - see {rpt}")
 
-        self.logger.info("Vivado implementation finished successfully ✓")
+        # Run Vivado synthesis
+        runner.run()
 
     # ────────────────────────────────────────────────────────────────────────
     # Private methods - initialization
@@ -965,10 +961,8 @@ class FirmwareBuilder:
         """Initialize PCILeech generator and other components."""
         from .device_clone.behavior_profiler import BehaviorProfiler
         from .device_clone.board_config import get_pcileech_board_config
-        from .device_clone.pcileech_generator import (
-            PCILeechGenerationConfig,
-            PCILeechGenerator,
-        )
+        from .device_clone.pcileech_generator import (PCILeechGenerationConfig,
+                                                      PCILeechGenerator)
         from .templating.tcl_builder import BuildContext, TCLBuilder
 
         self.gen = PCILeechGenerator(
@@ -989,7 +983,8 @@ class FirmwareBuilder:
     def _load_donor_template(self) -> Optional[Dict[str, Any]]:
         """Load donor template if provided."""
         if self.config.donor_template:
-            from .device_clone.donor_info_template import DonorInfoTemplateGenerator
+            from .device_clone.donor_info_template import \
+                DonorInfoTemplateGenerator
 
             self.logger.info(
                 f"Loading donor template from: {self.config.donor_template}"
@@ -1105,7 +1100,8 @@ class FirmwareBuilder:
 
     def _generate_donor_template(self, result: Dict[str, Any]) -> None:
         """Generate and save donor info template if requested."""
-        from .device_clone.donor_info_template import DonorInfoTemplateGenerator
+        from .device_clone.donor_info_template import \
+            DonorInfoTemplateGenerator
 
         # Get device info from the result
         device_info = result.get("config_space_data", {}).get("device_info", {})

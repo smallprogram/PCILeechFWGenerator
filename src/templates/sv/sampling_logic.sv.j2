@@ -31,13 +31,16 @@ always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         sample_counter <= COUNTER_WIDTH'h0;
         sample_valid <= 1'b0;
+        sample_trigger <= 1'b0;
     end else begin
         if (sample_counter >= SAMPLING_PERIOD) begin
             sample_counter <= COUNTER_WIDTH'h0;
             sample_valid <= 1'b1;
+            sample_trigger <= 1'b1;
         end else begin
             sample_counter <= sample_counter + 1'b1;
             sample_valid <= 1'b0;
+            sample_trigger <= 1'b0;
         end
     end
 end
@@ -45,11 +48,11 @@ end
 // Sample data capture
 always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-        {% for i in range(config.metrics_to_monitor|length) -%}
+        {% for i in range(config.metrics_to_monitor|length | default(4)) -%}
         sample_data[{{ i }}] <= COUNTER_WIDTH'h0;
         {% endfor %}
     end else if (sample_valid) begin
-        {% for metric in config.metrics_to_monitor -%}
+        {% for metric in config.metrics_to_monitor | default([{"value": "tlp_count"}, {"value": "completion_latency"}, {"value": "bandwidth_utilization"}, {"value": "error_rate"}]) -%}
         {% if metric.value == "tlp_count" -%}
         sample_data[{{ loop.index0 }}] <= transaction_count;
         {% elif metric.value == "completion_latency" -%}
@@ -64,8 +67,5 @@ always_ff @(posedge clk or negedge rst_n) begin
         {% endfor %}
     end
 end
-
-// Sample trigger output
-assign sample_trigger = sample_valid;
 
 endmodule
