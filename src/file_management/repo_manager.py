@@ -264,8 +264,11 @@ class RepoManager:
                 (dst / ".last_update").write_text(_dt.datetime.now().isoformat())
                 return
             except Exception as exc:
-                if dst.exists():
+                # Remove failed clone directory if it exists
+                try:
                     _shutil.rmtree(dst, ignore_errors=True)
+                except Exception:
+                    pass  # Ignore errors during cleanup
                 log_warning_safe(
                     _logger,
                     "Clone attempt {attempts} failed: {error}",

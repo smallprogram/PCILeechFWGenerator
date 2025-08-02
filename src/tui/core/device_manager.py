@@ -281,10 +281,13 @@ class DeviceManager:
                 return False
 
             # Try to read the files to ensure they're accessible
-            with open(vendor_path, "r") as f:
-                f.read().strip()
-            with open(device_id_path, "r") as f:
-                f.read().strip()
+            try:
+                with open(vendor_path, "r") as f:
+                    f.read().strip()
+                with open(device_id_path, "r") as f:
+                    f.read().strip()
+            except (OSError, IOError):
+                return False
 
             return True
         except Exception as e:
