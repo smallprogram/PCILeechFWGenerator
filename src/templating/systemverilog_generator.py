@@ -32,10 +32,10 @@ from ..string_utils import (
 from .template_renderer import TemplateRenderer, TemplateRenderError
 from .advanced_sv_features import (
     AdvancedSVFeatureGenerator,
-    PowerManagementConfig,
     ErrorHandlingConfig,
     PerformanceConfig,
 )
+from .advanced_sv_power import PowerManagementConfig
 
 
 @dataclass

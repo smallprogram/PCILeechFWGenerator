@@ -14,17 +14,26 @@ from typing import Dict, List, Optional, Set
 
 # Import standard utilities
 try:
-    from ..string_utils import (generate_sv_header_comment, log_debug_safe,
-                                log_error_safe, log_info_safe,
-                                log_warning_safe, safe_format)
+    from ..string_utils import (
+        generate_sv_header_comment,
+        log_debug_safe,
+        log_error_safe,
+        log_info_safe,
+        log_warning_safe,
+        safe_format,
+    )
     from .template_renderer import TemplateRenderer, TemplateRenderError
 except ImportError:
     # Fallback for standalone usage
-    from src.string_utils import (generate_sv_header_comment, log_debug_safe,
-                                  log_error_safe, log_info_safe,
-                                  log_warning_safe, safe_format)
-    from src.templating.template_renderer import (TemplateRenderer,
-                                                  TemplateRenderError)
+    from src.string_utils import (
+        generate_sv_header_comment,
+        log_debug_safe,
+        log_error_safe,
+        log_info_safe,
+        log_warning_safe,
+        safe_format,
+    )
+    from src.templating.template_renderer import TemplateRenderer, TemplateRenderError
 
 # Setup logger
 logger = logging.getLogger(__name__)
@@ -74,6 +83,8 @@ class ErrorHandlingConfig:
     enable_error_injection: bool = False
     enable_error_logging: bool = True
     error_log_depth: int = 256
+    error_recovery_cycles: int = 1000  # Clock cycles for error recovery
+    max_retry_count: int = 3  # Maximum number of retries for recoverable errors
     recoverable_errors: Set[ErrorType] = field(
         default_factory=lambda: {ErrorType.PARITY, ErrorType.CRC, ErrorType.TIMEOUT}
     )
@@ -169,8 +180,7 @@ class AdvancedSVFeatureGenerator:
 
         try:
             # Import here to avoid circular imports
-            from .advanced_sv_error import (ErrorHandlingConfig,
-                                            ErrorHandlingGenerator)
+            from .advanced_sv_error import ErrorHandlingConfig, ErrorHandlingGenerator
 
             # Create error handling configuration from our config
             error_config = ErrorHandlingConfig(
