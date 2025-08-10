@@ -9,13 +9,42 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
+# Handle both package and direct imports
+try:
+    from ..__version__ import __version__
+except ImportError:
+    # Fallback for direct imports
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    try:
+        from __version__ import __version__
+    except ImportError:
+        __version__ = "unknown"
+
 # Import template mapping for backward compatibility
-from templates.template_mapping import update_template_path
+try:
+    from ..templates.template_mapping import update_template_path
+except ImportError:
+    # Fallback for direct imports
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from templates.template_mapping import update_template_path
 
 try:
-    from jinja2 import (BaseLoader, Environment, FileSystemLoader,
-                        StrictUndefined, Template, TemplateError,
-                        TemplateRuntimeError, nodes)
+    from jinja2 import (
+        BaseLoader,
+        Environment,
+        FileSystemLoader,
+        StrictUndefined,
+        Template,
+        TemplateError,
+        TemplateRuntimeError,
+        nodes,
+    )
     from jinja2.ext import Extension
 except ImportError:
     raise ImportError(
@@ -80,13 +109,15 @@ class TemplateRenderer:
         self.template_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize Jinja2 environment
+        # Use default Undefined instead of StrictUndefined to allow checking for undefined variables
+        # This allows templates to use 'is defined' checks properly
         self.env = Environment(
             loader=MappingFileSystemLoader(str(self.template_dir)),
             trim_blocks=False,
             lstrip_blocks=False,
             keep_trailing_newline=True,
             extensions=[ErrorTagExtension],
-            undefined=StrictUndefined,  # This will raise errors for undefined variables
+            # undefined=StrictUndefined,  # Removed to allow optional variables
         )
 
         # Add custom filters if needed
@@ -442,7 +473,7 @@ class TemplateRenderer:
 
             # Ensure all required context keys have safe defaults
             safe_defaults = {
-                "build_system_version": "0.7.5",  # Default version for build system
+                "build_system_version": __version__,  # Use dynamic version from package
                 "integration_type": "pcileech",
                 "pcileech_modules": [],
             }
