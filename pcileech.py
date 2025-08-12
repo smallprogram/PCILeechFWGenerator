@@ -269,15 +269,25 @@ def get_available_boards():
         if not boards:
             return [
                 "pcileech_35t325_x4",
+                "pcileech_35t325_x1",
+                "pcileech_35t484_x1",
                 "pcileech_75t484_x1",
                 "pcileech_100t484_x1",
+                "pcileech_enigma_x1",
+                "pcileech_squirrel",
+                "pcileech_pciescreamer_xc7a35",
             ]
         return sorted(boards)
     except Exception:
         return [
             "pcileech_35t325_x4",
+            "pcileech_35t325_x1",
+            "pcileech_35t484_x1",
             "pcileech_75t484_x1",
             "pcileech_100t484_x1",
+            "pcileech_enigma_x1",
+            "pcileech_squirrel",
+            "pcileech_pciescreamer_xc7a35",
         ]
 
 

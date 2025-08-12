@@ -57,7 +57,7 @@ from src.string_utils import (
     log_info_safe,
     log_warning_safe,
 )
-from src.utils.attribute_access import safe_get_attr, has_attr
+from src.utils.attribute_access import has_attr, safe_get_attr
 
 logger = logging.getLogger(__name__)
 
@@ -854,9 +854,6 @@ class PCILeechContextBuilder:
         device_config = {
             "device_bdf": self.device_bdf,
             **asdict(device_identifiers),
-            "enable_error_injection": getattr(
-                self.config, "enable_advanced_features", False
-            ),
             "enable_perf_counters": getattr(
                 self.config, "enable_advanced_features", False
             ),

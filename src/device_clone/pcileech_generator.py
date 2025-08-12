@@ -38,13 +38,13 @@ from src.exceptions import PCILeechGenerationError, PlatformCompatibilityError
 
 # Import from centralized locations
 from src.string_utils import log_error_safe, log_info_safe, log_warning_safe
-from src.utils.attribute_access import safe_get_attr, has_attr
 from src.templating import (
     AdvancedSVGenerator,
     BuildContext,
     TemplateRenderer,
     TemplateRenderError,
 )
+from src.utils.attribute_access import has_attr, safe_get_attr
 
 logger = logging.getLogger(__name__)
 
@@ -681,6 +681,7 @@ class PCILeechGenerator:
             "bar_config",
             "timing_config",
             "pcileech_config",
+            "device_signature",  # CRITICAL: Required by SystemVerilog templates
         ]
 
         missing_keys = [key for key in required_keys if key not in context]
@@ -878,8 +879,8 @@ class PCILeechGenerator:
         try:
             # Import TCL builder components
             from src.templating.tcl_builder import (
-                TCLBuilder,
                 BuildContext,
+                TCLBuilder,
                 TCLScriptType,
             )
             from src.templating.template_renderer import TemplateRenderer
