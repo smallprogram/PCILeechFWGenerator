@@ -32,6 +32,12 @@ from src.string_utils import (
     log_warning_safe,
     safe_format,
 )
+from src.utils.attribute_access import (
+    safe_get_attr,
+    has_attr,
+    get_attr_or_raise,
+    require_attrs,
+)
 
 from .advanced_sv_features import (
     AdvancedSVFeatureGenerator,
@@ -257,6 +263,57 @@ class AdvancedSVGenerator:
             # Re-raise the exception to properly report the error
             raise
 
+    def _build_power_management_context(self) -> Dict[str, Any]:
+        """Build power management context for templates using actual PowerManagementConfig attributes."""
+        # PowerManagementConfig from advanced_sv_power.py has these attributes:
+        # clk_hz, transition_timeout_ns, enable_pme, enable_wake_events, transition_cycles
+
+        # Get transition_cycles object or create a dict with the expected structure
+        transition_cycles = self.power_config.transition_cycles
+        if hasattr(transition_cycles, "__dict__"):
+            # It's a TransitionCycles object, convert to dict
+            tc_dict = {
+                "d0_to_d1": transition_cycles.d0_to_d1,
+                "d1_to_d0": transition_cycles.d1_to_d0,
+                "d0_to_d3": transition_cycles.d0_to_d3,
+                "d3_to_d0": transition_cycles.d3_to_d0,
+            }
+        else:
+            # Already a dict or None, use as is
+            tc_dict = transition_cycles if transition_cycles else {}
+
+        return {
+            "clk_hz": self.power_config.clk_hz,
+            "transition_timeout_ns": self.power_config.transition_timeout_ns,
+            "enable_pme": self.power_config.enable_pme,
+            "enable_wake_events": self.power_config.enable_wake_events,
+            "transition_cycles": tc_dict,
+        }
+
+    def _build_performance_context(self) -> Dict[str, Any]:
+        """Build performance monitoring context for templates using actual PerformanceConfig attributes."""
+        # PerformanceConfig from advanced_sv_features.py has these attributes
+        return {
+            "counter_width": self.perf_config.counter_width,
+            "enable_bandwidth": self.perf_config.enable_bandwidth_monitoring,
+            "enable_latency": self.perf_config.enable_latency_tracking,
+            "enable_error_rate": self.perf_config.enable_error_rate_tracking,
+            "sample_period": self.perf_config.sampling_period,
+        }
+
+    def _build_error_handling_context(self) -> Dict[str, Any]:
+        """Build error handling context for templates using actual ErrorHandlingConfig attributes."""
+        # ErrorHandlingConfig from advanced_sv_features.py has these attributes
+        return {
+            "enable_error_detection": self.error_config.enable_error_detection,
+            "enable_error_injection": self.error_config.enable_error_injection,
+            "enable_logging": self.error_config.enable_error_logging,
+            "enable_auto_retry": self.error_config.enable_auto_retry,
+            "max_retry_count": self.error_config.max_retry_count,
+            "recovery_cycles": self.error_config.error_recovery_cycles,
+            "error_log_depth": self.error_config.error_log_depth,
+        }
+
     def generate_systemverilog_modules(
         self, template_context: Dict[str, Any], behavior_profile: Optional[Any] = None
     ) -> Dict[str, str]:
@@ -352,18 +409,26 @@ class AdvancedSVGenerator:
         # Validate required values before template generation
         self._validate_template_context()
 
-        # Prepare template context - simplified for single use-case
+        # Prepare template context - ensure both power_config and power_management are available
+        # since templates use both names
+        power_management_ctx = self._build_power_management_context()
+
         context = {
             "header": header,
             "device_config": self.device_config,
             "device_type": self.device_config.device_type.value,
             "device_class": self.device_config.device_class.value,
             "power_config": self.power_config,
+            "power_management": power_management_ctx,  # Some templates use this
             "error_config": self.error_config,
+            "error_handling": self._build_error_handling_context(),
             "perf_config": self.perf_config,
+            "performance_counters": self._build_performance_context(),
             "registers": regs,
             "variance_model": variance_model,
             "device_specific_ports": device_specific_ports,
+            # Add transition_cycles at root level for templates that expect it there
+            "transition_cycles": power_management_ctx.get("transition_cycles", {}),
         }
 
         try:
@@ -488,6 +553,28 @@ class AdvancedSVGenerator:
                     f"Critical device identification validation failed: {'; '.join(error_details)}. "
                     "Cannot generate safe firmware without proper device identification. "
                     "Vendor ID and Device ID must be 4-character hex strings (e.g., '10EC', '8168')."
+                )
+                log_error_safe(self.logger, error_msg)
+                raise TemplateRenderError(error_msg)
+
+            # Validate critical security fields before proceeding
+            # device_signature is REQUIRED - no fallback allowed per no-fallback policy
+            if "device_signature" not in template_context:
+                error_msg = (
+                    "CRITICAL: device_signature is missing from template context. "
+                    "This field is required for firmware security and uniqueness. "
+                    "Cannot generate generic firmware without proper device signature. "
+                    "Ensure PCILeechContextBuilder provides device_signature."
+                )
+                log_error_safe(self.logger, error_msg)
+                raise TemplateRenderError(error_msg)
+
+            device_signature = template_context["device_signature"]
+            if not device_signature:
+                error_msg = (
+                    "CRITICAL: device_signature is None or empty. "
+                    "A valid device signature is required to prevent generic firmware generation. "
+                    "This is a security requirement - no fallback values are allowed."
                 )
                 log_error_safe(self.logger, error_msg)
                 raise TemplateRenderError(error_msg)
@@ -653,11 +740,11 @@ class AdvancedSVGenerator:
         registers = self._extract_pcileech_registers(behavior_profile)
 
         # Get variance model if available
+        # Handle both dict and object attribute access
         variance_model = None
-        if (
-            hasattr(behavior_profile, "variance_metadata")
-            and behavior_profile.variance_metadata
-        ):
+        if isinstance(behavior_profile, dict):
+            variance_model = behavior_profile.get("variance_metadata")
+        elif hasattr(behavior_profile, "variance_metadata"):
             variance_model = behavior_profile.variance_metadata
 
         # Generate advanced controller with PCILeech integration
@@ -697,14 +784,17 @@ class AdvancedSVGenerator:
         if not behavior_profile:
             raise ValueError("Behavior profile is required for register extraction")
 
-        if not hasattr(behavior_profile, "register_accesses"):
-            raise TemplateRenderError(
+        # Handle both dict and object attribute access
+        try:
+            register_accesses = get_attr_or_raise(
+                behavior_profile,
+                "register_accesses",
                 "Behavior profile missing 'register_accesses' attribute. "
                 "Cannot generate SystemVerilog without register access information. "
-                "Ensure the behavior profile was properly generated from actual device data."
+                "Ensure the behavior profile was properly generated from actual device data.",
             )
-
-        register_accesses = behavior_profile.register_accesses
+        except AttributeError as e:
+            raise TemplateRenderError(str(e))
         if not register_accesses:
             raise TemplateRenderError(
                 "No register accesses found in behavior profile. "
@@ -718,20 +808,21 @@ class AdvancedSVGenerator:
 
         # Process register accesses with strict validation
         for i, access in enumerate(register_accesses):
-            # Validate access object structure
-            if not hasattr(access, "register"):
+            # Handle both dict and object attribute access for register
+            if not has_attr(access, "register"):
                 invalid_accesses.append(f"Access {i}: missing 'register' attribute")
                 continue
+            reg_name = safe_get_attr(access, "register")
 
-            reg_name = access.register
             if not reg_name or reg_name == "UNKNOWN":
                 invalid_accesses.append(
                     f"Access {i}: invalid register name '{reg_name}'"
                 )
                 continue
 
-            # Validate offset
-            offset = getattr(access, "offset", None)
+            # Validate offset - handle both dict and object attribute access
+            offset = safe_get_attr(access, "offset", None)
+
             if offset is None:
                 invalid_accesses.append(
                     f"Access {i}: missing offset for register '{reg_name}'"
@@ -756,10 +847,13 @@ class AdvancedSVGenerator:
                     "access_type": "rw",
                 }
 
-            # Count access types
+            # Count access types - handle both dict and object attribute access
             register_map[reg_name]["access_count"] += 1
-            if hasattr(access, "operation"):
-                operation = access.operation
+
+            # Get operation - handle both dict and object attribute access
+            operation = safe_get_attr(access, "operation", None)
+
+            if operation:
                 if operation == "read":
                     register_map[reg_name]["read_count"] += 1
                 elif operation == "write":
@@ -1346,12 +1440,20 @@ class AdvancedSVGenerator:
             "timing_config": template_context.get(
                 "timing_config", {}
             ),  # Add timing_config
-            "device_signature": template_context.get(
+            "pcileech_config": template_context.get(
+                "pcileech_config", {}
+            ),  # Add pcileech_config
+            # CRITICAL: device_signature must be present - use direct access for fail-fast
+            "device_signature": template_context[
                 "device_signature"
-            ),  # Add device_signature
+            ],  # Required - no fallback
             "generation_metadata": template_context.get(
                 "generation_metadata", {}
             ),  # Add generation_metadata
+            # Add power and error config objects for template compatibility
+            "power_config": self.power_config,
+            "error_config": self.error_config,
+            "perf_config": self.perf_config,
             # Add new template variables
             "header": header,
             "device": device_info,
