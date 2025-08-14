@@ -650,9 +650,34 @@ def handle_tui(args):
             "Textual framework not installed. Install with: pip install textual rich psutil",
         )
 
-        # Import and run the TUI application
-        from src.tui.main import PCILeechTUI
+        # Import TUI components
+        from src.tui.main import PCILeechTUI, check_os_compatibility
 
+        # Check OS compatibility first - PCILeech only supports Linux
+        is_compatible, os_message = check_os_compatibility()
+        if not is_compatible:
+            log_error_safe(
+                logger,
+                "OS compatibility error: {message}",
+                prefix="TUI",
+                message=os_message,
+            )
+            log_error_safe(
+                logger,
+                "PCILeech requires Linux. Other operating systems are not supported.",
+                prefix="TUI",
+            )
+            return 1
+
+        # Check sudo/root access (same as CLI mode)
+        if not check_sudo():
+            log_warning_safe(
+                logger,
+                "Continuing without root privileges - limited functionality.",
+                prefix="TUI",
+            )
+
+        # Launch the TUI application
         log_info_safe(logger, "Launching interactive TUI", prefix="TUI")
         app = PCILeechTUI()
         app.run()

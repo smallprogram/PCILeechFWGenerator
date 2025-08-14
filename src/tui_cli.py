@@ -31,7 +31,7 @@ def main():
     try:
         # Check if Textual is available
         try:
-            pass
+            import textual
         except ImportError:
             print("Error: Textual framework not installed.")
             print(
@@ -43,7 +43,7 @@ def main():
         # Try different import strategies to handle various installation
         # scenarios
         try:
-            # First try the standard import (works when installed as package)
+            # Import from the standard path (installed as package)
             from src.tui.main import PCILeechTUI
         except ImportError:
             # If that fails, try a direct import from the current directory
