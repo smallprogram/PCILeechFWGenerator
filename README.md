@@ -1,4 +1,4 @@
-u# PCILeech Firmware Generator
+# PCILeech Firmware Generator
 
 ## CI/CD Status
 
