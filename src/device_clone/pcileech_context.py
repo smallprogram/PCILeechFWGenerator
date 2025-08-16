@@ -25,20 +25,27 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, TypedDict, Union
 
-from src.cli.vfio_constants import (VFIO_DEVICE_GET_REGION_INFO,
-                                    VFIO_REGION_INFO_FLAG_MMAP,
-                                    VFIO_REGION_INFO_FLAG_READ,
-                                    VFIO_REGION_INFO_FLAG_WRITE,
-                                    VfioRegionInfo)
+from src.cli.vfio_constants import (
+    VFIO_DEVICE_GET_REGION_INFO,
+    VFIO_REGION_INFO_FLAG_MMAP,
+    VFIO_REGION_INFO_FLAG_READ,
+    VFIO_REGION_INFO_FLAG_WRITE,
+    VfioRegionInfo,
+)
 from src.device_clone.behavior_profiler import BehaviorProfile
 from src.device_clone.config_space_manager import BarInfo
 from src.device_clone.fallback_manager import FallbackManager
 from src.device_clone.overlay_mapper import OverlayMapper
 from src.error_utils import extract_root_cause
 from src.exceptions import ContextError
-from src.string_utils import (format_bar_summary_table, format_bar_table,
-                              format_raw_bar_table, log_error_safe,
-                              log_info_safe, log_warning_safe)
+from src.string_utils import (
+    format_bar_summary_table,
+    format_bar_table,
+    format_raw_bar_table,
+    log_error_safe,
+    log_info_safe,
+    log_warning_safe,
+)
 from src.utils.attribute_access import safe_get_attr
 
 logger = logging.getLogger(__name__)
@@ -252,6 +259,8 @@ class TimingParameters:
     def __post_init__(self):
         """Validate timing parameters."""
         for name, value in asdict(self).items():
+            if value is None:
+                raise ContextError(f"{name} cannot be None")
             if value <= 0:
                 raise ContextError(f"{name} must be positive: {value}")
 
@@ -325,8 +334,13 @@ class VFIODeviceManager:
 
     def get_region_info(self, index: int) -> Optional[Dict[str, Any]]:
         """Get VFIO region information."""
-        if self._device_fd is None:
-            self.open()
+        opened_here = self._device_fd is None
+        if opened_here:
+            try:
+                self.open()
+            except (OSError, PermissionError, FileNotFoundError) as e:
+                log_error_safe(self.logger, f"VFIO device open failed: {e}")
+                return None
 
         info = VfioRegionInfo()
         info.argsz = ctypes.sizeof(VfioRegionInfo)
@@ -338,7 +352,7 @@ class VFIODeviceManager:
 
             fcntl.ioctl(self._device_fd, VFIO_DEVICE_GET_REGION_INFO, info, True)
 
-            return {
+            result = {
                 "index": info.index,
                 "flags": info.flags,
                 "size": info.size,
@@ -346,8 +360,17 @@ class VFIODeviceManager:
                 "writable": bool(info.flags & VFIO_REGION_INFO_FLAG_WRITE),
                 "mappable": bool(info.flags & VFIO_REGION_INFO_FLAG_MMAP),
             }
+
+            # Clean up if we opened the FDs here
+            if opened_here:
+                self.close()
+
+            return result
         except OSError as e:
             log_error_safe(self.logger, f"VFIO region info failed: {e}")
+            # Clean up if we opened the FDs here
+            if opened_here:
+                self.close()
             return None
 
 
@@ -552,8 +575,7 @@ class PCILeechContextBuilder:
             k in config_space_data
             for k in ["vendor_id", "device_id", "class_code", "revision_id"]
         ):
-            from src.device_clone.config_space_manager import \
-                ConfigSpaceManager
+            from src.device_clone.config_space_manager import ConfigSpaceManager
 
             manager = ConfigSpaceManager(self.device_bdf)
             # Read config space and extract device info
@@ -659,8 +681,7 @@ class PCILeechContextBuilder:
         if not all(
             k in data for k in ["config_space_hex", "config_space_size", "bars"]
         ):
-            from src.device_clone.config_space_manager import \
-                ConfigSpaceManager
+            from src.device_clone.config_space_manager import ConfigSpaceManager
 
             manager = ConfigSpaceManager(self.device_bdf)
             config_space = manager.read_vfio_config_space()
@@ -707,7 +728,14 @@ class PCILeechContextBuilder:
         pba_offset = cap.get("pba_offset", table_offset + (table_size * 16))
         pba_size_dwords = (table_size + 31) // 32
 
-        return {
+        # Check alignment
+        alignment_warning = ""
+        if table_offset % 8 != 0:
+            alignment_warning = (
+                f"MSI-X table offset 0x{table_offset:x} is not 8-byte aligned"
+            )
+
+        context = {
             "num_vectors": table_size,
             "table_bir": cap["table_bir"],
             "table_offset": table_offset,
@@ -728,6 +756,12 @@ class PCILeechContextBuilder:
             "MSIX_PBA_BIR": cap.get("pba_bir", cap["table_bir"]),
             "MSIX_PBA_OFFSET": f"32'h{pba_offset:08X}",
         }
+
+        # Add alignment warning if present
+        if alignment_warning:
+            context["alignment_warning"] = alignment_warning
+
+        return context
 
     def _build_bar_config(
         self,
@@ -891,11 +925,7 @@ class PCILeechContextBuilder:
                 if count > 0:
                     avg_read = total_read / count
                     avg_write = total_write / count
-
-                    # Get burst parameters from behavior if available
                     burst_length = 32  # Default
-                    # TimingPattern doesn't have burst_length, use default
-
                     return TimingParameters(
                         read_latency=max(1, int(avg_read)),
                         write_latency=max(1, int(avg_write)),
@@ -927,37 +957,38 @@ class PCILeechContextBuilder:
                 clock_frequency_mhz=getattr(caps, "clock_frequency_mhz", 100.0),
                 timing_regularity=getattr(caps, "timing_regularity", 0.95),
             )
+        class_prefix = identifiers.class_code[:2]
 
-        # Fallback to class-based defaults from fallback manager
-        from src.device_clone.fallback_manager import FallbackManager
-
-        fallback_mgr = FallbackManager()
-        # Apply fallbacks for timing parameters
-        timing_data = {
-            "class_code": identifiers.class_code,
-            "read_latency": None,
-            "write_latency": None,
-            "burst_length": None,
-            "inter_burst_gap": None,
-            "timeout_cycles": None,
-            "clock_frequency_mhz": None,
-            "timing_regularity": None,
-        }
-        timing_defaults = fallback_mgr.apply_fallbacks(timing_data)
+        # Default timing parameters based on device class
+        if class_prefix == "02":  # Network controller
+            base_freq = 125.0
+            read_latency = 4
+            write_latency = 2
+        elif class_prefix == "01":  # Storage controller
+            base_freq = 100.0
+            read_latency = 8
+            write_latency = 4
+        elif class_prefix == "03":  # Display controller
+            base_freq = 100.0
+            read_latency = 6
+            write_latency = 3
+        else:  # Default for other devices
+            base_freq = 100.0
+            read_latency = 10
+            write_latency = 10
 
         return TimingParameters(
-            read_latency=timing_defaults.get("read_latency", 10),
-            write_latency=timing_defaults.get("write_latency", 10),
-            burst_length=timing_defaults.get("burst_length", 32),
-            inter_burst_gap=timing_defaults.get("inter_burst_gap", 8),
-            timeout_cycles=timing_defaults.get("timeout_cycles", 1000),
-            clock_frequency_mhz=timing_defaults.get("clock_frequency_mhz", 100.0),
-            timing_regularity=timing_defaults.get("timing_regularity", 0.95),
+            read_latency=read_latency,
+            write_latency=write_latency,
+            burst_length=32,
+            inter_burst_gap=8,
+            timeout_cycles=1000,
+            clock_frequency_mhz=base_freq,
+            timing_regularity=0.95,
         )
 
     def _build_pcileech_config(self, identifiers: DeviceIdentifiers) -> Dict[str, Any]:
         """Build PCILeech-specific configuration using dynamic values."""
-        # Get max payload size from config or use default
         max_payload_size = getattr(self.config, "max_payload_size", 256)
         max_read_request = getattr(self.config, "max_read_request", 512)
 
@@ -1047,15 +1078,12 @@ class PCILeechContextBuilder:
         return f"{identifiers.device_signature}_{signature_hash}"
 
     def _build_generation_metadata(self, identifiers: DeviceIdentifiers) -> Any:
-        """Build generation metadata using unified context builder."""
-        from src.utils.unified_context import UnifiedContextBuilder
+        """Build generation metadata using centralized metadata builder."""
+        from src.utils.metadata import build_generation_metadata
 
-        builder = UnifiedContextBuilder(self.logger)
-
-        return builder.create_generation_metadata(
-            device_signature=identifiers.full_signature,
-            generator_version="2.0.0-optimized",
+        return build_generation_metadata(
             device_bdf=self.device_bdf,
+            device_signature=identifiers.full_signature,
             device_class=identifiers.get_device_class_type(),
             validation_level=self.validation_level.value,
             vendor_name=self._get_vendor_name(identifiers.vendor_id),
@@ -1098,15 +1126,12 @@ class PCILeechContextBuilder:
         """Get device name from IDs using device info lookup."""
         from src.device_clone.device_info_lookup import lookup_device_info
 
-        # Use the existing device info lookup to get device name dynamically
         device_info = lookup_device_info(
             self.device_bdf, {"vendor_id": vendor_id, "device_id": device_id}
         )
 
-        # Try to get device name from device info
         device_name = device_info.get("device_name")
         if not device_name:
-            # Use lspci to get device name
             import subprocess
 
             try:
@@ -1117,7 +1142,6 @@ class PCILeechContextBuilder:
                     timeout=2,
                 )
                 if result.returncode == 0 and result.stdout:
-                    # Parse device name from lspci output
                     parts = result.stdout.strip().split('"')
                     if len(parts) > 5:
                         device_name = parts[5]
@@ -1199,11 +1223,8 @@ class PCILeechContextBuilder:
                 board_name = list(BOARD_PARTS.keys())[0]  # Use first available board
 
             log_info_safe(self.logger, f"Building board configuration for {board_name}")
-
-            # Import and use the board configuration function
             from src.device_clone.board_config import get_pcileech_board_config
 
-            # Get the board configuration
             board_config = get_pcileech_board_config(board_name)
 
             log_info_safe(
@@ -1212,6 +1233,7 @@ class PCILeechContextBuilder:
             )
 
             # Create unified board config with the loaded configuration
+            ## kinda wish i didnt need defaults but its glitchy without
             return builder.create_board_config(
                 board_name=board_config.get("name", board_name),
                 fpga_part=board_config.get("fpga_part", "xc7a35tcsg324-2"),
@@ -1272,7 +1294,7 @@ class PCILeechContextBuilder:
 
         # Validate identifiers
         if "vendor_id" not in context or "device_id" not in context:
-            raise ContextError("Missing device identifiers")
+            raise ContextError("Missing device identifiers")  ## need these
 
     def _build_performance_config(self, device_type: str = "generic") -> Any:
         """Build performance configuration using unified context builder."""

@@ -114,6 +114,23 @@ class TestTemplateRendering:
 
         # Convert to dict for template rendering
         context_dict = complete_context.to_dict()
+        context_dict["error_signals_available"] = False  # Add missing variable
+        context_dict["network_signals_available"] = False  # Add missing variable
+        # Add other missing performance counter variables
+        context_dict.update(
+            {
+                "enable_transaction_counters": False,
+                "enable_bandwidth_monitoring": False,
+                "enable_latency_measurement": False,
+                "enable_latency_tracking": False,
+                "enable_error_rate_tracking": False,
+                "storage_signals_available": False,
+                "graphics_signals_available": False,
+                "generic_signals_available": False,
+                "enable_performance_grading": False,
+                "enable_perf_outputs": False,
+            }
+        )
 
         result = renderer.render_template("sv/main_module.sv.j2", context_dict)
 
@@ -139,6 +156,23 @@ class TestTemplateRendering:
         # Override performance counters specifically
         context_dict = complete_context.to_dict()
         context_dict["performance_counters"] = {"counter_width": 32}
+        context_dict["error_signals_available"] = False  # Add missing variable
+        context_dict["network_signals_available"] = False  # Add missing variable
+        # Add other missing performance counter variables
+        context_dict.update(
+            {
+                "enable_transaction_counters": False,
+                "enable_bandwidth_monitoring": False,
+                "enable_latency_measurement": False,
+                "enable_latency_tracking": False,
+                "enable_error_rate_tracking": False,
+                "storage_signals_available": False,
+                "graphics_signals_available": False,
+                "generic_signals_available": False,
+                "enable_performance_grading": False,
+                "enable_perf_outputs": False,
+            }
+        )
 
         result = renderer.render_template("sv/main_module.sv.j2", context_dict)
 
@@ -160,6 +194,23 @@ class TestTemplateRendering:
         # Override performance counters specifically
         context_dict = complete_context.to_dict()
         context_dict["performance_counters"] = {"counter_width": 64}
+        context_dict["error_signals_available"] = False  # Add missing variable
+        context_dict["network_signals_available"] = False  # Add missing variable
+        # Add other missing performance counter variables
+        context_dict.update(
+            {
+                "enable_transaction_counters": False,
+                "enable_bandwidth_monitoring": False,
+                "enable_latency_measurement": False,
+                "enable_latency_tracking": False,
+                "enable_error_rate_tracking": False,
+                "storage_signals_available": False,
+                "graphics_signals_available": False,
+                "generic_signals_available": False,
+                "enable_performance_grading": False,
+                "enable_perf_outputs": False,
+            }
+        )
 
         result = renderer.render_template("sv/main_module.sv.j2", context_dict)
 
@@ -325,6 +376,23 @@ class TestTemplateRendering:
 
         # Convert to dict for template rendering
         context_dict = secure_context.to_dict()
+        context_dict["error_signals_available"] = False  # Add missing variable
+        context_dict["network_signals_available"] = False  # Add missing variable
+        # Add other missing performance counter variables
+        context_dict.update(
+            {
+                "enable_transaction_counters": False,
+                "enable_bandwidth_monitoring": False,
+                "enable_latency_measurement": False,
+                "enable_latency_tracking": False,
+                "enable_error_rate_tracking": False,
+                "storage_signals_available": False,
+                "graphics_signals_available": False,
+                "generic_signals_available": False,
+                "enable_performance_grading": False,
+                "enable_perf_outputs": False,
+            }
+        )
 
         # With all variables explicitly initialized, rendering should succeed
         result = renderer.render_template("sv/main_module.sv.j2", context_dict)

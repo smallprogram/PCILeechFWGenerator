@@ -11,8 +11,7 @@ import pytest
 
 from src.device_clone.device_config import DeviceClass, DeviceType
 from src.exceptions import TemplateRenderError
-from src.templating.advanced_sv_features import (ErrorHandlingConfig,
-                                                 PerformanceConfig)
+from src.templating.advanced_sv_features import ErrorHandlingConfig, PerformanceConfig
 from src.templating.advanced_sv_power import PowerManagementConfig
 from src.templating.systemverilog_generator import AdvancedSVGenerator
 
@@ -63,7 +62,13 @@ class TestSystemVerilogTemplateIntegration:
                 "enable_dma_operations": True,
             },
             "device_signature": "0x12345678",
-            "msix_config": {},
+            "msix_config": {
+                "num_vectors": 1,
+                "table_offset": 0x1000,
+                "table_bir": 0,
+                "pba_offset": 0x800,
+                "pba_bir": 0,
+            },
             "bar_config": {
                 "bars": [
                     Mock(
@@ -281,8 +286,7 @@ class TestSystemVerilogTemplateIntegration:
 
     def test_template_validation_context_validator_compatibility(self):
         """Test that our context is compatible with TemplateContextValidator requirements."""
-        from src.templating.template_context_validator import \
-            TemplateContextValidator
+        from src.templating.template_context_validator import TemplateContextValidator
 
         validator = TemplateContextValidator()
 
@@ -316,7 +320,13 @@ class TestSystemVerilogTemplateIntegration:
             },
             "board_config": {},  # Required by validator
             "device_signature": "0x12345678",  # Required for security
-            "msix_config": {},
+            "msix_config": {
+                "num_vectors": 1,
+                "table_offset": 0x1000,
+                "table_bir": 0,
+                "pba_offset": 0x800,
+                "pba_bir": 0,
+            },
             "interrupt_config": {},
             "config_space_data": {},
             "timing_config": {
