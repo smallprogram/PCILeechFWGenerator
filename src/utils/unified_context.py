@@ -256,9 +256,9 @@ class UnifiedContextBuilder:
         """
 
         # Set defaults for subsystem IDs with proper validation
-        if not subsystem_vendor_id or subsystem_vendor_id == "None":
+        if not subsystem_vendor_id:
             subsystem_vendor_id = vendor_id
-        if not subsystem_device_id or subsystem_device_id == "None":
+        if not subsystem_device_id:
             subsystem_device_id = device_id
 
         # Validate required parameters
