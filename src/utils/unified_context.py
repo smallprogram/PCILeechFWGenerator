@@ -12,6 +12,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from .validation_constants import (CRITICAL_TEMPLATE_CONTEXT_KEYS,
+                                   KNOWN_DEVICE_TYPES)
+
 
 def get_package_version() -> str:
     """
@@ -306,14 +309,22 @@ class UnifiedContextBuilder:
         Returns:
             TemplateObject with generation metadata
         """
-        metadata = {
-            "generated_at": datetime.now().isoformat(),
-            "timestamp": datetime.now().isoformat(),  # Keep both for compatibility
-            "generator": "PCILeechFWGenerator",
-            "version": get_package_version(),
-            "device_signature": device_signature or "unknown",
-            **kwargs,
-        }
+        from .metadata import build_generation_metadata
+
+        # Extract device_bdf from kwargs to avoid conflicts
+        device_bdf = kwargs.pop("device_bdf", "unknown")
+
+        # Use the centralized metadata utility
+        metadata = build_generation_metadata(
+            device_bdf=device_bdf, device_signature=device_signature, **kwargs
+        )
+
+        # Add timestamp for compatibility with existing templates
+        metadata["timestamp"] = metadata["generated_at"]
+        # Add generator for compatibility with existing templates
+        metadata["generator"] = "PCILeechFWGenerator"
+        # Add version for compatibility with existing templates
+        metadata["version"] = metadata["generator_version"]
 
         return TemplateObject(metadata)
 
@@ -432,6 +443,12 @@ class UnifiedContextBuilder:
             "graphics_signals_available": kwargs.get(
                 "graphics_signals_available", False
             ),
+            "audio_signals_available": kwargs.get("audio_signals_available", False),
+            "media_signals_available": kwargs.get("media_signals_available", False),
+            "processor_signals_available": kwargs.get(
+                "processor_signals_available", False
+            ),
+            "usb_signals_available": kwargs.get("usb_signals_available", False),
             "generic_signals_available": kwargs.get("generic_signals_available", True),
             # Performance tuning parameters
             "bandwidth_sample_period": kwargs.get("bandwidth_sample_period", 100000),
@@ -601,6 +618,30 @@ class UnifiedContextBuilder:
                     "pixel_clock": kwargs.get("pixel_clock", 25_000_000),  # 25MHz
                 }
             )
+        elif device_type == "media":
+            signals.update(
+                {
+                    "media_enable": kwargs.get("media_enable", True),
+                    "codec_type": kwargs.get("codec_type", 0),
+                    "stream_count": kwargs.get("stream_count", 1),
+                }
+            )
+        elif device_type == "processor":
+            signals.update(
+                {
+                    "processor_enable": kwargs.get("processor_enable", True),
+                    "core_count": kwargs.get("core_count", 1),
+                    "freq_mhz": kwargs.get("freq_mhz", 1000),
+                }
+            )
+        elif device_type == "usb":
+            signals.update(
+                {
+                    "usb_enable": kwargs.get("usb_enable", True),
+                    "usb_version": kwargs.get("usb_version", 3),  # USB 3.0 by default
+                    "port_count": kwargs.get("port_count", 4),
+                }
+            )
 
         # Add common device signals
         signals.update(
@@ -644,8 +685,7 @@ class UnifiedContextBuilder:
         device_class = device_class or "enterprise"
 
         # Ensure device_type is a known type
-        known_device_types = ["audio", "network", "storage", "graphics", "generic"]
-        if device_type not in known_device_types:
+        if device_type not in KNOWN_DEVICE_TYPES:
             device_type = "generic"
 
         # Create all sub-configurations
@@ -678,6 +718,10 @@ class UnifiedContextBuilder:
             network_signals_available=(device_type == "network"),
             storage_signals_available=(device_type == "storage"),
             graphics_signals_available=(device_type == "graphics"),
+            audio_signals_available=(device_type == "audio"),
+            media_signals_available=(device_type == "media"),
+            processor_signals_available=(device_type == "processor"),
+            usb_signals_available=(device_type == "usb"),
             generic_signals_available=True,
         )
 
@@ -741,8 +785,30 @@ class UnifiedContextBuilder:
             "bar_config": {"bars": []},
             "interrupt_config": {"vectors": 4},
             "msix_config": {"table_size": 4},
-            "timing_config": {},
-            "pcileech_config": {},
+            "timing_config": type(
+                "TimingConfig",
+                (),
+                {
+                    "clock_frequency_mhz": kwargs.get("clock_frequency_mhz", 100),
+                    "read_latency": kwargs.get("read_latency", 2),
+                    "write_latency": kwargs.get("write_latency", 1),
+                    "setup_time": kwargs.get("setup_time", 1),
+                    "hold_time": kwargs.get("hold_time", 1),
+                    "burst_length": kwargs.get("burst_length", 4),
+                },
+            )(),
+            "pcileech_config": type(
+                "PCILeechConfig",
+                (),
+                {
+                    "buffer_size": kwargs.get("buffer_size", 4096),
+                    "command_timeout": kwargs.get("command_timeout", 1000),
+                    "enable_dma": kwargs.get("enable_dma_operations", True),
+                    "enable_scatter_gather": kwargs.get("enable_scatter_gather", False),
+                    "max_payload_size": kwargs.get("max_payload_size", 256),
+                    "max_read_request_size": kwargs.get("max_read_request_size", 512),
+                },
+            )(),
             # Template variables commonly expected
             "registers": kwargs.get("registers", []),
             # Enable flags for templates
@@ -797,18 +863,8 @@ class UnifiedContextBuilder:
         Raises:
             ValueError: If critical values are missing
         """
-        critical_keys = [
-            "vendor_id",
-            "device_id",
-            "device_type",
-            "device_class",
-            "active_device_config",
-            "generation_metadata",
-            "board_config",
-        ]
-
         missing_keys = []
-        for key in critical_keys:
+        for key in CRITICAL_TEMPLATE_CONTEXT_KEYS:
             if not hasattr(context, key) or getattr(context, key) is None:
                 missing_keys.append(key)
 

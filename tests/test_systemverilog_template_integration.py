@@ -71,6 +71,10 @@ class TestSystemVerilogTemplateIntegration:
                 "pba_bir": 0,
             },
             "bar_config": {
+                "bar_index": 0,
+                "aperture_size": 4096,
+                "bar_type": 0,
+                "prefetchable": False,
                 "bars": [
                     Mock(
                         index=0,
@@ -87,14 +91,30 @@ class TestSystemVerilogTemplateIntegration:
             "board_config": {},
             "interrupt_config": {},
             "config_space_data": {},
-            "timing_config": {
-                "clock_frequency_mhz": 100,
-            },
-            "pcileech_config": {
-                "command_timeout": 1000,
-                "enable_dma": True,
-                "enable_scatter_gather": True,
-            },
+            "timing_config": type(
+                "TimingConfig",
+                (),
+                {
+                    "clock_frequency_mhz": 100,
+                    "read_latency": 2,
+                    "write_latency": 1,
+                    "setup_time": 1,
+                    "hold_time": 1,
+                    "burst_length": 4,
+                },
+            )(),
+            "pcileech_config": type(
+                "PCILeechConfig",
+                (),
+                {
+                    "buffer_size": 4096,
+                    "command_timeout": 1000,
+                    "enable_dma": True,
+                    "enable_scatter_gather": True,
+                    "max_payload_size": 256,
+                    "max_read_request_size": 512,
+                },
+            )(),
             "generation_metadata": {
                 "generated_at": "2024-01-01T12:00:00Z",
                 "version": "2.0.0",
@@ -123,7 +143,7 @@ class TestSystemVerilogTemplateIntegration:
         assert "module pcileech_tlps128_bar_controller" in bar_controller
         assert "BAR_APERTURE_SIZE" in bar_controller
         assert "MSI-X" in bar_controller or "MSIX" in bar_controller
-        assert "0xDEADBEEF" in bar_controller  # device_signature should be in output
+        assert "32'hDEADBEEF" in bar_controller  # device_signature should be in output
 
     def test_missing_board_config_raises_error(self):
         """Test that missing board_config in template causes proper error."""
@@ -143,7 +163,9 @@ class TestSystemVerilogTemplateIntegration:
             "interrupt_config": {},
             "config_space_data": {},
             "timing_config": {},
-            "pcileech_config": {},
+            "pcileech_config": {
+                "buffer_size": 4096,
+            },
             "generation_metadata": {},
         }
 
@@ -247,6 +269,7 @@ class TestSystemVerilogTemplateIntegration:
                 "clock_frequency_mhz": 100,
             },
             "pcileech_config": {
+                "buffer_size": 4096,
                 "enable": True,
                 "buffer_size": 8192,
                 "dma_enable": True,
@@ -292,7 +315,7 @@ class TestSystemVerilogTemplateIntegration:
 
         validator = TemplateContextValidator()
 
-        # Create a minimal valid context
+        # Create a minimal valid context using proper object structure
         template_context = {
             "device_config": {
                 "vendor_id": "10EC",
@@ -307,6 +330,10 @@ class TestSystemVerilogTemplateIntegration:
                 "enable_error_injection": True,
             },
             "bar_config": {
+                "bar_index": 0,
+                "aperture_size": 4096,
+                "bar_type": 0,
+                "prefetchable": False,
                 "bars": [
                     Mock(
                         index=0,
@@ -318,7 +345,7 @@ class TestSystemVerilogTemplateIntegration:
                         base_address=0,
                         get_size_encoding=lambda: 0xFFFFF000,
                     )
-                ]
+                ],
             },
             "board_config": {},  # Required by validator
             "device_signature": "0x12345678",  # Required for security
@@ -331,14 +358,30 @@ class TestSystemVerilogTemplateIntegration:
             },
             "interrupt_config": {},
             "config_space_data": {},
-            "timing_config": {
-                "clock_frequency_mhz": 100,
-            },
-            "pcileech_config": {
-                "command_timeout": 1000,
-                "enable_dma": True,
-                "enable_scatter_gather": True,
-            },
+            "timing_config": type(
+                "TimingConfig",
+                (),
+                {
+                    "clock_frequency_mhz": 100,
+                    "read_latency": 2,
+                    "write_latency": 1,
+                    "setup_time": 1,
+                    "hold_time": 1,
+                    "burst_length": 4,
+                },
+            )(),
+            "pcileech_config": type(
+                "PCILeechConfig",
+                (),
+                {
+                    "buffer_size": 4096,
+                    "command_timeout": 1000,
+                    "enable_dma": True,
+                    "enable_scatter_gather": True,
+                    "max_payload_size": 256,
+                    "max_read_request_size": 512,
+                },
+            )(),
             "generation_metadata": {
                 "generated_at": "2024-01-01T12:00:00Z",
                 "version": "2.0.0",

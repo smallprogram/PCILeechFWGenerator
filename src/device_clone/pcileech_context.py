@@ -25,28 +25,23 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, TypedDict, Union
 
-from src.cli.vfio_constants import (
-    VFIO_DEVICE_GET_REGION_INFO,
-    VFIO_REGION_INFO_FLAG_MMAP,
-    VFIO_REGION_INFO_FLAG_READ,
-    VFIO_REGION_INFO_FLAG_WRITE,
-    VfioRegionInfo,
-)
+from src.cli.vfio_constants import (VFIO_DEVICE_GET_REGION_INFO,
+                                    VFIO_REGION_INFO_FLAG_MMAP,
+                                    VFIO_REGION_INFO_FLAG_READ,
+                                    VFIO_REGION_INFO_FLAG_WRITE,
+                                    VfioRegionInfo)
 from src.device_clone.behavior_profiler import BehaviorProfile
 from src.device_clone.config_space_manager import BarInfo
 from src.device_clone.fallback_manager import FallbackManager
 from src.device_clone.overlay_mapper import OverlayMapper
 from src.error_utils import extract_root_cause
 from src.exceptions import ContextError
-from src.string_utils import (
-    format_bar_summary_table,
-    format_bar_table,
-    format_raw_bar_table,
-    log_error_safe,
-    log_info_safe,
-    log_warning_safe,
-)
+from src.string_utils import (format_bar_summary_table, format_bar_table,
+                              format_raw_bar_table, log_error_safe,
+                              log_info_safe, log_warning_safe)
 from src.utils.attribute_access import safe_get_attr
+
+from ..utils.validation_constants import REQUIRED_CONTEXT_SECTIONS
 
 logger = logging.getLogger(__name__)
 
@@ -155,17 +150,19 @@ class DeviceIdentifiers:
         for field_name, length in specs:
             value = getattr(self, field_name)
             if not value:
-                raise ContextError(f"Missing {field_name}")
+                raise ContextError(f"{field_name} cannot be empty")
+            if len(value) > length:
+                raise ContextError(f"Invalid hex format: {field_name}={value}")
             try:
                 normalized = f"{int(value, 16):0{length}x}"
                 setattr(self, field_name, normalized)
             except ValueError:
-                raise ContextError(f"Invalid hex: {field_name}={value}")
+                raise ContextError(f"Invalid hex format: {field_name}={value}")
 
         # Normalize optional fields
-        if self.subsystem_vendor_id:
+        if self.subsystem_vendor_id and self.subsystem_vendor_id != "None":
             self.subsystem_vendor_id = self._normalize_hex(self.subsystem_vendor_id, 4)
-        if self.subsystem_device_id:
+        if self.subsystem_device_id and self.subsystem_device_id != "None":
             self.subsystem_device_id = self._normalize_hex(self.subsystem_device_id, 4)
 
     @staticmethod
@@ -576,7 +573,8 @@ class PCILeechContextBuilder:
             k in config_space_data
             for k in ["vendor_id", "device_id", "class_code", "revision_id"]
         ):
-            from src.device_clone.config_space_manager import ConfigSpaceManager
+            from src.device_clone.config_space_manager import \
+                ConfigSpaceManager
 
             manager = ConfigSpaceManager(self.device_bdf)
             # Read config space and extract device info
@@ -682,7 +680,8 @@ class PCILeechContextBuilder:
         if not all(
             k in data for k in ["config_space_hex", "config_space_size", "bars"]
         ):
-            from src.device_clone.config_space_manager import ConfigSpaceManager
+            from src.device_clone.config_space_manager import \
+                ConfigSpaceManager
 
             manager = ConfigSpaceManager(self.device_bdf)
             config_space = manager.read_vfio_config_space()
@@ -1233,31 +1232,8 @@ class PCILeechContextBuilder:
                 f"Board configuration loaded: {board_config.get('fpga_part', 'unknown')}",
             )
 
-            # Create unified board config with the loaded configuration
-            ## kinda wish i didnt need defaults but its glitchy without
-            return builder.create_board_config(
-                board_name=board_config.get("name", board_name),
-                fpga_part=board_config.get("fpga_part", "xc7a35tcsg324-2"),
-                fpga_family=board_config.get("fpga_family", "7series"),
-                pcie_ip_type=board_config.get("pcie_ip_type", "7x"),
-                max_lanes=board_config.get("max_lanes", 4),
-                supports_msi=board_config.get("supports_msi", True),
-                supports_msix=board_config.get("supports_msix", False),
-                **{
-                    k: v
-                    for k, v in board_config.items()
-                    if k
-                    not in [
-                        "name",
-                        "fpga_part",
-                        "fpga_family",
-                        "pcie_ip_type",
-                        "max_lanes",
-                        "supports_msi",
-                        "supports_msix",
-                    ]
-                },
-            )
+            # Pass only the fields present in board_config; builder should handle defaults internally
+            return builder.create_board_config(**board_config)
 
         except Exception as e:
             log_error_safe(self.logger, f"Failed to build board configuration: {e}")
@@ -1278,14 +1254,7 @@ class PCILeechContextBuilder:
 
     def _validate_context_completeness(self, context: TemplateContext):
         """Validate context has all required fields."""
-        required_sections = [
-            "device_config",
-            "config_space",
-            "bar_config",
-            "interrupt_config",
-        ]
-
-        for section in required_sections:
+        for section in REQUIRED_CONTEXT_SECTIONS:
             if section not in context or not context[section]:  # type: ignore
                 raise ContextError(f"Missing required section: {section}")
 

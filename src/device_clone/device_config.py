@@ -15,6 +15,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from ..utils.validation_constants import KNOWN_DEVICE_TYPES
+
 try:
     import yaml
 
@@ -32,11 +34,38 @@ logger = logging.getLogger(__name__)
 class DeviceType(Enum):
     """PCIe device types with their default configurations."""
 
-    NETWORK = "network"
     AUDIO = "audio"
-    STORAGE = "storage"
     GRAPHICS = "graphics"
-    GENERIC = "generic"
+    MEDIA = "media"
+    NETWORK = "network"
+    PROCESSOR = "processor"
+    STORAGE = "storage"
+    USB = "usb"
+    GENERIC = "generic"  # Keep generic last as it's the fallback
+
+    @classmethod
+    def validate_against_known_types(cls) -> None:
+        """Validate that enum values match centralized constants."""
+        enum_values = {member.value for member in cls}
+        constant_values = set(KNOWN_DEVICE_TYPES)
+
+        if enum_values != constant_values:
+            missing_in_enum = constant_values - enum_values
+            missing_in_constant = enum_values - constant_values
+            error_msg = []
+            if missing_in_enum:
+                error_msg.append(f"Missing in DeviceType enum: {missing_in_enum}")
+            if missing_in_constant:
+                error_msg.append(
+                    f"Missing in KNOWN_DEVICE_TYPES: {missing_in_constant}"
+                )
+            raise ValueError(
+                f"DeviceType enum and KNOWN_DEVICE_TYPES mismatch: {'; '.join(error_msg)}"
+            )
+
+
+# Validate at module load time to catch mismatches early
+DeviceType.validate_against_known_types()
 
 
 class DeviceClass(Enum):
@@ -84,19 +113,19 @@ class DeviceIdentification:
         # Convert vendor_id
         if isinstance(self.vendor_id, str):
             self.vendor_id = self._convert_to_int(self.vendor_id)
-        
-        # Convert device_id  
+
+        # Convert device_id
         if isinstance(self.device_id, str):
             self.device_id = self._convert_to_int(self.device_id)
-            
+
         # Convert class_code
         if isinstance(self.class_code, str):
             self.class_code = self._convert_to_int(self.class_code)
-            
+
         # Convert subsystem IDs
         if isinstance(self.subsystem_vendor_id, str):
             self.subsystem_vendor_id = self._convert_to_int(self.subsystem_vendor_id)
-            
+
         if isinstance(self.subsystem_device_id, str):
             self.subsystem_device_id = self._convert_to_int(self.subsystem_device_id)
 
@@ -430,12 +459,12 @@ class DeviceConfigManager:
             vendor_id=convert_to_int(data["identification"]["vendor_id"]),
             device_id=convert_to_int(data["identification"]["device_id"]),
             class_code=convert_to_int(data["identification"]["class_code"]),
-            subsystem_vendor_id=convert_to_int(data["identification"].get(
-                "subsystem_vendor_id", 0x0000
-            )),
-            subsystem_device_id=convert_to_int(data["identification"].get(
-                "subsystem_device_id", 0x0000
-            )),
+            subsystem_vendor_id=convert_to_int(
+                data["identification"].get("subsystem_vendor_id", 0x0000)
+            ),
+            subsystem_device_id=convert_to_int(
+                data["identification"].get("subsystem_device_id", 0x0000)
+            ),
         )
 
         registers = PCIeRegisters(

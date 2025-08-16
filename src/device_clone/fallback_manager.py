@@ -19,6 +19,8 @@ from typing import (Any, Callable, Dict, Final, List, Optional, Protocol, Set,
 
 from src.string_utils import log_error_safe, log_info_safe, log_warning_safe
 
+from ..utils.validation_constants import SENSITIVE_TOKENS
+
 # Type variable for return type of handler functions
 T = TypeVar("T")
 
@@ -78,26 +80,16 @@ class FallbackHandler(Protocol):
 
 class FallbackManager:
     """
-    Manages fallback values for template variables.
+    Manages template variable fallbacks with security-first approach.
 
-    This class provides a centralized way to register, retrieve, and apply
-    fallback values for template variables, ensuring consistent handling
-    across all templates.
-
-    Attributes:
+    Features:
+        CRITICAL_VARS: Variables that must be hardware-derived
         SENSITIVE_TOKENS: Tokens that indicate sensitive variables
-        DEFAULT_FALLBACKS: System-wide default fallback values
+        DEFAULT_FALLBACKS: Safe fallback values for non-critical variables
     """
 
-    # Class-level constants
-    SENSITIVE_TOKENS: Final[Tuple[str, ...]] = (
-        "vendor_id",
-        "device_id",
-        "revision_id",
-        "class_code",
-        "bars",
-        "subsys",
-    )
+    # Use centralized sensitive tokens from validation_constants
+    # SENSITIVE_TOKENS is now imported
 
     DEFAULT_FALLBACKS: Final[Dict[str, Any]] = {
         "board.name": "",
@@ -243,7 +235,7 @@ class FallbackManager:
         critical_vars = []
 
         # Build critical variable list from sensitive tokens
-        for token in self.SENSITIVE_TOKENS:
+        for token in SENSITIVE_TOKENS:
             if token == "bars":
                 critical_vars.extend(["bars", "device.bars"])
             else:
@@ -675,7 +667,7 @@ class FallbackManager:
             return False
 
         name_lower = name.lower()
-        return any(token in name_lower for token in self.SENSITIVE_TOKENS)
+        return any(token in name_lower for token in SENSITIVE_TOKENS)
 
     def _determine_variable_type(self, var_name: str) -> VariableType:
         """
