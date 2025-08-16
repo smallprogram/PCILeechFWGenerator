@@ -1,4 +1,4 @@
-# PCILeech Firmware Generator
+u# PCILeech Firmware Generator
 
 ## CI/CD Status
 
@@ -38,16 +38,13 @@ Generate authentic PCIe DMA firmware from real donor hardware with a single comm
 - **Dynamic Device Capabilities**: Generate realistic network, storage, media, and USB controller capabilities with pattern-based analysis
 - **Full 4KB Config-Space Shadow**: Complete configuration space emulation with BRAM-based overlay memory
 - **MSI-X Table Replication**: Exact replication of MSI-X tables from donor devices with interrupt delivery logic
-- **Deterministic Variance Seeding**: Consistent hardware variance based on device serial number for unique firmware
 - **Advanced SystemVerilog Generation**: Comprehensive PCIe device controller with modular template architecture
 - **Active Device Interrupts**: MSI-X interrupt controller with timer-based and event-driven interrupt generation
-- **Memory Overlay Mapping**: BAR dispatcher with configurable memory regions and custom PIO windows
 - **Interactive TUI**: Modern Textual-based interface with real-time device monitoring and guided workflows
 - **Containerized Build Pipeline**: Podman-based synthesis environment with automated VFIO setup
-- **Automated Testing and Validation**: Comprehensive test suite with SystemVerilog assertions and Python unit tests
 - **USB-JTAG Flashing**: Direct firmware deployment to DMA boards via integrated flash utilities
 
- **[Complete Documentation](https://pcileechfwgenerator.ramseymcgrath.com)** | 🔧 **[Troubleshooting Guide](https://pcileechfwgenerator.ramseymcgrath.com/troubleshooting)** | 🏗️ **[Device Cloning Guide](https://pcileechfwgenerator.ramseymcgrath.com/device-cloning)** | ⚡ **[Dynamic Capabilities](https://pcileechfwgenerator.ramseymcgrath.com/dynamic-device-capabilities)** | �️ **[Development Setup](https://pcileechfwgenerator.ramseymcgrath.com/development)**
+ **[Complete Documentation](https://pcileechfwgenerator.ramseymcgrath.com)** |  **[Troubleshooting Guide](https://pcileechfwgenerator.ramseymcgrath.com/troubleshooting)** |  **[Device Cloning Guide](https://pcileechfwgenerator.ramseymcgrath.com/device-cloning)** | **[Dynamic Capabilities](https://pcileechfwgenerator.ramseymcgrath.com/dynamic-device-capabilities)** |  **[Development Setup](https://pcileechfwgenerator.ramseymcgrath.com/development)**
 
 ## Quick Start
 
