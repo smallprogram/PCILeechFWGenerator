@@ -165,7 +165,7 @@ class TemplateObject:
 
         # Convert nested TemplateObjects to regular dicts to avoid namespace confusion
         for key, value in result.items():
-            if hasattr(value, "__class__") and "TemplateObject" in str(value.__class__):
+            if isinstance(value, TemplateObject):
                 # Convert nested TemplateObjects to regular dicts
                 result[key] = value.to_dict()
 
