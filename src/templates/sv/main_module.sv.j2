@@ -114,18 +114,18 @@ module pcileech_advanced_{{ device_type }}_{{ device_class }} #(
     output logic        device_ready
 );
 
-{%- include 'systemverilog/components/register_declarations.sv.j2' %}
+{%- include 'sv/register_declarations.sv.j2' %}
 
 {%- if power_management %}
-{%- include 'systemverilog/advanced/power_management.sv.j2' %}
+{%- include 'sv/power_management.sv.j2' %}
 {%- endif %}
 
 {%- if error_handling %}
-{%- include 'systemverilog/advanced/error_handling.sv.j2' %}
+{%- include 'sv/error_handling.sv.j2' %}
 {%- endif %}
 
 {%- if performance_counters is defined and performance_counters %}
-{%- include 'systemverilog/advanced/performance_counters.sv.j2' %}
+{%- include 'sv/performance_counters.sv.j2' %}
 {%- endif %}
 
     // Register access logic

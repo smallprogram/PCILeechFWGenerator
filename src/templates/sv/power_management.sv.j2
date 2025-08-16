@@ -23,8 +23,13 @@
     logic power_ready;
     
     // Connect power requests to interface signals
+    {%- if power_management.has_interface_signals %}
     assign power_down_request = (power_state_req == 2'b01) || (power_state_req == 2'b11);
     assign power_up_request = (power_state_req == 2'b00);
+    {%- else %}
+    // Power requests come from interface ports directly (defined in module interface)
+    // power_down_request and power_up_request are already module inputs
+    {%- endif %}
 
     // Power state transition logic
     always_ff @(posedge clk or negedge reset_n) begin

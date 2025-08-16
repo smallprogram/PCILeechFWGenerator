@@ -438,6 +438,30 @@ class PCILeechContextBuilder:
             for key, value in overlay_config.items():
                 context[key] = value  # type: ignore
 
+            # Add missing template variables using UnifiedContextBuilder
+            # Derive device type from class code
+            device_type = self._get_device_type_from_class_code(
+                device_identifiers.class_code
+            )
+            context["device_type"] = device_type  # type: ignore
+            context["power_management"] = getattr(self.config, "power_management", False)  # type: ignore
+            context["error_handling"] = getattr(self.config, "error_handling", False)  # type: ignore
+            context["performance_counters"] = self._build_performance_config(device_type)  # type: ignore
+            context["power_config"] = self._build_power_management_config()  # type: ignore
+            context["error_config"] = self._build_error_handling_config()  # type: ignore
+            context["variance_model"] = self._build_variance_model()  # type: ignore
+
+            # Add device-specific signals
+            device_signals = self._build_device_specific_signals(device_type)
+            for key, value in device_signals.items():
+                context[key] = value  # type: ignore
+
+            # Add header for SystemVerilog generation
+            context["header"] = "// Generated PCILeech SystemVerilog Module"  # type: ignore
+
+            # Add register list (empty by default, can be populated by profiling)
+            context["registers"] = []  # type: ignore
+
             # Add extended config pointers
             context["EXT_CFG_CAP_PTR"] = context.get("device_config", {}).get(  # type: ignore
                 "ext_cfg_cap_ptr", 0x100
@@ -452,6 +476,16 @@ class PCILeechContextBuilder:
 
             # Final validation
             self._validate_context_completeness(context)
+
+            # Ensure template compatibility - convert all nested dicts to TemplateObjects
+            from typing import cast
+
+            from src.utils.unified_context import ensure_template_compatibility
+
+            compatible_context = ensure_template_compatibility(dict(context))
+
+            # Cast back to TemplateContext for type safety
+            context = cast(TemplateContext, compatible_context)
 
             log_info_safe(
                 self.logger,
@@ -968,24 +1002,22 @@ class PCILeechContextBuilder:
         identifiers: DeviceIdentifiers,
         interrupt_strategy: str,
         interrupt_vectors: int,
-    ) -> Dict[str, Any]:
-        """Build active device configuration."""
-        return {
-            "vendor_id": identifiers.vendor_id,
-            "device_id": identifiers.device_id,
-            "subsystem_vendor_id": identifiers.subsystem_vendor_id
-            or identifiers.vendor_id,
-            "subsystem_device_id": identifiers.subsystem_device_id
-            or identifiers.device_id,
-            "class_code": identifiers.class_code,
-            "revision_id": identifiers.revision_id,
-            "interrupt_mode": interrupt_strategy,
-            "interrupt_vectors": interrupt_vectors,
-            "device_class": identifiers.get_device_class_type(),
-            "is_network": identifiers.class_code[:2] == PCIConstants.CLASS_NETWORK,
-            "is_storage": identifiers.class_code[:2] == PCIConstants.CLASS_STORAGE,
-            "is_display": identifiers.class_code[:2] == PCIConstants.CLASS_DISPLAY,
-        }
+    ) -> Any:
+        """Build active device configuration using unified context builder."""
+        from src.utils.unified_context import UnifiedContextBuilder
+
+        builder = UnifiedContextBuilder(self.logger)
+
+        return builder.create_active_device_config(
+            vendor_id=identifiers.vendor_id,
+            device_id=identifiers.device_id,
+            subsystem_vendor_id=identifiers.subsystem_vendor_id,
+            subsystem_device_id=identifiers.subsystem_device_id,
+            class_code=identifiers.class_code,
+            revision_id=identifiers.revision_id,
+            interrupt_strategy=interrupt_strategy,
+            interrupt_vectors=interrupt_vectors,
+        )
 
     def _generate_device_signature(
         self,
@@ -1014,21 +1046,23 @@ class PCILeechContextBuilder:
 
         return f"{identifiers.device_signature}_{signature_hash}"
 
-    def _build_generation_metadata(
-        self, identifiers: DeviceIdentifiers
-    ) -> Dict[str, Any]:
-        """Build generation metadata."""
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "generator_version": "2.0.0-optimized",
-            "device_bdf": self.device_bdf,
-            "device_class": identifiers.get_device_class_type(),
-            "validation_level": self.validation_level.value,
-            "vendor_name": self._get_vendor_name(identifiers.vendor_id),
-            "device_name": self._get_device_name(
+    def _build_generation_metadata(self, identifiers: DeviceIdentifiers) -> Any:
+        """Build generation metadata using unified context builder."""
+        from src.utils.unified_context import UnifiedContextBuilder
+
+        builder = UnifiedContextBuilder(self.logger)
+
+        return builder.create_generation_metadata(
+            device_signature=identifiers.full_signature,
+            generator_version="2.0.0-optimized",
+            device_bdf=self.device_bdf,
+            device_class=identifiers.get_device_class_type(),
+            validation_level=self.validation_level.value,
+            vendor_name=self._get_vendor_name(identifiers.vendor_id),
+            device_name=self._get_device_name(
                 identifiers.vendor_id, identifiers.device_id
             ),
-        }
+        )
 
     def _get_vendor_name(self, vendor_id: str) -> str:
         """Get vendor name from ID using device info lookup."""
@@ -1144,57 +1178,80 @@ class PCILeechContextBuilder:
                 merged[key] = value
         return merged  # type: ignore
 
-    def _build_board_config(self) -> Dict[str, Any]:
-        """Build board configuration using get_pcileech_board_config."""
+    def _build_board_config(self) -> Any:
+        """Build board configuration using unified context builder."""
+        from src.utils.unified_context import UnifiedContextBuilder
+
+        builder = UnifiedContextBuilder(self.logger)
+
         try:
             # Get board name from config
-            board_name = getattr(self.config, 'board', None)
+            board_name = getattr(self.config, "board", None)
             if not board_name:
                 # Try to get board from fallback or environment
                 log_warning_safe(
                     self.logger,
-                    "No board specified in config, using fallback detection"
+                    "No board specified in config, using fallback detection",
                 )
                 # Use a default board or get from constants
                 from src.device_clone.constants import BOARD_PARTS
+
                 board_name = list(BOARD_PARTS.keys())[0]  # Use first available board
-            
-            log_info_safe(
-                self.logger,
-                f"Building board configuration for {board_name}"
-            )
-            
+
+            log_info_safe(self.logger, f"Building board configuration for {board_name}")
+
             # Import and use the board configuration function
             from src.device_clone.board_config import get_pcileech_board_config
-            
+
             # Get the board configuration
             board_config = get_pcileech_board_config(board_name)
-            
+
             log_info_safe(
                 self.logger,
-                f"Board configuration loaded: {board_config.get('fpga_part', 'unknown')}"
+                f"Board configuration loaded: {board_config.get('fpga_part', 'unknown')}",
             )
-            
-            return board_config
-            
+
+            # Create unified board config with the loaded configuration
+            return builder.create_board_config(
+                board_name=board_config.get("name", board_name),
+                fpga_part=board_config.get("fpga_part", "xc7a35tcsg324-2"),
+                fpga_family=board_config.get("fpga_family", "7series"),
+                pcie_ip_type=board_config.get("pcie_ip_type", "7x"),
+                max_lanes=board_config.get("max_lanes", 4),
+                supports_msi=board_config.get("supports_msi", True),
+                supports_msix=board_config.get("supports_msix", False),
+                **{
+                    k: v
+                    for k, v in board_config.items()
+                    if k
+                    not in [
+                        "name",
+                        "fpga_part",
+                        "fpga_family",
+                        "pcie_ip_type",
+                        "max_lanes",
+                        "supports_msi",
+                        "supports_msix",
+                    ]
+                },
+            )
+
         except Exception as e:
-            log_error_safe(
-                self.logger,
-                f"Failed to build board configuration: {e}"
-            )
+            log_error_safe(self.logger, f"Failed to build board configuration: {e}")
             # Return a minimal board config to prevent template validation failure
-            return {
-                "fpga_part": "xc7a35tcsg324-2",  # Default fallback
-                "fpga_family": "7series",
-                "pcie_ip_type": "7x",
-                "max_lanes": 4,
-                "supports_msi": True,
-                "supports_msix": False,
-                "config_voltage": "3.3",
-                "bitstream_unusedpin": "pullup",
-                "bitstream_spi_buswidth": "4", 
-                "bitstream_configrate": "33"
-            }
+            return builder.create_board_config(
+                board_name="generic",
+                fpga_part="xc7a35tcsg324-2",
+                fpga_family="7series",
+                pcie_ip_type="7x",
+                max_lanes=4,
+                supports_msi=True,
+                supports_msix=False,
+                config_voltage="3.3",
+                bitstream_unusedpin="pullup",
+                bitstream_spi_buswidth="4",
+                bitstream_configrate="33",
+            )
 
     def _validate_context_completeness(self, context: TemplateContext):
         """Validate context has all required fields."""
@@ -1216,3 +1273,114 @@ class PCILeechContextBuilder:
         # Validate identifiers
         if "vendor_id" not in context or "device_id" not in context:
             raise ContextError("Missing device identifiers")
+
+    def _build_performance_config(self, device_type: str = "generic") -> Any:
+        """Build performance configuration using unified context builder."""
+        from src.utils.unified_context import UnifiedContextBuilder
+
+        builder = UnifiedContextBuilder(self.logger)
+
+        return builder.create_performance_config(
+            enable_transaction_counters=getattr(
+                self.config, "enable_transaction_counters", True
+            ),
+            enable_bandwidth_monitoring=getattr(
+                self.config, "enable_bandwidth_monitoring", True
+            ),
+            enable_latency_tracking=getattr(
+                self.config, "enable_latency_tracking", True
+            ),
+            enable_latency_measurement=getattr(
+                self.config, "enable_latency_measurement", True
+            ),
+            enable_error_counting=getattr(self.config, "enable_error_counting", True),
+            enable_error_rate_tracking=getattr(
+                self.config, "enable_error_rate_tracking", True
+            ),
+            enable_performance_grading=getattr(
+                self.config, "enable_performance_grading", True
+            ),
+            enable_perf_outputs=getattr(self.config, "enable_perf_outputs", True),
+            # Set signal availability based on device type
+            error_signals_available=True,
+            network_signals_available=(device_type == "network"),
+            storage_signals_available=(device_type == "storage"),
+            graphics_signals_available=(device_type == "graphics"),
+            generic_signals_available=True,
+        )
+
+    def _build_power_management_config(self) -> Any:
+        """Build power management configuration using unified context builder."""
+        from src.utils.unified_context import UnifiedContextBuilder
+
+        builder = UnifiedContextBuilder(self.logger)
+
+        return builder.create_power_management_config(
+            enable_power_management=getattr(self.config, "power_management", True),
+            has_interface_signals=getattr(
+                self.config, "has_power_interface_signals", False
+            ),
+        )
+
+    def _build_error_handling_config(self) -> Any:
+        """Build error handling configuration using unified context builder."""
+        from src.utils.unified_context import UnifiedContextBuilder
+
+        builder = UnifiedContextBuilder(self.logger)
+
+        return builder.create_error_handling_config(
+            enable_error_detection=getattr(self.config, "error_handling", True),
+        )
+
+    def _build_device_specific_signals(self, device_type: str) -> Dict[str, Any]:
+        """Build device-specific signals using unified context builder."""
+        from src.utils.unified_context import UnifiedContextBuilder
+
+        builder = UnifiedContextBuilder(self.logger)
+
+        device_signals = builder.create_device_specific_signals(
+            device_type=device_type,
+            audio_enable=getattr(self.config, "audio_enable", False),
+            volume_left=getattr(self.config, "volume_left", 0x8000),
+            volume_right=getattr(self.config, "volume_right", 0x8000),
+        )
+
+        return device_signals.to_dict()
+
+    def _build_variance_model(self) -> Any:
+        """Build variance model for templates."""
+        from src.utils.unified_context import TemplateObject
+
+        # Check if variance is enabled in config
+        enable_variance = getattr(self.config, "enable_variance", False)
+
+        variance_data = {
+            "enabled": enable_variance,
+            "variance_type": "normal",
+            "process_variation": 0.1,  # Required by template
+            "temperature_coefficient": 0.05,  # Required by template
+            "voltage_variation": 0.03,  # Required by template
+            "parameters": {
+                "mean": 0.0,
+                "std_dev": 0.1,
+                "min_value": -1.0,
+                "max_value": 1.0,
+            },
+        }
+
+        return TemplateObject(variance_data)
+
+    def _get_device_type_from_class_code(self, class_code: str) -> str:
+        """Get device type string from PCI class code."""
+        if class_code.startswith("01"):
+            return "storage"
+        elif class_code.startswith("02"):
+            return "network"
+        elif class_code.startswith("03"):
+            return "graphics"
+        elif class_code.startswith("04"):
+            return "audio"
+        elif class_code.startswith("0c"):
+            return "serial_bus"
+        else:
+            return "generic"

@@ -9,7 +9,11 @@ from unittest.mock import Mock
 
 import pytest
 
+from src.device_clone.device_config import DeviceClass, DeviceType
 from src.exceptions import TemplateRenderError
+from src.templating.advanced_sv_features import (ErrorHandlingConfig,
+                                                 PerformanceConfig)
+from src.templating.advanced_sv_power import PowerManagementConfig
 from src.templating.systemverilog_generator import AdvancedSVGenerator
 
 
@@ -18,47 +22,28 @@ class TestSystemVerilogTemplateIntegration:
 
     def setup_method(self):
         """Set up test fixtures."""
-        # Create mock configs with realistic values
-        self.mock_device_config = Mock()
-        self.mock_device_config.device_type = Mock(value="network")
-        self.mock_device_config.device_class = Mock(value="ethernet")
-        self.mock_device_config.enable_dma = True
-        self.mock_device_config.max_payload_size = 256
-        self.mock_device_config.max_read_request_size = 512
-        self.mock_device_config.tx_queue_depth = 1024
-        self.mock_device_config.rx_queue_depth = 1024
-        self.mock_device_config.command_queue_depth = 256
-        self.mock_device_config.msi_vectors = 4
-        self.mock_device_config.msix_vectors = 16
-        self.mock_device_config.enable_interrupt_coalescing = False
-        self.mock_device_config.enable_virtualization = False
-        self.mock_device_config.enable_sr_iov = False
+        # Create real config objects instead of mocks
+        self.error_config = ErrorHandlingConfig(
+            enable_error_detection=True,
+            enable_error_logging=True,
+            enable_auto_retry=True,
+        )
 
-        self.mock_error_config = Mock()
-        self.mock_error_config.enable_ecc = True
-        self.mock_error_config.enable_parity = True
-        self.mock_error_config.enable_crc = True
+        self.perf_config = PerformanceConfig(
+            enable_transaction_counters=True,
+            enable_latency_measurement=True,
+            enable_bandwidth_monitoring=True,
+        )
 
-        self.mock_perf_config = Mock()
-        self.mock_perf_config.enable_transaction_counters = True
-        self.mock_perf_config.enable_latency_measurement = True
-        self.mock_perf_config.enable_bandwidth_monitoring = True
+        self.power_config = PowerManagementConfig(
+            enable_pme=True, enable_wake_events=False
+        )
 
-        self.mock_power_config = Mock()
-        self.mock_power_config.enable_clock_gating = True
-        self.mock_power_config.enable_power_gating = False
-        self.mock_power_config.transition_cycles = Mock()
-        self.mock_power_config.transition_cycles.d0_to_d1 = 100
-        self.mock_power_config.transition_cycles.d1_to_d0 = 100
-        self.mock_power_config.transition_cycles.d0_to_d3 = 1000
-        self.mock_power_config.transition_cycles.d3_to_d0 = 1000
-
-        # Create generator instance WITHOUT mocking the renderer
+        # Create generator instance using real configurations
         self.generator = AdvancedSVGenerator(
-            device_config=self.mock_device_config,
-            error_config=self.mock_error_config,
-            perf_config=self.mock_perf_config,
-            power_config=self.mock_power_config,
+            power_config=self.power_config,
+            error_config=self.error_config,
+            perf_config=self.perf_config,
         )
 
     def test_pcileech_tlps128_bar_controller_template_renders(self):
@@ -66,79 +51,47 @@ class TestSystemVerilogTemplateIntegration:
         # Create a complete template context with all required fields
         template_context = {
             "device_config": {
-                "vendor_id": "10EC",
-                "device_id": "8168",
+                "vendor_id": "8086",
+                "device_id": "1533",
                 "class_code": "020000",
-                "revision_id": "01",
-                "subsystem_vendor_id": "1043",
-                "subsystem_device_id": "8554",
-                "enable_error_injection": False,
+                "revision_id": "03",
+                "subsystem_vendor_id": "8086",
+                "subsystem_device_id": "0001",
+                "device_bdf": "0000:03:00.0",
                 "enable_perf_counters": True,
+                "enable_error_injection": True,
                 "enable_dma_operations": True,
             },
-            "device_signature": "0xDEADBEEF",  # Required field
-            "msix_config": {
-                "num_vectors": 16,
-                "table_bir": 0,
-                "table_offset": 0x1000,
-                "pba_bir": 0,
-                "pba_offset": 0x2000,
-            },
+            "device_signature": "0x12345678",
+            "msix_config": {},
             "bar_config": {
-                "aperture_size": 65536,
-                "bar_index": 0,
-                "bar_type": 0,  # 32-bit
-                "prefetchable": False,
                 "bars": [
-                    {
-                        "index": 0,
-                        "size": 65536,
-                        "type": "mem32",
-                        "prefetchable": False,
-                        "is_64bit": False,
-                    },
-                    {
-                        "index": 1,
-                        "size": 4096,
-                        "type": "io",
-                        "prefetchable": False,
-                        "is_64bit": False,
-                    },
+                    Mock(
+                        index=0,
+                        size=4096,
+                        bar_type="memory",
+                        prefetchable=False,
+                        is_64bit=False,
+                        address=0,
+                        base_address=0,
+                        get_size_encoding=lambda: 0xFFFFF000,
+                    ),
                 ],
             },
-            "board_config": {
-                "name": "pcileech_75t484_x1",
-                "fpga_part": "xc7a75tfgg484-2",
-                "fpga_family": "7series",
-                "pcie_ip_type": "pcie_7x",
-                "max_lanes": 1,
-                "supports_msi": True,
-                "supports_msix": True,
-                "has_option_rom": False,
-            },
-            "interrupt_config": {
-                "vectors": 4,
-                "msi_enabled": True,
-                "msix_enabled": False,
-            },
-            "config_space_data": {
-                "data": [0] * 256,  # 256 bytes of config space
-            },
+            "board_config": {},
+            "interrupt_config": {},
+            "config_space_data": {},
             "timing_config": {
-                "read_latency": 4,
-                "write_latency": 2,
-                "burst_length": 16,
-                "inter_burst_gap": 8,
-                "timeout_cycles": 1024,
+                "clock_frequency_mhz": 100,
             },
             "pcileech_config": {
-                "enable": True,
-                "buffer_size": 4096,
-                "dma_enable": True,
+                "command_timeout": 1000,
+                "enable_dma": True,
+                "enable_scatter_gather": True,
             },
             "generation_metadata": {
-                "timestamp": "2024-01-01T00:00:00Z",
-                "version": "1.0.0",
+                "generated_at": "2024-01-01T12:00:00Z",
+                "version": "2.0.0",
                 "generator": "PCILeechFWGenerator",
             },
         }
@@ -175,6 +128,7 @@ class TestSystemVerilogTemplateIntegration:
                 "device_id": "8168",
                 "class_code": "020000",
                 "revision_id": "01",
+                "device_bdf": "0000:03:00.0",  # Required field for template
             },
             "device_signature": "0xDEADBEEF",
             "msix_config": {},
@@ -206,6 +160,7 @@ class TestSystemVerilogTemplateIntegration:
                 "revision_id": "03",
                 "subsystem_vendor_id": "8086",
                 "subsystem_device_id": "0001",
+                "device_bdf": "0000:03:00.0",  # Required field for template
                 "enable_error_injection": True,
                 "enable_perf_counters": True,
                 "enable_dma_operations": True,
@@ -224,27 +179,36 @@ class TestSystemVerilogTemplateIntegration:
                 "bar_type": 1,  # 64-bit
                 "prefetchable": True,
                 "bars": [
-                    {
-                        "index": 0,
-                        "size": 4096,
-                        "type": "mem32",
-                        "prefetchable": False,
-                        "is_64bit": False,
-                    },
-                    {
-                        "index": 1,
-                        "size": 8192,
-                        "type": "io",
-                        "prefetchable": False,
-                        "is_64bit": False,
-                    },
-                    {
-                        "index": 2,
-                        "size": 131072,
-                        "type": "mem64",
-                        "prefetchable": True,
-                        "is_64bit": True,
-                    },
+                    Mock(
+                        index=0,
+                        size=4096,
+                        bar_type="memory",
+                        prefetchable=False,
+                        is_64bit=False,
+                        address=0,
+                        base_address=0,
+                        get_size_encoding=lambda: 0xFFFFF000,
+                    ),
+                    Mock(
+                        index=1,
+                        size=8192,
+                        bar_type="io",
+                        prefetchable=False,
+                        is_64bit=False,
+                        address=0,
+                        base_address=0,
+                        get_size_encoding=lambda: 0xFFFFE000,
+                    ),
+                    Mock(
+                        index=2,
+                        size=131072,
+                        bar_type="memory",
+                        prefetchable=True,
+                        is_64bit=True,
+                        address=0,
+                        base_address=0,
+                        get_size_encoding=lambda: 0xFFFE0000,
+                    ),
                 ],
             },
             "board_config": {
@@ -274,14 +238,19 @@ class TestSystemVerilogTemplateIntegration:
                 "burst_length": 32,
                 "inter_burst_gap": 16,
                 "timeout_cycles": 2048,
+                "clock_frequency_mhz": 100,
             },
             "pcileech_config": {
                 "enable": True,
                 "buffer_size": 8192,
                 "dma_enable": True,
                 "scatter_gather": True,
+                "command_timeout": 1000,
+                "enable_dma": True,
+                "enable_scatter_gather": True,
             },
             "generation_metadata": {
+                "generated_at": "2024-01-01T12:00:00Z",
                 "timestamp": "2024-01-01T12:00:00Z",
                 "version": "2.0.0",
                 "generator": "PCILeechFWGenerator",
@@ -322,21 +291,47 @@ class TestSystemVerilogTemplateIntegration:
             "device_config": {
                 "vendor_id": "10EC",
                 "device_id": "8168",
+                "class_code": "020000",
+                "revision_id": "03",
+                "subsystem_vendor_id": "10EC",
+                "subsystem_device_id": "8168",
+                "device_bdf": "0000:03:00.0",  # Required field for template
                 "enable_dma_operations": True,
+                "enable_perf_counters": True,
+                "enable_error_injection": True,
             },
             "bar_config": {
                 "bars": [
-                    {
-                        "index": 0,
-                        "size": 4096,
-                        "type": "mem32",
-                        "prefetchable": False,
-                        "is_64bit": False,
-                    }
+                    Mock(
+                        index=0,
+                        size=4096,
+                        bar_type="memory",
+                        prefetchable=False,
+                        is_64bit=False,
+                        address=0,
+                        base_address=0,
+                        get_size_encoding=lambda: 0xFFFFF000,
+                    )
                 ]
             },
             "board_config": {},  # Required by validator
             "device_signature": "0x12345678",  # Required for security
+            "msix_config": {},
+            "interrupt_config": {},
+            "config_space_data": {},
+            "timing_config": {
+                "clock_frequency_mhz": 100,
+            },
+            "pcileech_config": {
+                "command_timeout": 1000,
+                "enable_dma": True,
+                "enable_scatter_gather": True,
+            },
+            "generation_metadata": {
+                "generated_at": "2024-01-01T12:00:00Z",
+                "version": "2.0.0",
+                "generator": "PCILeechFWGenerator",
+            },
         }
 
         # This should work with the validator's requirements

@@ -14,19 +14,8 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Final,
-    List,
-    Optional,
-    Protocol,
-    Set,
-    Tuple,
-    TypeVar,
-    Union,
-)
+from typing import (Any, Callable, Dict, Final, List, Optional, Protocol, Set,
+                    Tuple, TypeVar, Union)
 
 from src.string_utils import log_error_safe, log_info_safe, log_warning_safe
 

@@ -1450,6 +1450,7 @@ puts "Synthesis complete!"
     def _build_generation_metadata(self) -> Dict[str, Any]:
         """Build metadata about the generation process."""
         return {
+            "generated_at": self._get_timestamp(),
             "generator_version": "1.0.0",
             "config": {
                 "device_bdf": self.config.device_bdf,
