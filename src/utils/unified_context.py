@@ -113,7 +113,12 @@ class TemplateObject:
         if name in self._data:
             return self._data[name]
         # Provide safe defaults for commonly accessed template variables
-        if name in ["counter_width", "process_variation", "temperature_coefficient", "voltage_variation"]:
+        if name in [
+            "counter_width",
+            "process_variation",
+            "temperature_coefficient",
+            "voltage_variation",
+        ]:
             return getattr(self._get_safe_defaults(), name, None)
         raise AttributeError(
             f"'{self.__class__.__name__}' object has no attribute '{name}'"
@@ -121,11 +126,13 @@ class TemplateObject:
 
     def _get_safe_defaults(self):
         """Return object with safe defaults for common template variables."""
+
         class SafeDefaults:
             counter_width = 32
             process_variation = 0.1
             temperature_coefficient = 0.05
             voltage_variation = 0.03
+
         return SafeDefaults()
 
     def keys(self):
@@ -774,42 +781,60 @@ class UnifiedContextBuilder:
         }
 
         template_context = TemplateObject(context)
-        
+
         # Validate the context to ensure no missing values
         self.validate_template_context(template_context)
-        
+
         return template_context
 
     def validate_template_context(self, context: TemplateObject) -> None:
         """
         Validate that template context has all critical values.
-        
+
         Args:
             context: Template context to validate
-            
+
         Raises:
             ValueError: If critical values are missing
         """
         critical_keys = [
-            "vendor_id", "device_id", "device_type", "device_class",
-            "active_device_config", "generation_metadata", "board_config"
+            "vendor_id",
+            "device_id",
+            "device_type",
+            "device_class",
+            "active_device_config",
+            "generation_metadata",
+            "board_config",
         ]
-        
+
         missing_keys = []
         for key in critical_keys:
             if not hasattr(context, key) or getattr(context, key) is None:
                 missing_keys.append(key)
-        
+
         if missing_keys:
-            raise ValueError(f"Missing critical template context values: {missing_keys}")
-        
+            raise ValueError(
+                f"Missing critical template context values: {missing_keys}"
+            )
+
         # Validate nested configurations have required fields
         if hasattr(context, "variance_model"):
-            variance_required = ["process_variation", "temperature_coefficient", "voltage_variation"]
+            variance_required = [
+                "process_variation",
+                "temperature_coefficient",
+                "voltage_variation",
+            ]
             for field in variance_required:
                 if not hasattr(context.variance_model, field):
-                    setattr(context.variance_model, field, 
-                           {"process_variation": 0.1, "temperature_coefficient": 0.05, "voltage_variation": 0.03}[field])
+                    setattr(
+                        context.variance_model,
+                        field,
+                        {
+                            "process_variation": 0.1,
+                            "temperature_coefficient": 0.05,
+                            "voltage_variation": 0.03,
+                        }[field],
+                    )
 
     def _get_device_class(self, class_code: str) -> str:
         """Get device class from PCI class code."""
