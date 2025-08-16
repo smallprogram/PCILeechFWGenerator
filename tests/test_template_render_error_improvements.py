@@ -16,12 +16,10 @@ import pytest
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.templating.template_renderer import (
-    TemplateRenderError,
-    _cached_exception_class,
-    _clear_exception_cache,
-    _get_template_render_error_base,
-)
+from src.templating.template_renderer import (TemplateRenderError,
+                                              _cached_exception_class,
+                                              _clear_exception_cache,
+                                              _get_template_render_error_base)
 
 
 class TestTemplateRenderErrorImport:

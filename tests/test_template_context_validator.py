@@ -13,12 +13,9 @@ from typing import Any, Dict
 import pytest
 
 from src.templating.template_context_validator import (
-    TemplateContextValidator,
-    TemplateVariableRequirements,
-    analyze_template_variables,
-    get_template_requirements,
-    validate_template_context,
-)
+    TemplateContextValidator, TemplateVariableRequirements,
+    analyze_template_variables, get_template_requirements,
+    validate_template_context)
 
 
 class TestTemplateContextValidator:

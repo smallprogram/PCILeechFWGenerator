@@ -15,10 +15,9 @@ from unittest.mock import Mock, patch
 import pytest
 
 from src.templating.template_context_validator import (
-    TemplateContextValidator,
-    validate_template_context,
-)
-from src.templating.template_renderer import TemplateRenderer, TemplateRenderError
+    TemplateContextValidator, validate_template_context)
+from src.templating.template_renderer import (TemplateRenderer,
+                                              TemplateRenderError)
 
 
 class TestTemplateSecurity:
@@ -31,10 +30,8 @@ class TestTemplateSecurity:
 
     def test_reject_none_values(self):
         """Test that None values in critical template variables are rejected."""
-        from src.templating.template_renderer import (
-            TemplateRenderer,
-            TemplateRenderError,
-        )
+        from src.templating.template_renderer import (TemplateRenderer,
+                                                      TemplateRenderError)
 
         renderer = TemplateRenderer()
 
