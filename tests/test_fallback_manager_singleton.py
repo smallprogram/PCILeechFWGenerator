@@ -1,10 +1,8 @@
 import pytest
 
-from src.device_clone.fallback_manager import (
-    get_global_fallback_manager,
-    set_global_fallback_manager,
-    FallbackManager,
-)
+from src.device_clone.fallback_manager import (FallbackManager,
+                                               get_global_fallback_manager,
+                                               set_global_fallback_manager)
 
 
 @pytest.fixture(autouse=True)

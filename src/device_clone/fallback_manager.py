@@ -14,23 +14,13 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Final,
-    List,
-    Optional,
-    Protocol,
-    Set,
-    Tuple,
-    TypeVar,
-    Union,
-)
+from typing import (Any, Callable, Dict, Final, List, Optional, Protocol, Set,
+                    Tuple, TypeVar, Union)
 
 from src.string_utils import log_error_safe, log_info_safe, log_warning_safe
 
-from ..utils.validation_constants import SENSITIVE_TOKENS, DEVICE_IDENTIFICATION_FIELDS
+from ..utils.validation_constants import (DEVICE_IDENTIFICATION_FIELDS,
+                                          SENSITIVE_TOKENS)
 
 # Type variable for return type of handler functions
 T = TypeVar("T")
