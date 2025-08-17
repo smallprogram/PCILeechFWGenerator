@@ -356,6 +356,10 @@ class ContextBuilder:
             "enable_pme": power_config.enable_pme,
             "enable_wake_events": power_config.enable_wake_events,
             "transition_cycles": tc_dict,
+            # Mirror the unified context behavior: provide interface signal flag
+            "has_interface_signals": getattr(
+                power_config, "has_interface_signals", False
+            ),
         }
 
     @staticmethod
@@ -510,6 +514,8 @@ class ContextBuilder:
             "subsys_device_id": device_config["subsystem_device_id"],
             "class_code": device_config["class_code"],
             "revision_id": device_config["revision_id"],
+            # Conservative default: templates may check for option ROM presence
+            "has_option_rom": device_config.get("has_option_rom", False),
         }
 
     @staticmethod
@@ -631,7 +637,16 @@ class ContextBuilder:
         enhanced_context = {
             # Convert essential context objects to TemplateObjects
             "device_config": ensure_template_object(
-                template_context["device_config"], "device_config"
+                # Ensure device_config has a conservative default for manufacturing variance
+                dict(
+                    {
+                        **template_context.get("device_config", {}),
+                        "has_manufacturing_variance": template_context.get(
+                            "device_config", {}
+                        ).get("has_manufacturing_variance", False),
+                    }
+                ),
+                "device_config",
             ),
             "msix_config": ensure_template_object(
                 template_context.get("msix_config", {}), "msix_config"
@@ -695,6 +710,12 @@ class ContextBuilder:
             "vendor_id_hex": device_config["vendor_id"],
             "device_id_hex": device_config["device_id"],
             "device_specific_config": {},
+            # Provide conservative defaults for commonly-checked 'has_*' flags used in templates
+            # so templates can rely on attribute access without raising UndefinedError.
+            "has_option_rom": template_context.get("has_option_rom", False),
+            "has_manufacturing_variance": template_context.get(
+                "has_manufacturing_variance", False
+            ),
             # Add variables needed by pcileech_cfgspace.coe.j2 template
             "bar": template_context.get("bar", []),
             "table_offset_bir": template_context.get("msix_config", {}).get(
@@ -1161,10 +1182,14 @@ class AdvancedSVGenerator:
         self._validate_template_requirements()
 
         # Prepare template context - ensure both power_config and power_management are available
-        # since templates use both names
+        # since templates use both names. Wrap power management context with TemplateObject
+        # so templates can use attribute access (e.g., power_management.has_interface_signals).
         power_management_ctx = ContextBuilder.build_power_management_context(
             self.power_config
         )
+        # Convert dict -> TemplateObject for template compatibility if needed
+        if not isinstance(power_management_ctx, TemplateObject):
+            power_management_ctx = TemplateObject(power_management_ctx)
 
         # Create a modified power_config dictionary that includes enable_power_management
         power_config_dict = {"enable_power_management": True}

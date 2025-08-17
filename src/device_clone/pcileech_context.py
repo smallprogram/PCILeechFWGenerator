@@ -512,6 +512,43 @@ class PCILeechContextBuilder:
             if donor_template:
                 context = self._merge_donor_template(dict(context), donor_template)
 
+            # Ensure numeric ID aliases exist on top-level and device_config
+            try:
+                from src.utils.unified_context import _parse_int_maybe
+
+                try:
+                    context.setdefault(
+                        "vendor_id_int", _parse_int_maybe(context.get("vendor_id"))
+                    )
+                except Exception:
+                    context.setdefault("vendor_id_int", 0x8086)
+                try:
+                    context.setdefault(
+                        "device_id_int", _parse_int_maybe(context.get("device_id"))
+                    )
+                except Exception:
+                    context.setdefault("device_id_int", 0x0000)
+
+                # Also set aliases inside device_config dict if present
+                if isinstance(context.get("device_config"), dict):
+                    dc = context["device_config"]
+                    dc.setdefault("vendor_id_int", context.get("vendor_id_int", 0x8086))
+                    dc.setdefault("device_id_int", context.get("device_id_int", 0x0000))
+                elif hasattr(context.get("device_config"), "_data"):
+                    # TemplateObject-like
+                    try:
+                        context["device_config"]._data.setdefault(
+                            "vendor_id_int", context.get("vendor_id_int", 0x8086)
+                        )
+                        context["device_config"]._data.setdefault(
+                            "device_id_int", context.get("device_id_int", 0x0000)
+                        )
+                    except Exception:
+                        pass
+            except Exception:
+                # best-effort; not fatal
+                pass
+
             # Final validation
             self._validate_context_completeness(context)
 
@@ -524,6 +561,35 @@ class PCILeechContextBuilder:
 
             # Cast back to TemplateContext for type safety
             context = cast(TemplateContext, compatible_context)
+
+            # Ensure project and board are TemplateObjects with .name and .fpga_part
+            try:
+                from src.utils.unified_context import TemplateObject
+
+                if not isinstance(context.get("board_config"), TemplateObject):
+                    # board_config may be a dict
+                    context["board_config"] = TemplateObject(
+                        context.get(
+                            "board_config", {"name": "generic", "fpga_part": "xc7a35t"}
+                        )
+                    )
+
+                if not isinstance(context.get("board"), TemplateObject):
+                    # many templates expect 'board'
+                    context.setdefault(
+                        "board",
+                        context.get(
+                            "board_config",
+                            TemplateObject({"name": "generic", "fpga_part": "xc7a35t"}),
+                        ),
+                    )
+
+                if not isinstance(context.get("project"), TemplateObject):
+                    context.setdefault(
+                        "project", TemplateObject({"name": "pcileech_project"})
+                    )
+            except Exception:
+                pass
 
             log_info_safe(
                 self.logger,

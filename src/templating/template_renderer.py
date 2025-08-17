@@ -13,16 +13,31 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 from __version__ import __version__
-from string_utils import (generate_tcl_header_comment, log_debug_safe,
-                          log_error_safe, log_info_safe, log_warning_safe,
-                          safe_format)
+from string_utils import (
+    generate_tcl_header_comment,
+    log_debug_safe,
+    log_error_safe,
+    log_info_safe,
+    log_warning_safe,
+    safe_format,
+)
 from templates.template_mapping import update_template_path
+from src.utils.unified_context import ensure_template_compatibility
 
 try:
-    from jinja2 import (BaseLoader, Environment, FileSystemLoader,
-                        StrictUndefined, Template, TemplateError,
-                        TemplateNotFound, TemplateRuntimeError, Undefined,
-                        meta, nodes)
+    from jinja2 import (
+        BaseLoader,
+        Environment,
+        FileSystemLoader,
+        StrictUndefined,
+        Template,
+        TemplateError,
+        TemplateNotFound,
+        TemplateRuntimeError,
+        Undefined,
+        meta,
+        nodes,
+    )
     from jinja2.bccache import FileSystemBytecodeCache
     from jinja2.ext import Extension
     from jinja2.sandbox import SandboxedEnvironment
@@ -479,9 +494,16 @@ class TemplateRenderer:
         """
         template_name = update_template_path(template_name)
         try:
-            # Render the template directly with the provided context
+            # Ensure the provided context is template-compatible (convert nested dicts)
+            try:
+                compatible = ensure_template_compatibility(context)
+            except Exception:
+                # Fallback to the original context if conversion fails
+                compatible = context
+
+            # Render the template with a compatible context
             template = self.env.get_template(template_name)
-            return template.render(**context)
+            return template.render(**compatible)
 
         except TemplateError as e:
             error_msg = safe_format(
@@ -649,8 +671,9 @@ class TemplateRenderer:
 
         try:
             # Use the centralized validator
-            from src.templating.template_context_validator import \
-                validate_template_context
+            from src.templating.template_context_validator import (
+                validate_template_context,
+            )
 
             # Apply centralized validation with strict mode
             validated_context = validate_template_context(
@@ -699,8 +722,9 @@ class TemplateRenderer:
 
         # Clear template context validator cache
         try:
-            from src.templating.template_context_validator import \
-                clear_global_template_cache
+            from src.templating.template_context_validator import (
+                clear_global_template_cache,
+            )
 
             clear_global_template_cache()
         except ImportError:

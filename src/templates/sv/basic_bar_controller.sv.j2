@@ -3,8 +3,8 @@
 
 module pcileech_tlps128_bar_controller #(
     parameter BAR_APERTURE_SIZE = 131072,  // 128KB
-    parameter DEVICE_ID = 16'h{{ '%04x' | format(device_info.get('device_id', 0)) }},
-    parameter VENDOR_ID = 16'h{{ '%04x' | format(device_info.get('vendor_id', 0)) }}
+    parameter DEVICE_ID = 16'h{{ '%04x' % (device_config.device_id_int | default(0x1234)) }},
+    parameter VENDOR_ID = 16'h{{ '%04x' % (device_config.vendor_id_int | default(0x5678)) }}
 ) (
     input  logic        clk,
     input  logic        reset_n,

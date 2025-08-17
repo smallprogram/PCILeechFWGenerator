@@ -11,9 +11,11 @@ Context variables expected:
 #}
 {{ header }}
 
+{% from "_helpers.j2" import safe_fpga_part, safe_name %}
+
 puts "Creating PCIe IP core for device {{ device.vendor_id }}:{{ device.device_id }}..."
-puts "FPGA Part: {{ board.fpga_part }}"
-puts "Board: {{ board.name }}"
+puts "FPGA Part: {{ safe_fpga_part(board) }}"
+puts "Board: {{ safe_name(board) }}"
 
 # Update IP catalog to ensure all IP cores are available
 puts "Updating IP catalog..."

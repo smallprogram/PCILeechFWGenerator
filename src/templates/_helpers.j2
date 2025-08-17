@@ -1,0 +1,73 @@
+{# Small helper macros to safely read project/board fields when they may be strings #}
+{% macro safe_name(obj) -%}
+  {%- if obj is string -%}
+    {{ obj }}
+  {%- else -%}
+    {{ (obj.name | default('pcileech_project')) }}
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro safe_fpga_part(board) -%}
+  {%- if board is string -%}
+    {{ board }}
+  {%- else -%}
+  {{ (board.fpga_part | default('xc7a35t')) if (board is mapping or board is defined) else ('xc7a35t') }}
+  {%- endif -%}
+{%- endmacro %}
+
+{#
+Safe attribute accessor: returns attribute `name` from `obj` if available,
+or `default` if the object is a string or attribute is missing.
+#}
+{% macro safe_attr(obj, name, default='') -%}
+  {%- if obj is not defined -%}
+    {{ default }}
+  {%- elif obj is string -%}
+    {{ default }}
+  {%- else -%}
+    {# Use obj.get(name, default) so it works for TemplateObject instances and dicts #}
+    {%- if obj is mapping -%}
+      {{ obj.get(name, default) }}
+    {%- else -%}
+      {{ (getattr(obj, name, default) if obj is not none else default) }}
+    {%- endif -%}
+  {%- endif -%}
+{%- endmacro %}
+
+{#
+Convenience aliases for the common board fields. Templates should call
+`board_name(board)` and `board_fpga_part(board)` instead of accessing
+`board.name`/`board.fpga_part` directly. These handle strings, dicts,
+TemplateObject-like objects, and undefined values.
+#}
+{% macro board_name(board, default='Unknown') -%}
+  {%- if board is not defined -%}
+    {{ default }}
+  {%- elif board is string -%}
+    {{ board }}
+  {%- else -%}
+    {{ (board.name | default(default)) }}
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro board_fpga_part(board, default='xc7a35t') -%}
+  {%- if board is not defined -%}
+    {{ default }}
+  {%- elif board is string -%}
+    {{ board }}
+  {%- else -%}
+  {{ safe_attr(board, 'fpga_part', default) }}
+  {%- endif -%}
+{%- endmacro %}
+
+{# Backwards-compatible safe aliases with unique names to avoid
+  colliding with top-level context keys like `board_name` which can
+  be a plain string in legacy templates. Templates should import
+  `safe_board_name` / `safe_board_fpga_part` to avoid ambiguity. #}
+{% macro safe_board_name(board, default='Unknown') -%}
+  {{- board_name(board, default) -}}
+{%- endmacro %}
+
+{% macro safe_board_fpga_part(board, default='xc7a35t') -%}
+  {{- board_fpga_part(board, default) -}}
+{%- endmacro %}
