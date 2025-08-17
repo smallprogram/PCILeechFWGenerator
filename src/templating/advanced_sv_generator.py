@@ -12,15 +12,21 @@ Advanced SystemVerilog Generation feature for the PCILeechFWGenerator project.
 import random
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 # Import device configuration system
 from ..device_clone import DeviceConfiguration as NewDeviceConfiguration
-from ..device_clone import (ManufacturingVarianceSimulator, VarianceModel,
-                            get_device_config)
+from ..device_clone import (
+    ManufacturingVarianceSimulator,
+    VarianceModel,
+    get_device_config,
+)
 from ..device_clone.manufacturing_variance import DeviceClass
+from ..utils.unified_context import TemplateObject
+
 # Import from centralized utils
 from ..string_utils import generate_sv_header_comment
+
 # Import template renderer
 from . import TemplateRenderer, TemplateRenderError
 
@@ -212,45 +218,53 @@ class SystemVerilogGenerator:
             device_id=self.device_config.device_id,
         )
 
-    def _build_power_context(self) -> Dict:
+    def _build_power_context(self) -> TemplateObject:
         """Build power management context for templates."""
-        return {
-            "supported_states": [
-                state.value for state in self.power_config.supported_power_states
-            ],
-            "transition_cycles": {
-                "d0_to_d1": self.power_config.d0_to_d1_cycles,
-                "d1_to_d0": self.power_config.d1_to_d0_cycles,
-                "d0_to_d3": self.power_config.d0_to_d3_cycles,
-                "d3_to_d0": self.power_config.d3_to_d0_cycles,
-            },
-            "enable_clock_gating": self.power_config.enable_clock_gating,
-            "enable_power_gating": self.power_config.enable_power_gating,
-        }
+        return TemplateObject(
+            {
+                "supported_states": [
+                    state.value for state in self.power_config.supported_power_states
+                ],
+                "transition_cycles": TemplateObject(
+                    {
+                        "d0_to_d1": self.power_config.d0_to_d1_cycles,
+                        "d1_to_d0": self.power_config.d1_to_d0_cycles,
+                        "d0_to_d3": self.power_config.d0_to_d3_cycles,
+                        "d3_to_d0": self.power_config.d3_to_d0_cycles,
+                    }
+                ),
+                "enable_clock_gating": self.power_config.enable_clock_gating,
+                "enable_power_gating": self.power_config.enable_power_gating,
+            }
+        )
 
-    def _build_perf_context(self) -> Dict:
+    def _build_perf_context(self) -> TemplateObject:
         """Build performance monitoring context for templates."""
-        return {
-            "counter_width": self.perf_config.counter_width,
-            "enable_bandwidth": self.perf_config.enable_bandwidth_monitoring,
-            "enable_latency": self.perf_config.enable_latency_monitoring,
-            "enable_error_rate": self.perf_config.enable_error_rate_monitoring,
-            "sample_period": self.perf_config.sample_period_cycles,
-            "enable_overflow_interrupts": self.perf_config.enable_overflow_interrupts,
-        }
+        return TemplateObject(
+            {
+                "counter_width": self.perf_config.counter_width,
+                "enable_bandwidth": self.perf_config.enable_bandwidth_monitoring,
+                "enable_latency": self.perf_config.enable_latency_monitoring,
+                "enable_error_rate": self.perf_config.enable_error_rate_monitoring,
+                "sample_period": self.perf_config.sample_period_cycles,
+                "enable_overflow_interrupts": self.perf_config.enable_overflow_interrupts,
+            }
+        )
 
-    def _build_error_context(self) -> Dict:
+    def _build_error_context(self) -> TemplateObject:
         """Build error handling context for templates."""
-        return {
-            "correctable_errors": self.error_config.enable_correctable_error_detection,
-            "uncorrectable_errors": self.error_config.enable_uncorrectable_error_detection,
-            "fatal_errors": self.error_config.enable_fatal_error_detection,
-            "automatic_recovery": self.error_config.enable_automatic_recovery,
-            "max_retry_count": self.error_config.max_retry_count,
-            "recovery_cycles": self.error_config.error_recovery_cycles,
-            "enable_logging": self.error_config.enable_error_logging,
-            "enable_interrupts": self.error_config.enable_error_interrupts,
-        }
+        return TemplateObject(
+            {
+                "correctable_errors": self.error_config.enable_correctable_error_detection,
+                "uncorrectable_errors": self.error_config.enable_uncorrectable_error_detection,
+                "fatal_errors": self.error_config.enable_fatal_error_detection,
+                "automatic_recovery": self.error_config.enable_automatic_recovery,
+                "max_retry_count": self.error_config.max_retry_count,
+                "error_recovery_cycles": self.error_config.error_recovery_cycles,
+                "enable_logging": self.error_config.enable_error_logging,
+                "enable_interrupts": self.error_config.enable_error_interrupts,
+            }
+        )
 
     def generate_clock_crossing_module(
         self, variance_model: Optional[VarianceModel] = None

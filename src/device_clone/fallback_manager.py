@@ -11,16 +11,27 @@ without needing to define defaults in the templates themselves.
 import copy
 import logging
 import re
+import threading
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import (Any, Callable, Dict, Final, List, Optional, Protocol, Set,
-                    Tuple, TypeVar, Union)
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Final,
+    List,
+    Optional,
+    Protocol,
+    Set,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 from src.string_utils import log_error_safe, log_info_safe, log_warning_safe
 
-from ..utils.validation_constants import (DEVICE_IDENTIFICATION_FIELDS,
-                                          SENSITIVE_TOKENS)
+from ..utils.validation_constants import DEVICE_IDENTIFICATION_FIELDS, SENSITIVE_TOKENS
 
 # Type variable for return type of handler functions
 T = TypeVar("T")
@@ -1040,6 +1051,7 @@ class FallbackManager:
 
 # Global singleton accessor for sharing a single FallbackManager across the app
 _GLOBAL_FALLBACK_MANAGER: Optional["FallbackManager"] = None
+_FALLBACK_MANAGER_LOCK = threading.Lock()
 
 
 def get_global_fallback_manager(
@@ -1052,16 +1064,31 @@ def get_global_fallback_manager(
     If a global manager already exists, the existing instance is returned.
     The first call may pass initialization parameters which will be used to
     construct the singleton.
+
+    This function is thread-safe using double-checked locking pattern.
     """
     global _GLOBAL_FALLBACK_MANAGER
-    if _GLOBAL_FALLBACK_MANAGER is None:
-        _GLOBAL_FALLBACK_MANAGER = FallbackManager(
-            config_path=config_path, mode=mode, allowed_fallbacks=allowed_fallbacks
-        )
+
+    # First check without lock (fast path for already initialized case)
+    if _GLOBAL_FALLBACK_MANAGER is not None:
+        return _GLOBAL_FALLBACK_MANAGER
+
+    # Acquire lock for initialization
+    with _FALLBACK_MANAGER_LOCK:
+        # Double-check after acquiring lock in case another thread initialized it
+        if _GLOBAL_FALLBACK_MANAGER is None:
+            _GLOBAL_FALLBACK_MANAGER = FallbackManager(
+                config_path=config_path, mode=mode, allowed_fallbacks=allowed_fallbacks
+            )
+
     return _GLOBAL_FALLBACK_MANAGER
 
 
 def set_global_fallback_manager(manager: Optional["FallbackManager"]) -> None:
-    """Set or clear the global fallback manager (useful for tests)."""
+    """Set or clear the global fallback manager (useful for tests).
+
+    This function is thread-safe.
+    """
     global _GLOBAL_FALLBACK_MANAGER
-    _GLOBAL_FALLBACK_MANAGER = manager
+    with _FALLBACK_MANAGER_LOCK:
+        _GLOBAL_FALLBACK_MANAGER = manager

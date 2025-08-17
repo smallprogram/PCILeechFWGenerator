@@ -12,8 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from .validation_constants import (CRITICAL_TEMPLATE_CONTEXT_KEYS,
-                                   KNOWN_DEVICE_TYPES)
+from .validation_constants import CRITICAL_TEMPLATE_CONTEXT_KEYS, KNOWN_DEVICE_TYPES
 
 
 def get_package_version() -> str:
@@ -80,9 +79,20 @@ class TemplateObject:
 
         # Set attributes for dot notation access
         for key, value in data.items():
+            # Ensure key is a string
+            if isinstance(key, str):
+                clean_key = key
+            elif hasattr(key, "name"):
+                clean_key = key.name
+            elif hasattr(key, "value"):
+                clean_key = str(key.value)
+            else:
+                clean_key = str(key)
+
+            # Process value
             if isinstance(value, dict):
                 # Recursively convert nested dicts to TemplateObjects
-                setattr(self, key, TemplateObject(value))
+                setattr(self, clean_key, TemplateObject(value))
             elif isinstance(value, list):
                 # Handle lists that might contain dicts
                 processed_list = []
@@ -91,9 +101,16 @@ class TemplateObject:
                         processed_list.append(TemplateObject(item))
                     else:
                         processed_list.append(item)
-                setattr(self, key, processed_list)
+                setattr(self, clean_key, processed_list)
             else:
-                setattr(self, key, value)
+                # Convert enum values to their string representation
+                if hasattr(value, "value"):
+                    clean_value = value.value
+                elif hasattr(value, "name"):
+                    clean_value = value.name
+                else:
+                    clean_value = value
+                setattr(self, clean_key, clean_value)
 
     def __getitem__(self, key):
         """Allow dictionary-style access."""
@@ -764,28 +781,30 @@ class UnifiedContextBuilder:
             "performance_counters": perf_config,
             # Device-specific signals - merge into main context
             **device_signals.to_dict(),
-            # Device configuration
-            "device_config": {
-                "vendor_id": vendor_id,
-                "device_id": device_id,
-                "subsystem_vendor_id": vendor_id,
-                "subsystem_device_id": device_id,
-                "class_code": "020000" if device_type == "network" else "000000",
-                "revision_id": "01",
-                "max_payload_size": 256,
-                "msi_vectors": 4,
-                "enable_advanced_features": True,
-                "enable_dma_operations": True,
-                "device_type": device_type,  # Add device_type to device_config
-                "device_class": device_class,  # Add device_class to device_config
-            },
+            # Device configuration (converted to TemplateObject for template consistency)
+            "device_config": TemplateObject(
+                {
+                    "vendor_id": vendor_id,
+                    "device_id": device_id,
+                    "subsystem_vendor_id": vendor_id,
+                    "subsystem_device_id": device_id,
+                    "class_code": "020000" if device_type == "network" else "000000",
+                    "revision_id": "01",
+                    "max_payload_size": 256,
+                    "msi_vectors": 4,
+                    "enable_advanced_features": True,
+                    "enable_dma_operations": True,
+                    "device_type": device_type,  # Add device_type to device_config
+                    "device_class": device_class,  # Add device_class to device_config
+                }
+            ),
             # Template logic flags
             **logic_flags.to_dict(),
-            # Additional configurations
-            "config_space": {"size": 256, "raw_data": ""},
-            "bar_config": {"bars": []},
-            "interrupt_config": {"vectors": 4},
-            "msix_config": {"table_size": 4},
+            # Additional configurations (converted to TemplateObjects)
+            "config_space": TemplateObject({"size": 256, "raw_data": ""}),
+            "bar_config": TemplateObject({"bars": []}),
+            "interrupt_config": TemplateObject({"vectors": 4}),
+            "msix_config": TemplateObject({"table_size": 4}),
             "timing_config": type(
                 "TimingConfig",
                 (),

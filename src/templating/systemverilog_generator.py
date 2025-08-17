@@ -24,24 +24,39 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from functools import lru_cache
 from pathlib import Path
-from typing import (Any, Dict, List, Optional, Set, Tuple, TypedDict, Union,
-                    cast)
+from typing import Any, Dict, List, Optional, Set, Tuple, TypedDict, Union, cast
 
 from src.__version__ import __version__
 from src.device_clone.device_config import DeviceClass, DeviceType
 from src.device_clone.manufacturing_variance import VarianceModel
-from src.error_utils import (ErrorCategory, extract_root_cause,
-                             format_concise_error, format_user_friendly_error,
-                             is_user_fixable_error)
-from src.string_utils import (generate_sv_header_comment, log_debug_safe,
-                              log_error_safe, log_info_safe, log_warning_safe,
-                              safe_format)
-from src.utils.attribute_access import (get_attr_or_raise, has_attr,
-                                        require_attrs, safe_get_attr)
+from src.error_utils import (
+    ErrorCategory,
+    extract_root_cause,
+    format_concise_error,
+    format_user_friendly_error,
+    is_user_fixable_error,
+)
+from src.string_utils import (
+    generate_sv_header_comment,
+    log_debug_safe,
+    log_error_safe,
+    log_info_safe,
+    log_warning_safe,
+    safe_format,
+)
+from src.utils.attribute_access import (
+    get_attr_or_raise,
+    has_attr,
+    require_attrs,
+    safe_get_attr,
+)
 
 from ..utils.unified_context import TemplateObject
-from .advanced_sv_features import (AdvancedSVFeatureGenerator,
-                                   ErrorHandlingConfig, PerformanceConfig)
+from .advanced_sv_features import (
+    AdvancedSVFeatureGenerator,
+    ErrorHandlingConfig,
+    PerformanceConfig,
+)
 from .advanced_sv_power import PowerManagementConfig
 from .template_renderer import TemplateRenderer, TemplateRenderError
 
@@ -535,53 +550,120 @@ class ContextBuilder:
         enable_scatter_gather = getattr(device_obj, "enable_dma", False)
 
         # Build enhanced context incrementally for better performance
-        # Validate and coerce active_device_config to a TemplateObject
-        raw_active = template_context.get("active_device_config", None)
+        # Standardize all context objects to TemplateObject for consistent template access
+        def ensure_template_object(obj, name="object"):
+            """Convert any object to TemplateObject for consistent template access."""
+            if isinstance(obj, TemplateObject):
+                return obj
+            elif isinstance(obj, dict):
+                # Clean the dictionary to ensure all keys are strings
+                cleaned_dict = {}
+                for key, value in obj.items():
+                    # Ensure key is a string
+                    if isinstance(key, str):
+                        clean_key = key
+                    elif hasattr(key, "name"):
+                        clean_key = key.name
+                    elif hasattr(key, "value"):
+                        clean_key = str(key.value)
+                    else:
+                        clean_key = str(key)
 
+                    # Convert enum values to their string representation
+                    if hasattr(value, "value"):
+                        clean_value = value.value
+                    elif hasattr(value, "name"):
+                        clean_value = value.name
+                    else:
+                        clean_value = value
+
+                    cleaned_dict[clean_key] = clean_value
+
+                return TemplateObject(cleaned_dict)
+            elif hasattr(obj, "__dict__"):
+                # Convert regular objects to TemplateObject, but handle special types
+                obj_dict = {}
+                for key, value in vars(obj).items():
+                    # Ensure key is a string
+                    if isinstance(key, str):
+                        clean_key = key
+                    elif hasattr(key, "name"):
+                        clean_key = key.name
+                    elif hasattr(key, "value"):
+                        clean_key = str(key.value)
+                    else:
+                        clean_key = str(key)
+
+                    # Convert enum values to their string representation
+                    if hasattr(value, "value"):
+                        clean_value = value.value
+                    elif hasattr(value, "name"):
+                        clean_value = value.name
+                    else:
+                        clean_value = value
+
+                    obj_dict[clean_key] = clean_value
+
+                return TemplateObject(obj_dict)
+            else:
+                raise TemplateRenderError(
+                    f"Cannot convert {name} of type {type(obj).__name__} to TemplateObject. "
+                    "Expected dict, TemplateObject, or object with __dict__."
+                )
+
+        # Ensure active_device_config is a TemplateObject
+        raw_active = template_context.get("active_device_config", None)
         if raw_active is None:
             raise TemplateRenderError(
                 "Missing critical template field: 'active_device_config'. "
                 "This should be provided by the context builder (e.g. PCILeechContextBuilder)."
             )
 
-        # If it's already a TemplateObject, use it. If it's a dict, require 'enabled' key and wrap it.
-        if isinstance(raw_active, TemplateObject):
-            active_device_config_obj = raw_active
-        elif isinstance(raw_active, dict):
-            if "enabled" not in raw_active:
-                raise TemplateRenderError(
-                    "Malformed 'active_device_config' dict: missing required key 'enabled'. "
-                    "A donor template or merge may have overwritten the value."
-                )
-            active_device_config_obj = TemplateObject(raw_active)
-        else:
-            # Accept objects that expose an 'enabled' attribute (for compatibility)
-            if hasattr(raw_active, "enabled"):
-                active_device_config_obj = raw_active
-            else:
-                raise TemplateRenderError(
-                    "Invalid type for 'active_device_config' in template context: "
-                    f"{type(raw_active).__name__}. Expected TemplateObject, dict with 'enabled', or object with 'enabled' attribute."
-                )
+        active_device_config_obj = ensure_template_object(
+            raw_active, "active_device_config"
+        )
 
+        # Ensure it has the 'enabled' attribute
+        if not hasattr(active_device_config_obj, "enabled"):
+            active_device_config_obj["enabled"] = True
+
+        # Standardize all context objects to TemplateObject and ensure required attributes
         enhanced_context = {
-            # Copy only essential keys from original context
-            "device_config": template_context["device_config"],
-            "msix_config": template_context.get("msix_config", {}),
-            "bar_config": template_context.get("bar_config", {}),
-            "board_config": template_context.get("board_config", {}),
-            "interrupt_config": template_context.get("interrupt_config", {}),
-            "config_space_data": template_context.get("config_space_data", {}),
-            "timing_config": template_context.get("timing_config", {}),
-            "pcileech_config": template_context.get("pcileech_config", {}),
+            # Convert essential context objects to TemplateObjects
+            "device_config": ensure_template_object(
+                template_context["device_config"], "device_config"
+            ),
+            "msix_config": ensure_template_object(
+                template_context.get("msix_config", {}), "msix_config"
+            ),
+            "bar_config": ensure_template_object(
+                template_context.get("bar_config", {}), "bar_config"
+            ),
+            "board_config": ensure_template_object(
+                template_context.get("board_config", {}), "board_config"
+            ),
+            "interrupt_config": ensure_template_object(
+                template_context.get("interrupt_config", {}), "interrupt_config"
+            ),
+            "config_space_data": ensure_template_object(
+                template_context.get("config_space_data", {}), "config_space_data"
+            ),
+            "timing_config": ensure_template_object(
+                template_context.get("timing_config", {}), "timing_config"
+            ),
+            "pcileech_config": ensure_template_object(
+                template_context.get("pcileech_config", {}), "pcileech_config"
+            ),
             "active_device_config": active_device_config_obj,
             # CRITICAL: device_signature must be present - use direct access for fail-fast
             "device_signature": template_context["device_signature"],
-            "generation_metadata": template_context.get("generation_metadata", {}),
-            # Add power and error config objects for template compatibility
-            "power_config": power_config,
-            "error_config": error_config,
-            "perf_config": perf_config,
+            "generation_metadata": ensure_template_object(
+                template_context.get("generation_metadata", {}), "generation_metadata"
+            ),
+            # Add power and error config objects for template compatibility (as TemplateObjects)
+            "power_config": ensure_template_object(vars(power_config), "power_config"),
+            "error_config": ensure_template_object(vars(error_config), "error_config"),
+            "perf_config": ensure_template_object(vars(perf_config), "perf_config"),
             # Add new template variables
             "header": header,
             "device": device_info,
@@ -601,7 +683,9 @@ class ContextBuilder:
             "enable_performance_counters": getattr(
                 perf_config, "enable_transaction_counters", True
             ),
-            "enable_error_detection": getattr(error_config, "enable_ecc", True),
+            "enable_error_detection": getattr(
+                error_config, "enable_error_detection", True
+            ),
             "fifo_type": "block_ram",
             "fifo_depth": DEFAULT_FIFO_DEPTH,
             "data_width": DEFAULT_DATA_WIDTH,
@@ -632,13 +716,10 @@ class ContextBuilder:
             ),
         }
 
-        # Add enable_advanced_features to device_config section if it doesn't exist
-        if "device_config" in enhanced_context and isinstance(
-            enhanced_context["device_config"], dict
-        ):
-            enhanced_context["device_config"]["enable_advanced_features"] = getattr(
-                error_config, "enable_ecc", True
-            )
+        # Ensure device_config has enable_advanced_features attribute
+        # Determine the value based on error handling configuration
+        enable_advanced = getattr(error_config, "enable_error_detection", True)
+        enhanced_context["device_config"]["enable_advanced_features"] = enable_advanced
 
         return enhanced_context
 
