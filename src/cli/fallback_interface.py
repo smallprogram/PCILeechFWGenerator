@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 import logging
 import os
 import sys
@@ -103,6 +104,15 @@ class FallbackInterface:
         Returns:
             True if validation passed, False otherwise
         """
+        # Snapshot the incoming template_context before applying fallbacks so
+        # a user (especially on macOS where they may run the CLI) can share
+        # the exact pre-fallback keys and types for debugging.
+        try:
+            self._write_pre_fallback_snapshot(template_context)
+        except Exception:
+            # Don't fail validation because snapshot failed; just log.
+            logger.exception("Failed to write pre-fallback snapshot")
+
         # First apply fallbacks
         template_context = self.fallback_manager.apply_fallbacks(template_context)
 
@@ -308,6 +318,71 @@ class FallbackInterface:
         }
 
         return descriptions.get(var_name, "No description available")
+
+    def _write_pre_fallback_snapshot(self, template_context: Dict[str, Any]) -> None:
+        """
+        Write a sanitized snapshot of the template_context to a JSON file before
+        fallbacks are applied. Sensitive/hardware-only variables (as defined by
+        the FallbackManager) are removed.
+
+        The file is written next to the configured export path so CLI users can
+        easily find and attach it to bug reports.
+        """
+
+        # Instead of writing a JSON file, log a sanitized snapshot so remote
+        # users (Linux) can paste logs. We remove sensitive/hardware-only
+        # fields and truncate long values to keep logs readable.
+        def _sanitize(ctx: Any, path: List[str]) -> Any:
+            if not isinstance(ctx, dict):
+                return ctx
+            out: Dict[str, Any] = {}
+            for k, v in ctx.items():
+                var_name = ".".join(path + [k]) if path else k
+                if self._is_sensitive_var(var_name):
+                    continue
+                if isinstance(v, dict):
+                    out[k] = _sanitize(v, path + [k])
+                else:
+                    # Keep values but truncate their string representation
+                    try:
+                        s = repr(v)
+                    except Exception:
+                        s = f"<{type(v).__name__}>"
+                    if len(s) > 200:
+                        s = s[:200] + "...<truncated>"
+                    out[k] = s
+            return out
+
+        def _shape(ctx: Any) -> Any:
+            if not isinstance(ctx, dict):
+                return type(ctx).__name__
+            return {k: _shape(v) for k, v in ctx.items()}
+
+        sanitized = _sanitize(template_context or {}, [])
+        shape = _shape(sanitized)
+
+        # Log shape and a truncated sanitized JSON for debugging.
+        try:
+            # Log the structure (keys/types)
+            log_info_safe(
+                logger,
+                "Pre-fallback snapshot (shape): {shape}",
+                prefix="FALLBACK",
+                shape=shape,
+            )
+
+            # Log sanitized content (truncated)
+            s = json.dumps(sanitized, indent=2, sort_keys=True)
+            if len(s) > 6000:
+                s = s[:6000] + "...<truncated>"
+            log_info_safe(
+                logger,
+                "Pre-fallback snapshot (sanitized): {snapshot}",
+                prefix="FALLBACK",
+                snapshot=s,
+            )
+        except Exception:
+            logger.exception("Failed to log pre-fallback snapshot")
 
     # local alias to the manager's helper (keeps previous API used in some places)
     def _is_sensitive_var(self, var_name: str) -> bool:

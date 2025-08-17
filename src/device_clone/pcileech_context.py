@@ -25,14 +25,15 @@ from datetime import datetime
 from enum import Enum
 from functools import lru_cache
 from pathlib import Path
-from typing import (TYPE_CHECKING, Any, Dict, List, Optional, Tuple, TypedDict,
-                    Union)
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, TypedDict, Union
 
-from src.cli.vfio_constants import (VFIO_DEVICE_GET_REGION_INFO,
-                                    VFIO_REGION_INFO_FLAG_MMAP,
-                                    VFIO_REGION_INFO_FLAG_READ,
-                                    VFIO_REGION_INFO_FLAG_WRITE,
-                                    VfioRegionInfo)
+from src.cli.vfio_constants import (
+    VFIO_DEVICE_GET_REGION_INFO,
+    VFIO_REGION_INFO_FLAG_MMAP,
+    VFIO_REGION_INFO_FLAG_READ,
+    VFIO_REGION_INFO_FLAG_WRITE,
+    VfioRegionInfo,
+)
 from src.device_clone.behavior_profiler import BehaviorProfile
 from src.device_clone.config_space_manager import BarInfo
 from src.device_clone.fallback_manager import get_global_fallback_manager
@@ -43,9 +44,14 @@ if TYPE_CHECKING:
 from src.device_clone.overlay_mapper import OverlayMapper
 from src.error_utils import extract_root_cause
 from src.exceptions import ContextError
-from src.string_utils import (format_bar_summary_table, format_bar_table,
-                              format_raw_bar_table, log_error_safe,
-                              log_info_safe, log_warning_safe)
+from src.string_utils import (
+    format_bar_summary_table,
+    format_bar_table,
+    format_raw_bar_table,
+    log_error_safe,
+    log_info_safe,
+    log_warning_safe,
+)
 from src.utils.attribute_access import safe_get_attr
 
 from ..utils.validation_constants import REQUIRED_CONTEXT_SECTIONS
@@ -584,8 +590,7 @@ class PCILeechContextBuilder:
             k in config_space_data
             for k in ["vendor_id", "device_id", "class_code", "revision_id"]
         ):
-            from src.device_clone.config_space_manager import \
-                ConfigSpaceManager
+            from src.device_clone.config_space_manager import ConfigSpaceManager
 
             manager = ConfigSpaceManager(self.device_bdf)
             # Read config space and extract device info
@@ -594,21 +599,44 @@ class PCILeechContextBuilder:
 
         # ConfigSpaceManager already handles conversion and fallbacks
         # Just create DeviceIdentifiers from the extracted data
+        # Determine subsystem IDs; treat missing/empty/'0000' as None so
+        # DeviceIdentifiers will fallback to main vendor/device IDs.
+        def _normalize_subsys(value, main_value):
+            if value is None:
+                return None
+            if isinstance(value, str):
+                v = value.strip()
+                if v == "" or v.lower() == "none" or v == "0000":
+                    return None
+                return v
+            # Numeric types - format as hex string without 0x
+            try:
+                return f"{int(value):04x}"
+            except Exception:
+                return None
+
+        subsys_vendor = _normalize_subsys(
+            config_space_data.get("subsystem_vendor_id"),
+            config_space_data.get("vendor_id"),
+        )
+        subsys_device = _normalize_subsys(
+            config_space_data.get("subsystem_device_id"),
+            config_space_data.get("device_id"),
+        )
+
+        # If subsystem IDs are missing, fallback to main vendor/device IDs
+        if subsys_vendor is None:
+            subsys_vendor = str(config_space_data.get("vendor_id", "0000"))
+        if subsys_device is None:
+            subsys_device = str(config_space_data.get("device_id", "0000"))
+
         return DeviceIdentifiers(
             vendor_id=str(config_space_data.get("vendor_id", "0000")),
             device_id=str(config_space_data.get("device_id", "0000")),
             class_code=str(config_space_data.get("class_code", "000000")),
             revision_id=str(config_space_data.get("revision_id", "00")),
-            subsystem_vendor_id=str(
-                config_space_data.get(
-                    "subsystem_vendor_id", config_space_data.get("vendor_id", "0000")
-                )
-            ),
-            subsystem_device_id=str(
-                config_space_data.get(
-                    "subsystem_device_id", config_space_data.get("device_id", "0000")
-                )
-            ),
+            subsystem_vendor_id=subsys_vendor,
+            subsystem_device_id=subsys_device,
         )
 
     def _build_device_config(
@@ -622,6 +650,10 @@ class PCILeechContextBuilder:
             "device_bdf": self.device_bdf,
             **asdict(identifiers),
             "enable_perf_counters": getattr(
+                self.config, "enable_advanced_features", False
+            ),
+            # Some templates expect an explicit enable_advanced_features flag
+            "enable_advanced_features": getattr(
                 self.config, "enable_advanced_features", False
             ),
             "enable_dma_operations": getattr(
@@ -691,8 +723,7 @@ class PCILeechContextBuilder:
         if not all(
             k in data for k in ["config_space_hex", "config_space_size", "bars"]
         ):
-            from src.device_clone.config_space_manager import \
-                ConfigSpaceManager
+            from src.device_clone.config_space_manager import ConfigSpaceManager
 
             manager = ConfigSpaceManager(self.device_bdf)
             config_space = manager.read_vfio_config_space()
@@ -1000,44 +1031,101 @@ class PCILeechContextBuilder:
 
     def _build_pcileech_config(self, identifiers: DeviceIdentifiers) -> Dict[str, Any]:
         """Build PCILeech-specific configuration using dynamic values."""
-        max_payload_size = getattr(self.config, "max_payload_size", 256)
-        max_read_request = getattr(self.config, "max_read_request", 512)
-
-        # Try to get actual values from device capabilities
-        if hasattr(self.config, "device_config") and self.config.device_config:
-            caps = getattr(self.config.device_config, "capabilities", None)
-            if caps:
-                if hasattr(caps, "max_payload_size"):
-                    max_payload_size = caps.max_payload_size
-                if hasattr(caps, "max_read_request"):
-                    max_read_request = caps.max_read_request
-
-        # Get timing values from device capabilities if available
-        completion_timeout = 50000  # Default 50ms
-        replay_timer = 1000  # Default 1ms
-
-        if hasattr(self.config, "device_config") and self.config.device_config:
-            caps = getattr(self.config.device_config, "capabilities", None)
-            if caps:
-                # Use actual device capabilities
-                if hasattr(caps, "completion_timeout"):
-                    completion_timeout = caps.completion_timeout
-                if hasattr(caps, "replay_timer"):
-                    replay_timer = caps.replay_timer
-
-        return {
+        # Gather defaults and device/capability-provided values but avoid
+        # overwriting any explicit configuration present in self.config.pcileech_config
+        defaults = {
             "device_signature": identifiers.device_signature,
             "full_signature": identifiers.full_signature,
             "enable_shadow_config": True,
             "enable_bar_emulation": True,
-            "enable_dma": getattr(self.config, "enable_dma_operations", False),
-            "enable_interrupts": True,
-            "max_payload_size": max_payload_size,
-            "max_read_request": max_read_request,
-            "completion_timeout": completion_timeout,
-            "replay_timer": replay_timer,
-            "ack_nak_latency": 100,  # This is typically fixed at 100ns
+            # sensible defaults; these may be overridden from device capabilities
+            "max_payload_size": getattr(self.config, "max_payload_size", 256),
+            "max_read_request": getattr(self.config, "max_read_request", 512),
+            "completion_timeout": 50000,
+            "replay_timer": 1000,
+            "ack_nak_latency": 100,
+            # buffer_size is expressed in bytes
+            "buffer_size": None,
+            # DMA/scatter settings
+            "enable_dma": getattr(self.config, "enable_dma_operations", True),
+            "enable_scatter_gather": getattr(
+                self.config, "enable_dma_operations", True
+            ),
+            # backwards/alternate names some templates or older code may expect
+            "max_read_req_size": None,
+            "max_payload": None,
         }
+
+        # Merge in values from any device-specific capabilities if available
+        caps = None
+        if hasattr(self.config, "device_config") and self.config.device_config:
+            caps = getattr(self.config.device_config, "capabilities", None)
+
+        if caps:
+            # Prefer explicit capability attributes when present
+            if hasattr(caps, "max_payload_size"):
+                defaults["max_payload_size"] = caps.max_payload_size
+            if hasattr(caps, "max_read_request"):
+                defaults["max_read_request"] = caps.max_read_request
+            if hasattr(caps, "completion_timeout"):
+                defaults["completion_timeout"] = caps.completion_timeout
+            if hasattr(caps, "replay_timer"):
+                defaults["replay_timer"] = caps.replay_timer
+
+        # Finalize derived/alias fields
+        if defaults.get("buffer_size") is None:
+            # buffer_size default: 4x max_payload_size (bytes)
+            defaults["buffer_size"] = int(defaults.get("max_payload_size", 256)) * 4
+
+        # Provide aliases to avoid template mismatch
+        defaults["max_read_req_size"] = defaults.get("max_read_request")
+        defaults["max_payload"] = defaults.get("max_payload_size")
+
+        project_overrides = {}
+        if hasattr(self.config, "pcileech_config") and isinstance(
+            getattr(self.config, "pcileech_config"), dict
+        ):
+            project_overrides = getattr(self.config, "pcileech_config")
+
+        # Build final config by starting with defaults, then applying capability
+        # values (already in defaults). Prefer dynamic/capability values: only
+        # apply project overrides when the dynamic/default value is empty (None or '').
+        final = dict(defaults)
+        if project_overrides:
+            for k, v in project_overrides.items():
+                current = final.get(k, None)
+                if current is None or (isinstance(current, str) and current == ""):
+                    final[k] = v
+
+        required_keys = [
+            "command_timeout",
+            "buffer_size",
+            "enable_dma",
+            "enable_scatter_gather",
+        ]
+        # command_timeout is an alias for completion_timeout if not provided
+        if "command_timeout" not in final or final.get("command_timeout") is None:
+            final["command_timeout"] = final.get("completion_timeout")
+
+        for k in required_keys:
+            if k not in final:
+                # fallback sensible default
+                if k == "command_timeout":
+                    final[k] = final.get("completion_timeout", 50000)
+                elif k == "buffer_size":
+                    final[k] = final.get(
+                        "buffer_size", int(final.get("max_payload_size", 256)) * 4
+                    )
+                elif k == "enable_dma":
+                    final[k] = bool(final.get("enable_dma", False))
+                elif k == "enable_scatter_gather":
+                    final[k] = bool(
+                        final.get(
+                            "enable_scatter_gather", final.get("enable_dma", True)
+                        )
+                    )
+
+        return final
 
     def _build_active_device_config(
         self,

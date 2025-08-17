@@ -7,15 +7,19 @@ including lspci, sysfs, and configuration space scraping.
 """
 
 import logging
+import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.device_clone.config_space_manager import ConfigSpaceManager
-from src.device_clone.device_config import (DeviceConfiguration,
-                                            DeviceIdentification)
+from src.device_clone.device_config import DeviceConfiguration, DeviceIdentification
 from src.device_clone.fallback_manager import get_global_fallback_manager
-from src.string_utils import (log_debug_safe, log_error_safe, log_info_safe,
-                              log_warning_safe)
+from src.string_utils import (
+    log_debug_safe,
+    log_error_safe,
+    log_info_safe,
+    log_warning_safe,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +79,69 @@ class DeviceInfoLookup:
                     error=str(e),
                     prefix="LOOKUP",
                 )
+
+        # Diagnostic: log a sanitized snapshot of device_info before applying fallbacks
+        try:
+
+            def _is_sensitive(var_name: str) -> bool:
+                # reuse FallbackManager's sensitivity rules if available, else conservative False
+                try:
+                    mgr = get_global_fallback_manager()
+                    return mgr.is_sensitive_var(var_name)
+                except Exception:
+                    return False
+
+            def _sanitize(ctx: Any, path: list) -> Any:
+                if not isinstance(ctx, dict):
+                    return ctx
+                out: Dict[str, Any] = {}
+                for k, v in ctx.items():
+                    var_name = ".".join(path + [k]) if path else k
+                    if _is_sensitive(var_name):
+                        continue
+                    if isinstance(v, dict):
+                        out[k] = _sanitize(v, path + [k])
+                    else:
+                        try:
+                            s = repr(v)
+                        except Exception:
+                            s = f"<{type(v).__name__}>"
+                        if len(s) > 200:
+                            s = s[:200] + "...<truncated>"
+                        out[k] = s
+                return out
+
+            def _shape(ctx: Any) -> Any:
+                if not isinstance(ctx, dict):
+                    return type(ctx).__name__
+                return {k: _shape(v) for k, v in ctx.items()}
+
+            sanitized = _sanitize(device_info or {}, [])
+            shape = _shape(sanitized)
+
+            log_info_safe(
+                logger,
+                "Pre-fallback device_info (shape): {shape}",
+                prefix="LOOKUP",
+                shape=shape,
+            )
+
+            s = json.dumps(sanitized, indent=2, sort_keys=True)
+            if len(s) > 4000:
+                s = s[:4000] + "...<truncated>"
+
+            log_info_safe(
+                logger,
+                "Pre-fallback device_info (sanitized): {snapshot}",
+                prefix="LOOKUP",
+                snapshot=s,
+            )
+        except Exception:
+            log_warning_safe(
+                logger,
+                "Failed to emit pre-fallback diagnostic",
+                prefix="LOOKUP",
+            )
 
         # Apply fallbacks for missing fields using the shared/global FallbackManager
         fallback_mgr = get_global_fallback_manager()

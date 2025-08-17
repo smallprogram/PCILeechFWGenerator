@@ -29,7 +29,12 @@ from typing import (
     Union,
 )
 
-from src.string_utils import log_error_safe, log_info_safe, log_warning_safe
+from src.string_utils import (
+    log_error_safe,
+    log_info_safe,
+    log_warning_safe,
+    log_debug_safe,
+)
 
 from ..utils.validation_constants import DEVICE_IDENTIFICATION_FIELDS, SENSITIVE_TOKENS
 
@@ -580,14 +585,14 @@ class FallbackManager:
     def _log_fallback_applied(self, var_name: str, is_dynamic: bool) -> None:
         """Log that a fallback was applied."""
         if is_dynamic:
-            log_info_safe(
+            log_debug_safe(
                 logger,
                 "Applied dynamic fallback for {var_name}",
                 prefix="FALLBACK",
                 var_name=var_name,
             )
         else:
-            log_info_safe(
+            log_debug_safe(
                 logger,
                 "Applied fallback for {var_name}",
                 prefix="FALLBACK",
