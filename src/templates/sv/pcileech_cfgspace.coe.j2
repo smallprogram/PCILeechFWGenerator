@@ -28,7 +28,7 @@
 {% macro validate_bar_configs() %}
 {# Be permissive during migration: warn when bars are missing and emit disabled BARs instead of failing to render #}
 {% if not bar_config or (bar_config.bars is defined and bar_config.bars|length == 0) %}
-  ; ; Warning: no BAR configuration available - template will emit disabled BARs
+  ; Warning: no BAR configuration available - template will emit disabled BARs
 {% endif %}
 {% endmacro %}
 
