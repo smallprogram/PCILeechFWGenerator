@@ -45,7 +45,8 @@ def get_package_version() -> str:
             from setuptools_scm import get_version
 
             return get_version(root="../..")
-        except ImportError:
+        except Exception as e:
+            logging.debug(f"Error getting version from setuptools_scm: {e}")
             pass
 
         # Fallback: try importlib.metadata (Python 3.8+)
