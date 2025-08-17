@@ -34,23 +34,34 @@ from unittest.mock import MagicMock, Mock, PropertyMock, call, mock_open, patch
 
 import pytest
 
-from src.cli.vfio_constants import (VFIO_DEVICE_GET_REGION_INFO,
-                                    VFIO_GROUP_GET_DEVICE_FD,
-                                    VFIO_REGION_INFO_FLAG_MMAP,
-                                    VFIO_REGION_INFO_FLAG_READ,
-                                    VFIO_REGION_INFO_FLAG_WRITE,
-                                    VfioRegionInfo)
-from src.device_clone.behavior_profiler import (BehaviorProfile,
-                                                RegisterAccess, TimingPattern)
+from src.cli.vfio_constants import (
+    VFIO_DEVICE_GET_REGION_INFO,
+    VFIO_GROUP_GET_DEVICE_FD,
+    VFIO_REGION_INFO_FLAG_MMAP,
+    VFIO_REGION_INFO_FLAG_READ,
+    VFIO_REGION_INFO_FLAG_WRITE,
+    VfioRegionInfo,
+)
+from src.device_clone.behavior_profiler import (
+    BehaviorProfile,
+    RegisterAccess,
+    TimingPattern,
+)
 from src.device_clone.config_space_manager import BarInfo
-from src.device_clone.fallback_manager import FallbackManager
+from src.device_clone.fallback_manager import (
+    FallbackManager,
+    get_global_fallback_manager,
+)
 from src.device_clone.overlay_mapper import OverlayMapper
-from src.device_clone.pcileech_context import (BarConfiguration, ContextError,
-                                               DeviceIdentifiers,
-                                               PCILeechContextBuilder,
-                                               TemplateContext,
-                                               TimingParameters,
-                                               ValidationLevel)
+from src.device_clone.pcileech_context import (
+    BarConfiguration,
+    ContextError,
+    DeviceIdentifiers,
+    PCILeechContextBuilder,
+    TemplateContext,
+    TimingParameters,
+    ValidationLevel,
+)
 
 # ============================================================================
 # Test Data Factories
@@ -403,7 +414,9 @@ class TestInitialization:
 
     def test_initialization_with_custom_fallback(self, mock_config):
         """Test initialization with custom fallback manager."""
-        fallback_manager = FallbackManager(mode="auto", allowed_fallbacks=["all"])
+        fallback_manager = get_global_fallback_manager(
+            mode="auto", allowed_fallbacks=["all"]
+        )
         builder = PCILeechContextBuilder(
             device_bdf="0000:03:00.0",
             config=mock_config,

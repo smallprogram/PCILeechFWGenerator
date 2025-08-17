@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 """
 PCILeech Template Context Builder - Optimized Version
 
@@ -25,20 +27,31 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, TypedDict, Union
 
-from src.cli.vfio_constants import (VFIO_DEVICE_GET_REGION_INFO,
-                                    VFIO_REGION_INFO_FLAG_MMAP,
-                                    VFIO_REGION_INFO_FLAG_READ,
-                                    VFIO_REGION_INFO_FLAG_WRITE,
-                                    VfioRegionInfo)
+from src.cli.vfio_constants import (
+    VFIO_DEVICE_GET_REGION_INFO,
+    VFIO_REGION_INFO_FLAG_MMAP,
+    VFIO_REGION_INFO_FLAG_READ,
+    VFIO_REGION_INFO_FLAG_WRITE,
+    VfioRegionInfo,
+)
 from src.device_clone.behavior_profiler import BehaviorProfile
 from src.device_clone.config_space_manager import BarInfo
-from src.device_clone.fallback_manager import FallbackManager
+from typing import TYPE_CHECKING
+from src.device_clone.fallback_manager import get_global_fallback_manager
+
+if TYPE_CHECKING:
+    from src.device_clone.fallback_manager import FallbackManager
 from src.device_clone.overlay_mapper import OverlayMapper
 from src.error_utils import extract_root_cause
 from src.exceptions import ContextError
-from src.string_utils import (format_bar_summary_table, format_bar_table,
-                              format_raw_bar_table, log_error_safe,
-                              log_info_safe, log_warning_safe)
+from src.string_utils import (
+    format_bar_summary_table,
+    format_bar_table,
+    format_raw_bar_table,
+    log_error_safe,
+    log_info_safe,
+    log_warning_safe,
+)
 from src.utils.attribute_access import safe_get_attr
 
 from ..utils.validation_constants import REQUIRED_CONTEXT_SECTIONS
@@ -395,9 +408,13 @@ class PCILeechContextBuilder:
         self.logger = logging.getLogger(__name__)
         self._context_cache: Dict[str, Any] = {}
         self._vfio_manager = VFIODeviceManager(self.device_bdf, self.logger)
-        self.fallback_manager = fallback_manager or FallbackManager(
-            mode="prompt", allowed_fallbacks=["bar-analysis"]
-        )
+        # Use shared global fallback manager when none provided
+        if fallback_manager:
+            self.fallback_manager = fallback_manager
+        else:
+            self.fallback_manager = get_global_fallback_manager(
+                config_path=None, mode="prompt", allowed_fallbacks=["bar-analysis"]
+            )
 
     def build_context(
         self,
@@ -573,8 +590,7 @@ class PCILeechContextBuilder:
             k in config_space_data
             for k in ["vendor_id", "device_id", "class_code", "revision_id"]
         ):
-            from src.device_clone.config_space_manager import \
-                ConfigSpaceManager
+            from src.device_clone.config_space_manager import ConfigSpaceManager
 
             manager = ConfigSpaceManager(self.device_bdf)
             # Read config space and extract device info
@@ -680,8 +696,7 @@ class PCILeechContextBuilder:
         if not all(
             k in data for k in ["config_space_hex", "config_space_size", "bars"]
         ):
-            from src.device_clone.config_space_manager import \
-                ConfigSpaceManager
+            from src.device_clone.config_space_manager import ConfigSpaceManager
 
             manager = ConfigSpaceManager(self.device_bdf)
             config_space = manager.read_vfio_config_space()
@@ -1190,16 +1205,45 @@ class PCILeechContextBuilder:
         """Merge donor template with context."""
         # Deep merge, preferring context values
         merged = dict(donor)
+        # Merge: ALWAYS prefer the dynamic/context values over donor values.
         for key, value in context.items():
+            if key in merged and merged[key] is not None and merged[key] != {}:
+                # Donor provided a value; we'll prefer the context value but log the overwrite
+                if merged[key] != value:
+                    log_warning_safe(
+                        self.logger,
+                        "Donor template provided '{key}', but dynamic context value will be used.",
+                        key=key,
+                    )
+
+            # If both sides are dict-like, perform a shallow merge where context overrides donor
             if (
                 key in merged
-                and isinstance(value, dict)
                 and isinstance(merged[key], dict)
+                and isinstance(value, dict)
             ):
-                # Recursive merge for nested dicts
                 merged[key] = {**merged[key], **value}
             else:
                 merged[key] = value
+        # Ensure active_device_config retains TemplateObject shape
+        try:
+            if "active_device_config" in merged:
+                raw = merged["active_device_config"]
+                # Import here to avoid top-level import cycles
+                from src.utils.unified_context import TemplateObject
+
+                if isinstance(raw, dict):
+                    # Coerce dict into TemplateObject to preserve template attribute access
+                    merged["active_device_config"] = TemplateObject(raw)
+                    log_warning_safe(
+                        self.logger,
+                        "Donor template provided 'active_device_config' as dict; coerced to TemplateObject and dynamic values will be preserved.",
+                    )
+                # If it's already a TemplateObject or an object with 'enabled', leave as-is
+        except Exception as e:
+            # If coercion fails, log and continue; caller will perform final validation
+            log_warning_safe(self.logger, f"Failed to coerce active_device_config: {e}")
+
         return merged  # type: ignore
 
     def _build_board_config(self) -> Any:

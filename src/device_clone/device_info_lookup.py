@@ -11,11 +11,14 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.device_clone.config_space_manager import ConfigSpaceManager
-from src.device_clone.device_config import (DeviceConfiguration,
-                                            DeviceIdentification)
-from src.device_clone.fallback_manager import FallbackManager
-from src.string_utils import (log_debug_safe, log_error_safe, log_info_safe,
-                              log_warning_safe)
+from src.device_clone.device_config import DeviceConfiguration, DeviceIdentification
+from src.device_clone.fallback_manager import get_global_fallback_manager
+from src.string_utils import (
+    log_debug_safe,
+    log_error_safe,
+    log_info_safe,
+    log_warning_safe,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +70,6 @@ class DeviceInfoLookup:
                         if k not in device_info or device_info[k] is None
                     }
                 )
-
             except Exception as e:
                 log_warning_safe(
                     logger,
@@ -77,8 +79,8 @@ class DeviceInfoLookup:
                     prefix="LOOKUP",
                 )
 
-        # Apply fallbacks for missing fields using FallbackManager
-        fallback_mgr = FallbackManager()
+        # Apply fallbacks for missing fields using the shared/global FallbackManager
+        fallback_mgr = get_global_fallback_manager()
         device_info = fallback_mgr.apply_fallbacks(device_info)
 
         # Optionally validate using DeviceIdentification
@@ -90,7 +92,7 @@ class DeviceInfoLookup:
                         return int(value, 16)
                     return int(value, 0)
                 return int(value) if value else 0
-            
+
             ident = DeviceIdentification(
                 vendor_id=to_int(device_info.get("vendor_id", 0)),
                 device_id=to_int(device_info.get("device_id", 0)),

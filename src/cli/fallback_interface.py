@@ -6,6 +6,8 @@ This module provides a user-friendly interface for managing fallback values
 for template variables, with a focus on safety and documentation.
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import logging
@@ -19,7 +21,12 @@ import yaml
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.device_clone.fallback_manager import FallbackManager
+from typing import TYPE_CHECKING
+
+from src.device_clone.fallback_manager import get_global_fallback_manager
+
+if TYPE_CHECKING:
+    from src.device_clone.fallback_manager import FallbackManager
 from src.string_utils import log_error_safe, log_info_safe, log_warning_safe
 
 logger = logging.getLogger(__name__)
@@ -47,15 +54,15 @@ class FallbackInterface:
             export_path: Path to export missing context data
             verbose: Enable verbose logging
         """
-        self.fallback_config = fallback_config or DEFAULT_FALLBACK_CONFIG
-        self.export_path = export_path or DEFAULT_CONTEXT_EXPORT
-        self.verbose = verbose
-        self.setup_logger()
 
-        # Initialize fallback manager with config path
-        self.fallback_manager = FallbackManager(
-            str(self.fallback_config) if self.fallback_config.exists() else None
-        )
+    self.fallback_config = fallback_config or DEFAULT_FALLBACK_CONFIG
+    self.export_path = export_path or DEFAULT_CONTEXT_EXPORT
+    self.verbose = verbose
+    self.setup_logger()
+
+    # Initialize fallback manager with config path (shared singleton)
+    cfg = str(self.fallback_config) if self.fallback_config.exists() else None
+    self.fallback_manager = get_global_fallback_manager(config_path=cfg)
 
     def setup_logger(self):
         """Set up logging."""

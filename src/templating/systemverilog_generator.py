@@ -24,25 +24,41 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from functools import lru_cache
 from pathlib import Path
-from typing import (Any, Dict, List, Optional, Set, Tuple, TypedDict, Union,
-                    cast)
+from typing import Any, Dict, List, Optional, Set, Tuple, TypedDict, Union, cast
 
 from src.__version__ import __version__
 from src.device_clone.device_config import DeviceClass, DeviceType
 from src.device_clone.manufacturing_variance import VarianceModel
-from src.error_utils import (ErrorCategory, extract_root_cause,
-                             format_concise_error, format_user_friendly_error,
-                             is_user_fixable_error)
-from src.string_utils import (generate_sv_header_comment, log_debug_safe,
-                              log_error_safe, log_info_safe, log_warning_safe,
-                              safe_format)
-from src.utils.attribute_access import (get_attr_or_raise, has_attr,
-                                        require_attrs, safe_get_attr)
+from src.error_utils import (
+    ErrorCategory,
+    extract_root_cause,
+    format_concise_error,
+    format_user_friendly_error,
+    is_user_fixable_error,
+)
+from src.string_utils import (
+    generate_sv_header_comment,
+    log_debug_safe,
+    log_error_safe,
+    log_info_safe,
+    log_warning_safe,
+    safe_format,
+)
+from src.utils.attribute_access import (
+    get_attr_or_raise,
+    has_attr,
+    require_attrs,
+    safe_get_attr,
+)
 
-from .advanced_sv_features import (AdvancedSVFeatureGenerator,
-                                   ErrorHandlingConfig, PerformanceConfig)
+from .advanced_sv_features import (
+    AdvancedSVFeatureGenerator,
+    ErrorHandlingConfig,
+    PerformanceConfig,
+)
 from .advanced_sv_power import PowerManagementConfig
 from .template_renderer import TemplateRenderer, TemplateRenderError
+from ..utils.unified_context import TemplateObject
 
 # Constants for default values and validation
 DEFAULT_FIFO_DEPTH = 512
@@ -534,6 +550,35 @@ class ContextBuilder:
         enable_scatter_gather = getattr(device_obj, "enable_dma", False)
 
         # Build enhanced context incrementally for better performance
+        # Validate and coerce active_device_config to a TemplateObject
+        raw_active = template_context.get("active_device_config", None)
+
+        if raw_active is None:
+            raise TemplateRenderError(
+                "Missing critical template field: 'active_device_config'. "
+                "This should be provided by the context builder (e.g. PCILeechContextBuilder)."
+            )
+
+        # If it's already a TemplateObject, use it. If it's a dict, require 'enabled' key and wrap it.
+        if isinstance(raw_active, TemplateObject):
+            active_device_config_obj = raw_active
+        elif isinstance(raw_active, dict):
+            if "enabled" not in raw_active:
+                raise TemplateRenderError(
+                    "Malformed 'active_device_config' dict: missing required key 'enabled'. "
+                    "A donor template or merge may have overwritten the value."
+                )
+            active_device_config_obj = TemplateObject(raw_active)
+        else:
+            # Accept objects that expose an 'enabled' attribute (for compatibility)
+            if hasattr(raw_active, "enabled"):
+                active_device_config_obj = raw_active
+            else:
+                raise TemplateRenderError(
+                    "Invalid type for 'active_device_config' in template context: "
+                    f"{type(raw_active).__name__}. Expected TemplateObject, dict with 'enabled', or object with 'enabled' attribute."
+                )
+
         enhanced_context = {
             # Copy only essential keys from original context
             "device_config": template_context["device_config"],
@@ -544,7 +589,7 @@ class ContextBuilder:
             "config_space_data": template_context.get("config_space_data", {}),
             "timing_config": template_context.get("timing_config", {}),
             "pcileech_config": template_context.get("pcileech_config", {}),
-            "active_device_config": template_context.get("active_device_config", {}),
+            "active_device_config": active_device_config_obj,
             # CRITICAL: device_signature must be present - use direct access for fail-fast
             "device_signature": template_context["device_signature"],
             "generation_metadata": template_context.get("generation_metadata", {}),
@@ -1263,15 +1308,22 @@ class AdvancedSVGenerator:
             if not device_config:
                 raise TemplateRenderError(ERROR_MESSAGES["missing_critical_field"])
 
-            if not isinstance(device_config, dict):
+            # Handle both dictionary and TemplateObject types for device_config
+            if not isinstance(device_config, (dict, TemplateObject)):
                 raise TemplateRenderError(
                     ERROR_MESSAGES["device_config_not_dict"].format(
                         type_name=type(device_config).__name__
                     )
                 )
 
+            # Convert TemplateObject to dict for validation if needed
+            if isinstance(device_config, TemplateObject):
+                device_config_dict = dict(device_config)
+            else:
+                device_config_dict = device_config
+
             # Validate critical device identification fields
-            self._validate_device_identification(device_config)
+            self._validate_device_identification(device_config_dict)
 
             # Validate critical security fields before proceeding
             # device_signature is REQUIRED - no fallback allowed per no-fallback policy
@@ -1285,7 +1337,7 @@ class AdvancedSVGenerator:
             # Create enhanced context efficiently - avoid full copy for performance
             enhanced_context = ContextBuilder.create_enhanced_context(
                 template_context,
-                device_config,
+                device_config_dict,
                 self.power_config,
                 self.error_config,
                 self.perf_config,

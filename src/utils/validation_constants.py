@@ -36,6 +36,12 @@ SENSITIVE_TOKENS: Final[Tuple[str, ...]] = (
     "class_code",
     "bars",
     "subsys",
+    # Common sensitive tokens - avoid exposing these in fallbacks
+    "token",
+    "secret",
+    "password",
+    "credential",
+    "key",
 )
 
 # Device identification fields that are required for all device configurations

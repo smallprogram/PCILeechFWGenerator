@@ -14,12 +14,23 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import (Any, Callable, Dict, Final, List, Optional, Protocol, Set,
-                    Tuple, TypeVar, Union)
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Final,
+    List,
+    Optional,
+    Protocol,
+    Set,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 from src.string_utils import log_error_safe, log_info_safe, log_warning_safe
 
-from ..utils.validation_constants import SENSITIVE_TOKENS
+from ..utils.validation_constants import SENSITIVE_TOKENS, DEVICE_IDENTIFICATION_FIELDS
 
 # Type variable for return type of handler functions
 T = TypeVar("T")
@@ -232,24 +243,37 @@ class FallbackManager:
 
     def _register_default_critical_variables(self) -> None:
         """Register default critical variables that should never have fallbacks."""
-        critical_vars = []
+        critical_vars: List[str] = []
 
-        # Build critical variable list from sensitive tokens
+        # Use explicit device identification fields as critical both
+        # in their namespaced (device.xxx) and unprefixed forms. This
+        # prevents registering static fallbacks for vendor/device ids
+        # which must be generated dynamically from hardware.
+        for field in DEVICE_IDENTIFICATION_FIELDS:
+            # namespaced
+            critical_vars.append(f"device.{field}")
+            # unprefixed (many modules use top-level keys like "vendor_id")
+            critical_vars.append(field)
+
+        # Also include other sensitive tokens under both names to be safe
         for token in SENSITIVE_TOKENS:
             if token == "bars":
                 critical_vars.extend(["bars", "device.bars"])
             else:
-                critical_vars.append(f"device.{token}")
+                # avoid duplicating entries already added via DEVICE_IDENTIFICATION_FIELDS
+                if token not in DEVICE_IDENTIFICATION_FIELDS:
+                    critical_vars.append(f"device.{token}")
+                    critical_vars.append(token)
 
-        # Additional critical variables
-        critical_vars.extend(
-            [
-                "device.subsys_vendor_id",
-                "device.subsys_device_id",
-            ]
-        )
+        # Deduplicate while preserving order
+        seen: Set[str] = set()
+        deduped: List[str] = []
+        for v in critical_vars:
+            if v not in seen:
+                seen.add(v)
+                deduped.append(v)
 
-        self.mark_as_critical(critical_vars)
+        self.mark_as_critical(deduped)
 
     def _split_path(self, path: str) -> List[str]:
         """
@@ -326,6 +350,12 @@ class FallbackManager:
             )
             return False
 
+        # Idempotency: if the same static value is already registered, do nothing
+        existing = self._variables.get(var_name)
+        if existing and not existing.is_dynamic and existing.value == value:
+            # No change required
+            return True
+
         metadata = VariableMetadata(
             name=var_name,
             value=value,
@@ -377,6 +407,10 @@ class FallbackManager:
                 var_name=var_name,
             )
             return False
+        # Idempotency: if same dynamic handler already registered, do nothing
+        existing = self._variables.get(var_name)
+        if existing and existing.is_dynamic and existing.handler == handler:
+            return True
 
         metadata = VariableMetadata(
             name=var_name,
@@ -1012,3 +1046,32 @@ class FallbackManager:
         log_info_safe(
             logger, "Cleared all fallbacks and reset to defaults", prefix="FALLBACK"
         )
+
+
+# Global singleton accessor for sharing a single FallbackManager across the app
+_GLOBAL_FALLBACK_MANAGER: Optional["FallbackManager"] = None
+
+
+def get_global_fallback_manager(
+    config_path: Optional[Union[str, FallbackConfig]] = None,
+    mode: str = "prompt",
+    allowed_fallbacks: Optional[List[str]] = None,
+) -> "FallbackManager":
+    """Return a lazily-created global FallbackManager instance.
+
+    If a global manager already exists, the existing instance is returned.
+    The first call may pass initialization parameters which will be used to
+    construct the singleton.
+    """
+    global _GLOBAL_FALLBACK_MANAGER
+    if _GLOBAL_FALLBACK_MANAGER is None:
+        _GLOBAL_FALLBACK_MANAGER = FallbackManager(
+            config_path=config_path, mode=mode, allowed_fallbacks=allowed_fallbacks
+        )
+    return _GLOBAL_FALLBACK_MANAGER
+
+
+def set_global_fallback_manager(manager: Optional["FallbackManager"]) -> None:
+    """Set or clear the global fallback manager (useful for tests)."""
+    global _GLOBAL_FALLBACK_MANAGER
+    _GLOBAL_FALLBACK_MANAGER = manager

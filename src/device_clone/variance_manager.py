@@ -12,7 +12,10 @@ from typing import Any, Dict, List, Optional
 
 from src.device_clone.behavior_profiler import BehaviorProfiler
 from src.device_clone.manufacturing_variance import (
-    DeviceClass, ManufacturingVarianceSimulator, VarianceModel)
+    DeviceClass,
+    ManufacturingVarianceSimulator,
+    VarianceModel,
+)
 from src.string_utils import log_info_safe
 
 logger = logging.getLogger(__name__)
@@ -27,17 +30,18 @@ class VarianceManager:
         self.variance_simulator = None
         self.behavior_profiler = None
 
-        # Use provided fallback manager or create a default one
+        # Use provided fallback manager or the shared/global one
         if fallback_manager is None:
             try:
-                from src.device_clone.fallback_manager import FallbackManager
+                from src.device_clone.fallback_manager import (
+                    get_global_fallback_manager,
+                )
 
-                self.fallback_manager = FallbackManager(mode="none")
+                self.fallback_manager = get_global_fallback_manager(mode="none")
             except ImportError:
                 self.fallback_manager = None
         else:
             self.fallback_manager = fallback_manager
-
 
     def apply_manufacturing_variance(self, device_info: Dict[str, Any]) -> List[str]:
         """Apply manufacturing variance simulation."""
@@ -124,9 +128,7 @@ class VarianceManager:
 
         return variance_files
 
-
     def run_behavior_profiling(
-
         self, device_info: Dict[str, Any], duration: int = 30
     ) -> Optional[str]:
         """
