@@ -13,7 +13,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from .validation_constants import CRITICAL_TEMPLATE_CONTEXT_KEYS, KNOWN_DEVICE_TYPES
+from .validation_constants import (CRITICAL_TEMPLATE_CONTEXT_KEYS,
+                                   KNOWN_DEVICE_TYPES)
 
 
 def get_package_version() -> str:

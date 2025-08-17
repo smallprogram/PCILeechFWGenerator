@@ -1,12 +1,11 @@
 import pytest
 
-from src.templating.systemverilog_generator import (
-    AdvancedSVGenerator,
-    DeviceSpecificLogic,
-)
+from src.device_clone.device_config import DeviceClass, DeviceType
+from src.templating.advanced_sv_features import (ErrorHandlingConfig,
+                                                 PerformanceConfig)
 from src.templating.advanced_sv_power import PowerManagementConfig
-from src.templating.advanced_sv_features import PerformanceConfig, ErrorHandlingConfig
-from src.device_clone.device_config import DeviceType, DeviceClass
+from src.templating.systemverilog_generator import (AdvancedSVGenerator,
+                                                    DeviceSpecificLogic)
 
 
 def test_advanced_controller_renders():

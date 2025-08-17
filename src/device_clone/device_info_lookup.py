@@ -6,20 +6,17 @@ Provides resilient device information lookup using multiple data sources
 including lspci, sysfs, and configuration space scraping.
 """
 
-import logging
 import json
+import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.device_clone.config_space_manager import ConfigSpaceManager
-from src.device_clone.device_config import DeviceConfiguration, DeviceIdentification
+from src.device_clone.device_config import (DeviceConfiguration,
+                                            DeviceIdentification)
 from src.device_clone.fallback_manager import get_global_fallback_manager
-from src.string_utils import (
-    log_debug_safe,
-    log_error_safe,
-    log_info_safe,
-    log_warning_safe,
-)
+from src.string_utils import (log_debug_safe, log_error_safe, log_info_safe,
+                              log_warning_safe)
 
 logger = logging.getLogger(__name__)
 

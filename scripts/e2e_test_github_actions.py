@@ -298,7 +298,7 @@ class E2ETestRunner:
             sys.path.insert(0, str(self.project_root / "src"))
 
             # Test core module imports
-            from src.build import FirmwareBuilder, BuildConfiguration
+            from src.build import BuildConfiguration, FirmwareBuilder
             from src.device_clone.device_config import get_device_config
 
             # Note: Some imports may not be available in all environments
@@ -413,7 +413,7 @@ class E2ETestRunner:
             )
             os.environ["PCILEECH_ALLOW_MOCK_DATA"] = "true"
 
-            from src.build import FirmwareBuilder, BuildConfiguration
+            from src.build import BuildConfiguration, FirmwareBuilder
 
             # Create build configuration
             config = BuildConfiguration(
@@ -682,8 +682,9 @@ class E2ETestRunner:
         start_time = time.time()
 
         try:
-            from src.template_security_validation import TemplateSecurityValidator
             from src.template_context_validator import TemplateContextValidator
+            from src.template_security_validation import \
+                TemplateSecurityValidator
 
             # Find all template files
             template_dir = self.project_root / "src" / "templates"
@@ -858,8 +859,9 @@ puts "Project created successfully"
         start_time = time.time()
 
         try:
-            import psutil
             import threading
+
+            import psutil
 
             # Monitor resource usage during test
             max_memory_mb = 0
@@ -902,7 +904,7 @@ puts "Project created successfully"
                 )
                 os.environ["PCILEECH_ALLOW_MOCK_DATA"] = "true"
 
-                from src.build import FirmwareBuilder, BuildConfiguration
+                from src.build import BuildConfiguration, FirmwareBuilder
 
                 config = BuildConfiguration(
                     bdf=test_device["bdf"],

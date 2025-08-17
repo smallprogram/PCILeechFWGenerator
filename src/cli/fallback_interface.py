@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import time
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
@@ -29,6 +29,7 @@ from src.log_config import get_logger
 
 if TYPE_CHECKING:
     from src.device_clone.fallback_manager import FallbackManager
+
 from src.string_utils import log_error_safe, log_info_safe, log_warning_safe
 
 logger = get_logger(__name__)
