@@ -319,14 +319,37 @@ class FallbackManager:
 
         # Navigate to parent of final key
         for part in path_parts[:-1]:
+            # Missing intermediate part
             if part not in current:
                 if create_missing:
-                    current[part] = {}
+                    # Create a template-compatible empty mapping when the
+                    # parent is TemplateObject-like so templates don't get
+                    # plain dicts inserted in their place.
+                    try:
+                        from src.utils.unified_context import TemplateObject
+
+                        current[part] = TemplateObject({})
+                    except Exception:
+                        # Fallback to plain dict if TemplateObject import fails
+                        current[part] = {}
                 else:
                     return None, None, False
-            elif not isinstance(current[part], dict):
-                return None, None, False
-            current = current[part]
+
+            next_obj = current[part]
+
+            # Accept plain dicts
+            if isinstance(next_obj, dict):
+                current = next_obj
+                continue
+
+            # Accept TemplateObject-like objects (duck-typed) that expose .get
+            # and __setitem__/__getitem__ so we can set attributes on them.
+            if hasattr(next_obj, "get") and callable(getattr(next_obj, "get")):
+                current = next_obj
+                continue
+
+            # Anything else is not navigable
+            return None, None, False
 
         return current, path_parts[-1], True
 
@@ -507,9 +530,7 @@ class FallbackManager:
 
         return metadata.value
 
-    def apply_fallbacks(
-        self, template_context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    def apply_fallbacks(self, template_context: Optional[Any] = None) -> Dict[str, Any]:
         """
         Apply all registered fallbacks to a template context.
 
@@ -519,8 +540,31 @@ class FallbackManager:
         Returns:
             Updated template context with fallbacks applied
         """
+        # Prepare a working dict. If a TemplateObject-like context is provided
+        # (it exposes `to_dict()`), convert it to a plain dict first to avoid
+        # deep-copy recursion issues. Remember the original shape so we can
+        # convert back to template-compatible objects afterward.
+        original_was_template_object = False
+        working_ctx: Any = template_context
+
+        # Detect TemplateObject-like API and try to convert to plain dict
+        try:
+            if (
+                template_context is not None
+                and hasattr(template_context, "to_dict")
+                and callable(getattr(template_context, "to_dict"))
+            ):
+                original_was_template_object = True
+                try:
+                    working_ctx = template_context.to_dict()
+                except Exception:
+                    # Fall back to using the original object if conversion fails
+                    working_ctx = template_context
+        except Exception:
+            working_ctx = template_context
+
         # Deep copy to avoid modifying original
-        context = copy.deepcopy(template_context) if template_context else {}
+        context = copy.deepcopy(working_ctx) if working_ctx else {}
 
         # Apply all registered variables
         for var_name, metadata in self._variables.items():
@@ -528,6 +572,17 @@ class FallbackManager:
                 continue
 
             self._apply_single_fallback(context, metadata)
+
+        # If the original context was template-compatible, convert back so
+        # consumers still receive TemplateObjects rather than plain dicts.
+        if original_was_template_object:
+            try:
+                from src.utils.unified_context import ensure_template_compatibility
+
+                return ensure_template_compatibility(context)
+            except Exception:
+                # If conversion fails, return the plain dict
+                return context
 
         return context
 
