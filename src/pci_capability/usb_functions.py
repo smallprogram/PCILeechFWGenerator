@@ -17,6 +17,37 @@ from ..string_utils import (log_debug_safe, log_error_safe, log_info_safe,
                             log_warning_safe, safe_format)
 from .base_function_analyzer import (BaseFunctionAnalyzer,
                                      create_function_capabilities)
+from .constants import (AMD_EHCI_PATTERNS,  # USB Function Analyzer Constants
+                        AMD_XHCI_PATTERNS, CLASS_CODES, INTEL_EHCI_PATTERNS,
+                        INTEL_UHCI_PATTERNS, INTEL_XHCI_PATTERNS,
+                        NEC_XHCI_PATTERNS, USB_AUX_CURRENT_OTHER,
+                        USB_AUX_CURRENT_XHCI_USB4, USB_BAR_SIZE_EHCI_BASE,
+                        USB_BAR_SIZE_IO_PORTS, USB_BAR_SIZE_MSIX_TABLE,
+                        USB_BAR_SIZE_XHCI_BASE, USB_CAP_ID_MSI,
+                        USB_CAP_ID_MSIX, USB_CAP_ID_PCIE, USB_CAP_ID_PM,
+                        USB_CATEGORY_EHCI_THRESHOLD,
+                        USB_CATEGORY_UHCI_THRESHOLD,
+                        USB_CATEGORY_USB4_THRESHOLD,
+                        USB_CATEGORY_XHCI_THRESHOLD_HIGH,
+                        USB_CATEGORY_XHCI_THRESHOLD_LOW, USB_DEVICE_LOWER_MASK,
+                        USB_DEVICE_UPPER_MASK, USB_DEVICE_UPPER_SHIFT,
+                        USB_ENTROPY_DIVISOR, USB_ENTROPY_MASK,
+                        USB_ENTROPY_VARIATION_FACTOR, USB_MSI_MESSAGES_OTHER,
+                        USB_MSI_MESSAGES_XHCI_USB4, USB_MSIX_SUPPORT_THRESHOLD,
+                        USB_PCIE_MAX_PAYLOAD_SIZE, USB_PORT_COUNT_EHCI_HIGH,
+                        USB_PORT_COUNT_EHCI_LOW,
+                        USB_PORT_COUNT_HIGH_THRESHOLD_EHCI,
+                        USB_PORT_COUNT_HIGH_THRESHOLD_XHCI,
+                        USB_PORT_COUNT_OHCI, USB_PORT_COUNT_UHCI,
+                        USB_PORT_COUNT_USB4, USB_PORT_COUNT_XHCI_HIGH,
+                        USB_PORT_COUNT_XHCI_LOW, USB_QUEUE_BASE_EHCI,
+                        USB_QUEUE_BASE_OTHER, USB_QUEUE_BASE_USB4,
+                        USB_QUEUE_BASE_XHCI, USB_SPEED_5GBPS, USB_SPEED_10GBPS,
+                        USB_SPEED_12MBPS, USB_SPEED_40GBPS, USB_SPEED_480MBPS,
+                        USB_VERSION_11, USB_VERSION_20, USB_VERSION_30,
+                        USB_VERSION_31, USB_VERSION_31_THRESHOLD,
+                        USB_VERSION_40, VENDOR_ID_NEC, VENDOR_ID_VIA,
+                        VIA_UHCI_PATTERNS)
 
 logger = logging.getLogger(__name__)
 
@@ -28,16 +59,6 @@ class USBFunctionAnalyzer(BaseFunctionAnalyzer):
     Analyzes vendor/device IDs provided at build time to generate realistic
     USB function capabilities without hardcoding device-specific behavior.
     """
-
-    # PCI class codes for USB devices
-    CLASS_CODES = {
-        "uhci": 0x0C0300,  # Serial bus controller, USB (UHCI)
-        "ohci": 0x0C0310,  # Serial bus controller, USB (OHCI)
-        "ehci": 0x0C0320,  # Serial bus controller, USB2 (EHCI)
-        "xhci": 0x0C0330,  # Serial bus controller, USB3 (xHCI)
-        "usb4": 0x0C0340,  # Serial bus controller, USB4
-        "other_usb": 0x0C0380,  # Serial bus controller, USB (Other)
-    }
 
     def __init__(self, vendor_id: int, device_id: int):
         """
@@ -56,76 +77,68 @@ class USBFunctionAnalyzer(BaseFunctionAnalyzer):
         Returns:
             Device category string (uhci, ohci, ehci, xhci, usb4, other_usb)
         """
-        # Pattern-based analysis without hardcoding specific device IDs
-        device_lower = self.device_id & 0xFF00
-        device_upper = (self.device_id >> 8) & 0xFF
+        device_lower = self.device_id & USB_DEVICE_LOWER_MASK
+        device_upper = (
+            self.device_id >> USB_DEVICE_UPPER_SHIFT
+        ) & USB_DEVICE_UPPER_MASK
+
+        # Import vendor ID constants
+        from src.device_clone.constants import VENDOR_ID_AMD, VENDOR_ID_INTEL
 
         # Vendor-specific patterns
-        if self.vendor_id == 0x8086:  # Intel
-            if device_lower in [0x1E00, 0x1F00, 0x8C00, 0x9C00]:  # xHCI ranges
+        if self.vendor_id == VENDOR_ID_INTEL:  # Intel
+            if device_lower in INTEL_XHCI_PATTERNS:
                 return "xhci"
-            elif device_lower in [0x2600, 0x2700]:  # EHCI ranges
+            if device_lower in INTEL_EHCI_PATTERNS:
                 return "ehci"
-            elif device_lower in [0x2400, 0x2500]:  # UHCI ranges
+            if device_lower in INTEL_UHCI_PATTERNS:
                 return "uhci"
-        elif self.vendor_id == 0x1002:  # AMD
-            if device_lower in [0x7800, 0x7900]:  # xHCI ranges
+        if self.vendor_id == VENDOR_ID_AMD:  # AMD
+            if device_lower in AMD_XHCI_PATTERNS:
                 return "xhci"
-            elif device_lower in [0x7600, 0x7700]:  # EHCI ranges
+            if device_lower in AMD_EHCI_PATTERNS:
                 return "ehci"
-        elif self.vendor_id == 0x1033:  # NEC
-            if device_lower in [0x0100, 0x0200]:  # xHCI ranges
+        if self.vendor_id == VENDOR_ID_NEC:  # NEC
+            if device_lower in NEC_XHCI_PATTERNS:
                 return "xhci"
-        elif self.vendor_id == 0x1106:  # VIA
-            if device_lower in [0x3000, 0x3100]:  # UHCI/OHCI ranges
+        if self.vendor_id == VENDOR_ID_VIA:  # VIA
+            if device_lower in VIA_UHCI_PATTERNS:
                 return "uhci"
 
-        # Generic patterns based on device ID structure
-        if device_upper >= 0x90:  # Very high device IDs often USB4/xHCI
-            return "usb4" if device_upper >= 0xA0 else "xhci"
-        elif device_upper >= 0x80:  # High device IDs often xHCI
+        # Generic patterns
+        if device_upper >= USB_CATEGORY_XHCI_THRESHOLD_HIGH:
+            return "usb4" if device_upper >= USB_CATEGORY_USB4_THRESHOLD else "xhci"
+        if device_upper >= USB_CATEGORY_XHCI_THRESHOLD_LOW:
             return "xhci"
-        elif device_upper >= 0x60:  # Mid-high often EHCI
+        if device_upper >= USB_CATEGORY_EHCI_THRESHOLD:
             return "ehci"
-        elif device_upper >= 0x30:  # Mid often UHCI
+        if device_upper >= USB_CATEGORY_UHCI_THRESHOLD:
             return "uhci"
         else:
-            return "ohci"  # Low device IDs often OHCI
+            return "ohci"
 
     def _analyze_capabilities(self) -> Set[int]:
-        """
-        Analyze which capabilities this device should support.
-
-        Returns:
-            Set of capability IDs that should be present
-        """
         caps = set()
-
-        # Always include basic USB capabilities
-        caps.update([0x01, 0x05, 0x10])  # PM, MSI, PCIe
-
-        # MSI-X for modern controllers
+        caps.update([USB_CAP_ID_PM, USB_CAP_ID_MSI, USB_CAP_ID_PCIE])
         if self._supports_msix():
-            caps.add(0x11)  # MSI-X
-
+            caps.add(USB_CAP_ID_MSIX)
         return caps
 
     def _supports_msix(self) -> bool:
-        """Check if USB controller supports MSI-X."""
-        # Modern xHCI and USB4 controllers support MSI-X
-        return self._device_category in ["xhci", "usb4"] and self.device_id > 0x1000
+        return (
+            self._device_category in ["xhci", "usb4"]
+            and self.device_id > USB_MSIX_SUPPORT_THRESHOLD
+        )
 
     def get_device_class_code(self) -> int:
         """Get appropriate PCI class code for this device."""
-        return self.CLASS_CODES.get(self._device_category, self.CLASS_CODES["xhci"])
+        return CLASS_CODES.get(self._device_category, CLASS_CODES["xhci"])
 
     def _create_pm_capability(self, aux_current: int = 0) -> Dict[str, Any]:
-        """Create Power Management capability for USB devices."""
-        # Modern controllers may need more aux power
         if self._device_category in ["xhci", "usb4"]:
-            aux_current = 200
+            aux_current = USB_AUX_CURRENT_XHCI_USB4
         else:
-            aux_current = 100
+            aux_current = USB_AUX_CURRENT_OTHER
         return super()._create_pm_capability(aux_current)
 
     def _create_msi_capability(
@@ -133,13 +146,11 @@ class USBFunctionAnalyzer(BaseFunctionAnalyzer):
         multi_message_capable: Optional[int] = None,
         supports_per_vector_masking: Optional[bool] = None,
     ) -> Dict[str, Any]:
-        """Create MSI capability for USB devices."""
         if multi_message_capable is None:
-            # USB controllers typically need multiple interrupts
             if self._device_category in ["xhci", "usb4"]:
-                multi_message_capable = 4  # Up to 16 messages
+                multi_message_capable = USB_MSI_MESSAGES_XHCI_USB4
             else:
-                multi_message_capable = 2  # Up to 4 messages
+                multi_message_capable = USB_MSI_MESSAGES_OTHER
 
         return super()._create_msi_capability(
             multi_message_capable, supports_per_vector_masking
@@ -150,28 +161,23 @@ class USBFunctionAnalyzer(BaseFunctionAnalyzer):
         max_payload_size: Optional[int] = None,
         supports_flr: bool = True,
     ) -> Dict[str, Any]:
-        """Create PCIe Express capability for USB devices."""
         if max_payload_size is None:
-            # USB controllers don't need large payloads
-            max_payload_size = 256
-
+            max_payload_size = USB_PCIE_MAX_PAYLOAD_SIZE
         return super()._create_pcie_capability(max_payload_size, supports_flr)
 
     def _calculate_default_queue_count(self) -> int:
-        """Calculate appropriate queue count for USB devices."""
-        # USB controllers need queues for each port and endpoint
         if self._device_category == "usb4":
-            base_queues = 16
+            base_queues = USB_QUEUE_BASE_USB4
         elif self._device_category == "xhci":
-            base_queues = 8
+            base_queues = USB_QUEUE_BASE_XHCI
         elif self._device_category == "ehci":
-            base_queues = 4
+            base_queues = USB_QUEUE_BASE_EHCI
         else:
-            base_queues = 2
+            base_queues = USB_QUEUE_BASE_OTHER
 
-        # Add entropy-based variation for security
-        entropy_factor = ((self.vendor_id ^ self.device_id) & 0x7) / 16.0
-        variation = int(base_queues * entropy_factor * 0.5)
+        entropy_factor = (self.vendor_id ^ self.device_id) & USB_ENTROPY_MASK
+        entropy_factor = entropy_factor / USB_ENTROPY_DIVISOR
+        variation = int(base_queues * entropy_factor * USB_ENTROPY_VARIATION_FACTOR)
         if (self.device_id & 0x1) == 0:
             variation = -variation
 
@@ -179,13 +185,9 @@ class USBFunctionAnalyzer(BaseFunctionAnalyzer):
         return 1 << (final_queues - 1).bit_length()
 
     def generate_bar_configuration(self) -> List[Dict[str, Any]]:
-        """Generate realistic BAR configuration for USB device."""
         bars = []
-
-        # Base register space - size based on controller type
         if self._device_category in ["xhci", "usb4"]:
-            # xHCI/USB4 controllers need larger register space
-            base_size = 0x10000
+            base_size = USB_BAR_SIZE_XHCI_BASE
             bars.append(
                 {
                     "bar": 0,
@@ -196,20 +198,18 @@ class USBFunctionAnalyzer(BaseFunctionAnalyzer):
                 }
             )
 
-            # MSI-X table space if supported
-            if 0x11 in self._capabilities:
+            if USB_CAP_ID_MSIX in self._capabilities:
                 bars.append(
                     {
                         "bar": 1,
                         "type": "memory",
-                        "size": 0x1000,
+                        "size": USB_BAR_SIZE_MSIX_TABLE,
                         "prefetchable": False,
                         "description": "MSI-X table",
                     }
                 )
         elif self._device_category == "ehci":
-            # EHCI controllers
-            base_size = 0x1000
+            base_size = USB_BAR_SIZE_EHCI_BASE
             bars.append(
                 {
                     "bar": 0,
@@ -220,12 +220,11 @@ class USBFunctionAnalyzer(BaseFunctionAnalyzer):
                 }
             )
         else:
-            # UHCI/OHCI controllers (legacy)
             bars.append(
                 {
                     "bar": 0,
                     "type": "io",
-                    "size": 0x20,
+                    "size": USB_BAR_SIZE_IO_PORTS,
                     "prefetchable": False,
                     "description": "USB IO ports",
                 }
@@ -234,63 +233,81 @@ class USBFunctionAnalyzer(BaseFunctionAnalyzer):
         return bars
 
     def generate_device_features(self) -> Dict[str, Any]:
-        """Generate USB-specific device features."""
         features = {
             "category": self._device_category,
             "queue_count": self._calculate_default_queue_count(),
         }
 
-        # Category-specific features
         if self._device_category == "usb4":
             features.update(
                 {
-                    "usb_version": "4.0",
-                    "max_speed": "40Gbps",
-                    "port_count": 2,
+                    "usb_version": USB_VERSION_40,
+                    "max_speed": USB_SPEED_40GBPS,
+                    "port_count": USB_PORT_COUNT_USB4,
                     "supports_thunderbolt": True,
                     "supports_display_port": True,
                     "supports_pcie_tunneling": True,
                 }
             )
         elif self._device_category == "xhci":
+            usb_version = (
+                USB_VERSION_31
+                if self.device_id > USB_VERSION_31_THRESHOLD
+                else USB_VERSION_30
+            )
+            max_speed = (
+                USB_SPEED_10GBPS
+                if self.device_id > USB_VERSION_31_THRESHOLD
+                else USB_SPEED_5GBPS
+            )
+            port_count = (
+                USB_PORT_COUNT_XHCI_HIGH
+                if self.device_id > USB_PORT_COUNT_HIGH_THRESHOLD_XHCI
+                else USB_PORT_COUNT_XHCI_LOW
+            )
+
             features.update(
                 {
-                    "usb_version": "3.1" if self.device_id > 0x8000 else "3.0",
-                    "max_speed": "10Gbps" if self.device_id > 0x8000 else "5Gbps",
-                    "port_count": 8 if self.device_id > 0x1500 else 4,
+                    "usb_version": usb_version,
+                    "max_speed": max_speed,
+                    "port_count": port_count,
                     "supports_streams": True,
                     "supports_lpm": True,
                 }
             )
         elif self._device_category == "ehci":
+            port_count = (
+                USB_PORT_COUNT_EHCI_HIGH
+                if self.device_id > USB_PORT_COUNT_HIGH_THRESHOLD_EHCI
+                else USB_PORT_COUNT_EHCI_LOW
+            )
             features.update(
                 {
-                    "usb_version": "2.0",
-                    "max_speed": "480Mbps",
-                    "port_count": 8 if self.device_id > 0x2600 else 4,
+                    "usb_version": USB_VERSION_20,
+                    "max_speed": USB_SPEED_480MBPS,
+                    "port_count": port_count,
                     "supports_tt": True,
                 }
             )
         elif self._device_category == "uhci":
             features.update(
                 {
-                    "usb_version": "1.1",
-                    "max_speed": "12Mbps",
-                    "port_count": 2,
+                    "usb_version": USB_VERSION_11,
+                    "max_speed": USB_SPEED_12MBPS,
+                    "port_count": USB_PORT_COUNT_UHCI,
                     "supports_legacy": True,
                 }
             )
         elif self._device_category == "ohci":
             features.update(
                 {
-                    "usb_version": "1.1",
-                    "max_speed": "12Mbps",
-                    "port_count": 4,
+                    "usb_version": USB_VERSION_11,
+                    "max_speed": USB_SPEED_12MBPS,
+                    "port_count": USB_PORT_COUNT_OHCI,
                     "supports_isochronous": True,
                 }
             )
 
-        # Power management features
         features["supports_power_management"] = True
         if self._device_category in ["xhci", "usb4"]:
             features["supports_runtime_pm"] = True
@@ -299,16 +316,6 @@ class USBFunctionAnalyzer(BaseFunctionAnalyzer):
 
 
 def create_usb_function_capabilities(vendor_id: int, device_id: int) -> Dict[str, Any]:
-    """
-    Factory function to create USB function capabilities from build-time IDs.
-
-    Args:
-        vendor_id: PCI vendor ID from build process
-        device_id: PCI device ID from build process
-
-    Returns:
-        Complete USB device configuration dictionary
-    """
     return create_function_capabilities(
         USBFunctionAnalyzer, vendor_id, device_id, "USBFunctionAnalyzer"
     )

@@ -62,3 +62,5 @@ site/worker/package-lock.json
 # MkDocs
 site/site/
 
+.github/copilot-instructions.md
+template_variables_report.json
