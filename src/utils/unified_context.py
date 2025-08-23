@@ -15,16 +15,24 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Generic, List, Optional, Set, TypeVar, Union
 
-from string_utils import (log_debug_safe, log_error_safe, log_info_safe,
-                          log_warning_safe, safe_format)
+from string_utils import (
+    log_debug_safe,
+    log_error_safe,
+    log_info_safe,
+    log_warning_safe,
+    safe_format,
+)
 
-from .validation_constants import (CRITICAL_TEMPLATE_CONTEXT_KEYS,
-                                   DEFAULT_COUNTER_WIDTH,
-                                   DEFAULT_PROCESS_VARIATION,
-                                   DEFAULT_TEMPERATURE_COEFFICIENT,
-                                   DEFAULT_VOLTAGE_VARIATION,
-                                   DEVICE_CLASS_MAPPINGS, KNOWN_DEVICE_TYPES,
-                                   POWER_TRANSITION_CYCLES)
+from .validation_constants import (
+    CRITICAL_TEMPLATE_CONTEXT_KEYS,
+    DEFAULT_COUNTER_WIDTH,
+    DEFAULT_PROCESS_VARIATION,
+    DEFAULT_TEMPERATURE_COEFFICIENT,
+    DEFAULT_VOLTAGE_VARIATION,
+    DEVICE_CLASS_MAPPINGS,
+    KNOWN_DEVICE_TYPES,
+    POWER_TRANSITION_CYCLES,
+)
 
 # Type aliases for clarity
 HexString = str
@@ -953,24 +961,26 @@ class UnifiedContextBuilder:
         # Add aliases
         context["device"] = device_config
         context["device_info"] = device_config
-        
+
         # Create a comprehensive config object that includes error handling, performance, etc.
         # This is needed for templates that expect config.timeout_cycles, config.enable_error_logging, etc.
-        comprehensive_config = TemplateObject({
-            # Device configuration
-            **device_config.to_dict(),
-            # Error handling configuration (will be added later from error_config)
-            "timeout_cycles": 32768,
-            "enable_error_logging": True,
-            "enable_timeout_detection": True,
-            "enable_parity_check": False,
-            "enable_crc_check": False,
-            # Performance configuration
-            "enable_perf_counters": True,
-            # Board configuration
-            "has_option_rom": False,
-        })
-        
+        comprehensive_config = TemplateObject(
+            {
+                # Device configuration
+                **device_config.to_dict(),
+                # Error handling configuration (will be added later from error_config)
+                "timeout_cycles": 32768,
+                "enable_error_logging": True,
+                "enable_timeout_detection": True,
+                "enable_parity_check": False,
+                "enable_crc_check": False,
+                # Performance configuration
+                "enable_perf_counters": True,
+                # Board configuration
+                "has_option_rom": False,
+            }
+        )
+
         context["config"] = comprehensive_config
 
     def _add_standard_configs(self, context: Dict[str, Any], **kwargs) -> None:
@@ -1076,7 +1086,7 @@ class UnifiedContextBuilder:
             config_dict = context["config"].to_dict()
             config_dict.update(context["error_handling"].to_dict())
             context["config"] = TemplateObject(config_dict)
-        
+
         # Update config with performance attributes
         if "config" in context and "perf_config" in context:
             config_dict = context["config"].to_dict()
