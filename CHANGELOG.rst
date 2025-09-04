@@ -13,12 +13,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v0.5.0
 
 ## 📑 Table of Contents
 
+- [Version 0.13.9 (2025-09-03)](#version-0139-2025-09-03)
 - [Version 0.13.8 (2025-08-24)](#version-0138-2025-08-24)
 - [Version 0.13.7 (2025-08-23)](#version-0137-2025-08-23)
 - [Version 0.13.6 (2025-08-22)](#version-0136-2025-08-22)
 - [Version 0.13.5 (2025-08-22)](#version-0135-2025-08-22)
 - [Version 0.13.4 (2025-08-16)](#version-0134-2025-08-16)
 - [Version 0.5.8 (2025-06-09)](#020---2025-06-09)
+
+---
+## Version 0.13.9 (2025-09-03)
+
+### Bug Fixes
+
+- Fix i/o port handling (#332).
+- Fix msix context (#329).
+
+### Other
+
+- :arrow_up:(deps): Bump actions/ai-inference from 1 to 2 (#291).
+- :arrow_up:(deps): Bump actions/download-artifact from 4 to 5 (#325).
 
 ---
 ## Version 0.13.8 (2025-08-24)
