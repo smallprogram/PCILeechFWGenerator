@@ -289,6 +289,43 @@ class MSIXManager:
         try:
             log_info_safe(self.logger, "➤ Preloading MSI-X data before VFIO binding")
 
+            # 1) Prefer host-provided JSON (mounted into container) if available
+            #    This preserves MSI-X context when container lacks sysfs/VFIO access.
+            try:
+                msix_json_path = os.environ.get(
+                    "MSIX_DATA_PATH", "/app/output/msix_data.json"
+                )
+                if msix_json_path and os.path.exists(msix_json_path):
+                    with open(msix_json_path, "r") as f:
+                        payload = json.load(f)
+
+                    # Optional: ensure BDF matches if present
+                    bdf_in = payload.get("bdf")
+                    msix_info = payload.get("msix_info")
+                    cfg_hex = payload.get("config_space_hex")
+                    if msix_info and isinstance(msix_info, dict):
+                        log_info_safe(
+                            self.logger,
+                            "  • Loaded MSI-X from {path} ({vectors} vectors)",
+                            path=msix_json_path,
+                            vectors=msix_info.get("table_size", 0),
+                        )
+                        return MSIXData(
+                            preloaded=True,
+                            msix_info=msix_info,
+                            config_space_hex=cfg_hex,
+                            config_space_bytes=(
+                                bytes.fromhex(cfg_hex) if cfg_hex else None
+                            ),
+                        )
+            except Exception as e:
+                # Non-fatal; fall back to sysfs path
+                log_debug_safe(
+                    self.logger,
+                    "MSI-X JSON ingestion skipped: {err}",
+                    err=str(e),
+                )
+
             config_space_path = CONFIG_SPACE_PATH_TEMPLATE.format(self.bdf)
             if not os.path.exists(config_space_path):
                 log_warning_safe(

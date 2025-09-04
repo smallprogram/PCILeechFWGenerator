@@ -8,6 +8,7 @@ import sys
 import textwrap
 import time
 from dataclasses import dataclass, field
+import json
 from pathlib import Path
 from typing import List, Optional
 
@@ -45,6 +46,8 @@ logger = get_logger(__name__)
 # ──────────────────────────────────────────────────────────────────────────────
 # Exceptions
 # ──────────────────────────────────────────────────────────────────────────────
+
+
 class ContainerError(RuntimeError):
     pass
 
@@ -60,6 +63,8 @@ class EnvError(RuntimeError):
 # ──────────────────────────────────────────────────────────────────────────────
 # Build configuration (thin wrapper over original)
 # ──────────────────────────────────────────────────────────────────────────────
+
+
 @dataclass
 class BuildConfig:
     bdf: str
@@ -140,7 +145,10 @@ def require_podman() -> None:
 def image_exists(name: str) -> bool:
     try:
         shell = Shell()
-        out = shell.run("podman images --format '{{.Repository}}:{{.Tag}}'", timeout=5)
+        out = shell.run(
+            "podman images --format '{{.Repository}}:{{.Tag}}'",
+            timeout=5,
+        )
         return any(line.startswith(name) for line in out.splitlines())
     except RuntimeError as e:
         # If podman fails to connect, return False
@@ -155,8 +163,10 @@ def build_image(name: str, tag: str) -> None:
 
     if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9._-]*$", name):
         raise ValueError(f"Invalid container name: {name}")
-    # See: https://docs.docker.com/engine/reference/commandline/tag/#extended-description
-    # Image name: lowercase, digits, ., _, -, /; must start/end with alphanumeric; max 255 chars
+    # See:
+    # https://docs.docker.com/engine/reference/commandline/tag/#extended-description
+    # Image name: lowercase, digits, ., _, -, /; must start/end with alphanumeric;
+    # max 255 chars
     if not re.match(
         r"^[a-z0-9]+([._-][a-z0-9]+)*(/[a-z0-9]+([._-][a-z0-9]+)*)*$", name
     ):
@@ -298,10 +308,14 @@ def run_local_build(cfg: BuildConfig) -> None:
         )
 
         if is_platform_error:
-            # For platform errors, log at a lower level since the detailed error was already logged
+            # For platform errors, log at a lower level since the detailed error was
+            # already logged
             log_info_safe(
                 logger,
-                "Local build skipped due to platform incompatibility (see details above)",
+                (
+                    "Local build skipped due to platform incompatibility "
+                    "(see details above)"
+                ),
                 prefix="LOCAL",
             )
         else:
@@ -371,6 +385,42 @@ def run_build(cfg: BuildConfig) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
+        # Preload MSI-X data on host before any VFIO binding to avoid access issues
+        try:
+            from ..build import MSIXManager
+
+            host_msix = MSIXManager(cfg.bdf, logger=logger).preload_data()
+            if host_msix.preloaded and host_msix.msix_info:
+                msix_json_path = output_dir / "msix_data.json"
+                payload = {
+                    "bdf": cfg.bdf,
+                    "msix_info": host_msix.msix_info,
+                    # Only store hex; bytes aren't JSON-serializable
+                    "config_space_hex": host_msix.config_space_hex,
+                }
+                with open(msix_json_path, "w") as f:
+                    json.dump(payload, f, indent=2)
+                log_info_safe(
+                    logger,
+                    "Host MSI-X preloaded → {path}",
+                    path=str(msix_json_path),
+                    prefix="HOST",
+                )
+            else:
+                log_info_safe(
+                    logger,
+                    "Host MSI-X preload skipped or not found",
+                    prefix="HOST",
+                )
+        except Exception as e:
+            # Non-fatal: continue with container fallback path
+            log_warning_safe(
+                logger,
+                "Host MSI-X preload failed: {error}",
+                error=str(e),
+                prefix="HOST",
+            )
+
         # Bind without keeping the FD (call the context manager only long
         # enough to flip the drivers)
         binder = VFIOBinder(cfg.bdf, attach=False)
@@ -425,7 +475,10 @@ def run_build(cfg: BuildConfig) -> None:
             try:
                 container_id = (
                     subprocess.check_output(
-                        "podman ps -q --filter ancestor=pcileech-fw-generator:latest",
+                        (
+                            "podman ps -q --filter "
+                            "ancestor=pcileech-fw-generator:latest"
+                        ),
                         shell=True,
                     )
                     .decode()
@@ -504,7 +557,10 @@ def run_build(cfg: BuildConfig) -> None:
             if not report.can_proceed:
                 log_error_safe(
                     logger,
-                    "VFIO diagnostics indicate system is not ready for VFIO operations",
+                    (
+                        "VFIO diagnostics indicate system is not ready for VFIO "
+                        "operations"
+                    ),
                     prefix="VFIO",
                 )
                 log_error_safe(

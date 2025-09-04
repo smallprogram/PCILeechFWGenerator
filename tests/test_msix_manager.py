@@ -71,6 +71,37 @@ def test_preload_msix_is_enabled_by_default_in_build_config():
     assert cfg.preload_msix is True
 
 
+def test_msix_json_ingestion_via_env(tmp_path, monkeypatch):
+    # Create a fake JSON file representing host-preloaded MSI-X
+    msix_info = {
+        "table_size": 8,
+        "table_bir": 2,
+        "table_offset": 0x180,
+        "pba_bir": 2,
+        "pba_offset": 0x400,
+        "enabled": True,
+        "function_mask": False,
+    }
+    payload = {
+        "bdf": "0000:00:00.0",
+        "msix_info": msix_info,
+        "config_space_hex": "00" * 256,
+    }
+    json_path = tmp_path / "msix_data.json"
+    json_path.write_text(__import__("json").dumps(payload))
+
+    # Point manager to this JSON and make sysfs path look missing
+    monkeypatch.setenv("MSIX_DATA_PATH", str(json_path))
+    monkeypatch.setattr("os.path.exists", lambda p: p == str(json_path))
+
+    mgr = MSIXManager("0000:00:00.0")
+    data = mgr.preload_data()
+
+    assert data.preloaded is True
+    assert data.msix_info == msix_info
+    assert data.config_space_hex == payload["config_space_hex"]
+
+
 import os
 import pytest
 
