@@ -11,14 +11,24 @@ categorizing, and pruning capabilities.
 import logging
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from ..string_utils import (log_debug_safe, log_error_safe, log_info_safe,
-                            log_warning_safe, safe_format)
+from ..string_utils import (
+    log_debug_safe,
+    log_error_safe,
+    log_info_safe,
+    log_warning_safe,
+    safe_format,
+)
 from .core import CapabilityWalker, ConfigSpace
 from .msix import MSIXCapabilityHandler
 from .patches import PatchEngine
 from .rules import RuleEngine
-from .types import (CapabilityInfo, CapabilityType, EmulationCategory,
-                    PatchInfo, PruningAction)
+from .types import (
+    CapabilityInfo,
+    CapabilityType,
+    EmulationCategory,
+    PatchInfo,
+    PruningAction,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -450,6 +460,17 @@ class CapabilityProcessor:
                     context["pcie_aspm_control"] = link_ctrl & 0x3
                     context["pcie_link_training"] = bool(link_ctrl & 0x0020)
 
+                # Device Capabilities 2 (offset 0x24) and Device Control 2 (0x28)
+                if self.config_space.has_data(cap_info.offset + 0x24, 4):
+                    dev_caps2 = self.config_space.read_dword(cap_info.offset + 0x24)
+                    # LTR Mechanism Supported is bit 11 in Dev Caps 2.
+                    # We'll expose support explicitly in context.
+                    context["pcie_ltr_supported"] = bool((dev_caps2 >> 11) & 0x1)
+
+                if self.config_space.has_data(cap_info.offset + 0x28, 2):
+                    dev_ctrl2 = self.config_space.read_word(cap_info.offset + 0x28)
+                    context["pcie_ltr_enabled"] = bool(dev_ctrl2 & 0x0400)
+
             # Power Management capability
             elif cap_info.cap_id == 0x01:  # Power Management
                 has_pm = True
@@ -665,48 +686,72 @@ class CapabilityProcessor:
         patches = []
 
         try:
-            # Handle each capability type
-            if cap_info.cap_id == 0x01:  # Power Management
-                patches.extend(self._create_power_management_patches(cap_info))
-            elif cap_info.cap_id == 0x05:  # MSI
-                patches.extend(self._create_msi_patches(cap_info))
-            elif cap_info.cap_id == 0x10:  # PCI Express
-                patches.extend(self._create_pcie_patches(cap_info))
-            elif cap_info.cap_id == 0x09:  # Vendor Specific
-                patches.extend(self._create_vendor_specific_patches(cap_info))
-            elif cap_info.cap_id == 0x13:  # Conventional PCI Advanced Features
-                patches.extend(self._create_af_patches(cap_info))
-            elif cap_info.cap_id == 0x12:  # SATA HBA
-                patches.extend(self._create_sata_hba_patches(cap_info))
-            elif cap_info.cap_id == 0x0D:  # PCI Hot Plug
-                patches.extend(self._create_hotplug_patches(cap_info))
-            elif cap_info.cap_id == 0x0E:  # Hyper Transport
-                patches.extend(self._create_hypertransport_patches(cap_info))
-            elif cap_info.cap_id == 0x14:  # Enhanced Allocation
-                patches.extend(self._create_enhanced_allocation_patches(cap_info))
-            elif cap_info.cap_id == 0x15:  # Flattening Portal Bridge
-                patches.extend(self._create_fpb_patches(cap_info))
-            elif cap_info.cap_id == 0x1E:  # L1 PM Substates
-                patches.extend(self._create_l1_pm_substates_patches(cap_info))
-            elif cap_info.cap_id == 0x1F:  # Precision Time Measurement
-                patches.extend(self._create_ptm_patches(cap_info))
-            elif cap_info.cap_id == 0x20:  # M-PCIe
-                patches.extend(self._create_mpcie_patches(cap_info))
-            elif cap_info.cap_id == 0x21:  # FRS Queueing
-                patches.extend(self._create_frs_patches(cap_info))
-            elif cap_info.cap_id == 0x22:  # Readiness Time Reporting
-                patches.extend(self._create_rtr_patches(cap_info))
-            elif cap_info.cap_id == 0x23:  # Designated Vendor-Specific
-                patches.extend(self._create_dvsec_patches(cap_info))
-            elif cap_info.cap_id == 0x24:  # VF Resizable BAR
-                patches.extend(self._create_vf_resizable_bar_patches(cap_info))
-            elif cap_info.cap_id == 0x25:  # Data Link Feature
-                patches.extend(self._create_data_link_feature_patches(cap_info))
-            elif cap_info.cap_id == 0x26:  # Physical Layer 16.0 GT/s
-                patches.extend(self._create_physical_layer_16_patches(cap_info))
+            # First dispatch by capability type to avoid ID collisions between
+            # standard and extended capabilities (e.g., AER 0x0001 vs PM 0x01).
+            if cap_info.cap_type == CapabilityType.EXTENDED:
+                # Extended capabilities
+                if cap_info.cap_id == 0x18:  # Latency Tolerance Reporting
+                    patches.extend(self._create_ltr_patches(cap_info))
+                elif cap_info.cap_id == 0x15:  # Resizable BAR (PF)
+                    patches.extend(self._create_resizable_bar_patches(cap_info))
+                elif cap_info.cap_id == 0x01:  # Advanced Error Reporting
+                    patches.extend(self._create_aer_patches(cap_info))
+                elif cap_info.cap_id == 0x10:  # SR-IOV
+                    patches.extend(self._create_sriov_patches(cap_info))
+                elif cap_info.cap_id == 0x0D:  # ACS
+                    patches.extend(self._create_acs_patches(cap_info))
+                elif cap_info.cap_id == 0x0E:  # ARI
+                    patches.extend(self._create_ari_patches(cap_info))
+                elif cap_info.cap_id == 0x1E:  # L1 PM Substates
+                    patches.extend(self._create_l1_pm_substates_patches(cap_info))
+                elif cap_info.cap_id == 0x1F:  # Precision Time Measurement
+                    patches.extend(self._create_ptm_patches(cap_info))
+                elif cap_info.cap_id == 0x20:  # M-PCIe
+                    patches.extend(self._create_mpcie_patches(cap_info))
+                elif cap_info.cap_id == 0x21:  # FRS Queueing
+                    patches.extend(self._create_frs_patches(cap_info))
+                elif cap_info.cap_id == 0x22:  # Readiness Time Reporting
+                    patches.extend(self._create_rtr_patches(cap_info))
+                elif cap_info.cap_id == 0x23:  # Designated Vendor-Specific (DVSEC)
+                    patches.extend(self._create_dvsec_patches(cap_info))
+                elif cap_info.cap_id == 0x24:  # VF Resizable BAR
+                    patches.extend(self._create_vf_resizable_bar_patches(cap_info))
+                elif cap_info.cap_id == 0x25:  # Data Link Feature
+                    patches.extend(self._create_data_link_feature_patches(cap_info))
+                elif cap_info.cap_id == 0x26:  # Physical Layer 16.0 GT/s
+                    patches.extend(self._create_physical_layer_16_patches(cap_info))
+                else:
+                    # Unknown/other extended capability
+                    patches.extend(self._create_generic_modification_patches(cap_info))
             else:
-                # For other capabilities, create generic patches
-                patches.extend(self._create_generic_modification_patches(cap_info))
+                # Standard capabilities
+                if cap_info.cap_id == 0x01:  # Power Management
+                    patches.extend(self._create_power_management_patches(cap_info))
+                elif cap_info.cap_id == 0x05:  # MSI
+                    patches.extend(self._create_msi_patches(cap_info))
+                elif cap_info.cap_id == 0x10:  # PCI Express
+                    patches.extend(self._create_pcie_patches(cap_info))
+                elif cap_info.cap_id == 0x09:  # Vendor Specific
+                    patches.extend(self._create_vendor_specific_patches(cap_info))
+                elif cap_info.cap_id == 0x13:  # Conventional PCI Advanced Features
+                    patches.extend(self._create_af_patches(cap_info))
+                elif cap_info.cap_id == 0x12:  # SATA HBA
+                    patches.extend(self._create_sata_hba_patches(cap_info))
+                elif cap_info.cap_id == 0x0D:  # PCI Hot Plug
+                    patches.extend(self._create_hotplug_patches(cap_info))
+                elif cap_info.cap_id == 0x0E:  # Hyper Transport
+                    patches.extend(self._create_hypertransport_patches(cap_info))
+                elif cap_info.cap_id == 0x14:  # Enhanced Allocation
+                    patches.extend(self._create_enhanced_allocation_patches(cap_info))
+                elif cap_info.cap_id == 0x15:  # Flattening Portal Bridge
+                    patches.extend(self._create_fpb_patches(cap_info))
+                elif cap_info.cap_id == 0x1E:  # L1 PM Substates
+                    patches.extend(self._create_l1_pm_substates_patches(cap_info))
+                elif cap_info.cap_id == 0x1F:  # Precision Time Measurement
+                    patches.extend(self._create_ptm_patches(cap_info))
+                else:
+                    # For other capabilities, create generic patches
+                    patches.extend(self._create_generic_modification_patches(cap_info))
         except (ValueError, IndexError, KeyError, TypeError) as e:
             log_error_safe(
                 logger,
@@ -938,6 +983,42 @@ class CapabilityProcessor:
                         safe_format(
                             "Configure PCIe link control at 0x{link_ctrl_offset:02x}",
                             link_ctrl_offset=link_ctrl_offset,
+                        ),
+                    )
+                    if patch:
+                        patches.append(patch)
+
+            # Device Control 2 (offset 0x28) - enable LTR if supported
+            dev_ctrl2_offset = cap_info.offset + 0x28
+            dev_caps2_offset = cap_info.offset + 0x24
+            if self.config_space.has_data(dev_ctrl2_offset, 2):
+                current_dev_ctrl2 = self.config_space.read_word(dev_ctrl2_offset)
+
+                # Determine LTR support from context or by reading Dev Capabilities 2
+                ltr_supported = device_context.get("pcie_ltr_supported")
+                if ltr_supported is None and self.config_space.has_data(
+                    dev_caps2_offset, 4
+                ):
+                    dev_caps2_val = self.config_space.read_dword(dev_caps2_offset)
+                    ltr_supported = bool((dev_caps2_val >> 11) & 0x1)
+
+                enable_ltr = device_context.get("enable_ltr", True)
+                new_dev_ctrl2 = current_dev_ctrl2
+                if ltr_supported and enable_ltr:
+                    # Bit 10 = LTR Enable
+                    new_dev_ctrl2 = current_dev_ctrl2 | 0x0400
+                else:
+                    # Keep as-is; don't forcibly clear unless explicitly disabled
+                    pass
+
+                if new_dev_ctrl2 != current_dev_ctrl2:
+                    patch = self.patch_engine.create_word_patch(
+                        dev_ctrl2_offset,
+                        current_dev_ctrl2,
+                        new_dev_ctrl2,
+                        safe_format(
+                            "Set LTR Enable in Dev Ctl2 at 0x{dev_ctrl2_offset:02x}",
+                            dev_ctrl2_offset=dev_ctrl2_offset,
                         ),
                     )
                     if patch:
@@ -1706,62 +1787,268 @@ class CapabilityProcessor:
         return patches
 
     def _create_dvsec_patches(self, cap_info: CapabilityInfo) -> List:
-        """Create patches for Designated Vendor-Specific capability modification."""
-        patches = []
-
+        """Preserve DVSEC content exactly; emit no patches by default."""
         try:
-            # DVSEC Header 1 is at offset 4 (contains vendor ID and DVSEC ID)
+            # Log minimal identification for visibility, but don't modify.
             dvsec_hdr1_offset = cap_info.offset + 4
             if self.config_space.has_data(dvsec_hdr1_offset, 4):
-                current_dvsec_hdr1 = self.config_space.read_dword(dvsec_hdr1_offset)
-                vendor_id = current_dvsec_hdr1 & 0xFFFF
-                dvsec_id = (current_dvsec_hdr1 >> 16) & 0xFFFF
-
+                hdr1 = self.config_space.read_dword(dvsec_hdr1_offset)
+                _vendor_id = hdr1 & 0xFFFF
+                _dvsec_id = (hdr1 >> 16) & 0xFFFF
                 log_info_safe(
                     logger,
                     safe_format(
-                        "Found DVSEC: vendor_id=0x{vendor_id:04x}, dvsec_id=0x{dvsec_id:04x}",
-                        vendor_id=vendor_id,
-                        dvsec_id=dvsec_id,
+                        "Preserving DVSEC 0x{_dvsec_id:04x} for vendor 0x{_vendor_id:04x}",
+                        _dvsec_id=_dvsec_id,
+                        _vendor_id=_vendor_id,
                     ),
                 )
-
-            # DVSEC Header 2 is at offset 8 (contains revision and length)
-            dvsec_hdr2_offset = cap_info.offset + 8
-            if self.config_space.has_data(dvsec_hdr2_offset, 4):
-                current_dvsec_hdr2 = self.config_space.read_dword(dvsec_hdr2_offset)
-                dvsec_length = (current_dvsec_hdr2 >> 20) & 0xFFF
-
-                # Zero out DVSEC data (keep headers for identification)
-                data_start = cap_info.offset + 12
-                data_end = cap_info.offset + dvsec_length
-
-                for offset in range(
-                    data_start, min(data_end, data_start + 32)
-                ):  # Limit size
-                    if self.config_space.has_data(offset, 4):
-                        current_data = self.config_space.read_dword(offset)
-                        if current_data != 0:
-                            patch = self.patch_engine.create_dword_patch(
-                                offset,
-                                current_data,
-                                0,
-                                safe_format(
-                                    "Zero DVSEC data at 0x{offset:02x}",
-                                    offset=offset,
-                                ),
-                            )
-                            if patch:
-                                patches.append(patch)
-
         except Exception as e:
             log_error_safe(
                 logger,
-                "Error creating DVSEC patches: {e}",
+                "Error inspecting DVSEC: {e}",
                 prefix="PCI_CAP",
                 e=e,
             )
+        return []
 
+    def _create_ltr_patches(self, cap_info: CapabilityInfo) -> List:
+        """Configure LTR fields if overrides provided; otherwise preserve donor values."""
+        patches: List = []
+        try:
+            device_context = self._get_device_context()
+            snoop_val = device_context.get("ltr_snoop_latency_value")
+            snoop_scale = device_context.get("ltr_snoop_latency_scale")
+            nosnoop_val = device_context.get("ltr_nosnoop_latency_value")
+            nosnoop_scale = device_context.get("ltr_nosnoop_latency_scale")
+
+            # LTR Capability structure: at +4 Capabilities, at +8 Control (values/scales)
+            # We will only patch if explicit overrides are provided.
+            if any(
+                v is not None
+                for v in (snoop_val, snoop_scale, nosnoop_val, nosnoop_scale)
+            ):
+                ctrl_off = cap_info.offset + 8
+                if self.config_space.has_data(ctrl_off, 4):
+                    current = self.config_space.read_dword(ctrl_off)
+                    new = current
+                    if snoop_val is not None:
+                        new = (new & ~0x00000FFF) | (int(snoop_val) & 0xFFF)
+                    if snoop_scale is not None:
+                        new = (new & ~0x00007000) | ((int(snoop_scale) & 0x7) << 12)
+                    if nosnoop_val is not None:
+                        new = (new & ~0x0FFF0000) | ((int(nosnoop_val) & 0xFFF) << 16)
+                    if nosnoop_scale is not None:
+                        new = (new & ~0x70000000) | ((int(nosnoop_scale) & 0x7) << 28)
+                    if new != current:
+                        patch = self.patch_engine.create_dword_patch(
+                            ctrl_off,
+                            current,
+                            new,
+                            safe_format(
+                                "Configure LTR control at 0x{ctrl_off:02x}",
+                                ctrl_off=ctrl_off,
+                            ),
+                        )
+                        if patch:
+                            patches.append(patch)
+        except Exception as e:
+            log_error_safe(
+                logger,
+                "Error creating LTR patches: {e}",
+                prefix="PCI_CAP",
+                e=e,
+            )
+        return patches
+
+    def _create_resizable_bar_patches(self, cap_info: CapabilityInfo) -> List:
+        """Optionally clamp PF Resizable BAR sizes for safety; preserve by default."""
+        patches: List = []
+        try:
+            device_context = self._get_device_context()
+            clamp_to_128mb = device_context.get("rbar_clamp_to_128mb", False)
+            if not clamp_to_128mb:
+                return patches
+            # First BAR capability/control pairs start at +8 per PCIe spec
+            from .constants import RBAR_SIZE_MASK_ABOVE_128MB
+
+            for bar_idx in range(6):
+                cap_off = cap_info.offset + 8 + (bar_idx * 8)
+                if self.config_space.has_data(cap_off, 4):
+                    cur = self.config_space.read_dword(cap_off)
+                    clamped = (
+                        cur & RBAR_SIZE_MASK_ABOVE_128MB
+                    )  # Clear sizes above 128MB
+                    if clamped != cur:
+                        patch = self.patch_engine.create_dword_patch(
+                            cap_off,
+                            cur,
+                            clamped,
+                            safe_format(
+                                "Clamp RBAR{bar_idx} sizes at 0x{cap_off:02x}",
+                                bar_idx=bar_idx,
+                                cap_off=cap_off,
+                            ),
+                        )
+                        if patch:
+                            patches.append(patch)
+        except Exception as e:
+            log_error_safe(
+                logger, "Error creating RBAR patches: {e}", prefix="PCI_CAP", e=e
+            )
+        return patches
+
+    def _create_aer_patches(self, cap_info: CapabilityInfo) -> List:
+        """Set AER mask/severity to safe defaults; preserve lengths and structure."""
+        patches: List = []
+        try:
+            from .constants import AER_CAPABILITY_VALUES as AER
+
+            # Uncorrectable Error Mask at +0x08
+            uem_off = cap_info.offset + 0x08
+            if self.config_space.has_data(uem_off, 4):
+                cur = self.config_space.read_dword(uem_off)
+                new = AER.get("uncorrectable_error_mask", cur)
+                if new != cur:
+                    p = self.patch_engine.create_dword_patch(
+                        uem_off,
+                        cur,
+                        new,
+                        safe_format("Set AER UEM at 0x{uem_off:02x}", uem_off=uem_off),
+                    )
+                    if p:
+                        patches.append(p)
+            # Uncorrectable Error Severity at +0x0C
+            ues_off = cap_info.offset + 0x0C
+            if self.config_space.has_data(ues_off, 4):
+                cur = self.config_space.read_dword(ues_off)
+                new = AER.get("uncorrectable_error_severity", cur)
+                if new != cur:
+                    p = self.patch_engine.create_dword_patch(
+                        ues_off,
+                        cur,
+                        new,
+                        safe_format("Set AER UES at 0x{ues_off:02x}", ues_off=ues_off),
+                    )
+                    if p:
+                        patches.append(p)
+            # Correctable Error Mask at +0x14
+            cem_off = cap_info.offset + 0x14
+            if self.config_space.has_data(cem_off, 4):
+                cur = self.config_space.read_dword(cem_off)
+                new = AER.get("correctable_error_mask", cur)
+                if new != cur:
+                    p = self.patch_engine.create_dword_patch(
+                        cem_off,
+                        cur,
+                        new,
+                        safe_format("Set AER CEM at 0x{cem_off:02x}", cem_off=cem_off),
+                    )
+                    if p:
+                        patches.append(p)
+            # Advanced Error Capabilities and Control at +0x18
+            aec_off = cap_info.offset + 0x18
+            if self.config_space.has_data(aec_off, 4):
+                cur = self.config_space.read_dword(aec_off)
+                new = AER.get("advanced_error_capabilities", cur)
+                if new != cur:
+                    p = self.patch_engine.create_dword_patch(
+                        aec_off,
+                        cur,
+                        new,
+                        safe_format("Set AER AECC at 0x{aec_off:02x}", aec_off=aec_off),
+                    )
+                    if p:
+                        patches.append(p)
+        except Exception as e:
+            log_error_safe(
+                logger, "Error creating AER patches: {e}", prefix="PCI_CAP", e=e
+            )
+        return patches
+
+    def _create_sriov_patches(self, cap_info: CapabilityInfo) -> List:
+        """Disable SR-IOV enable bits by default; preserve caps and lengths."""
+        patches: List = []
+        try:
+            # SR-IOV Control at +0x08 (per spec after caps at +0x04)
+            ctrl_off = cap_info.offset + 0x08
+            if self.config_space.has_data(ctrl_off, 2):
+                cur = self.config_space.read_word(ctrl_off)
+                new = cur & ~0x0001  # Clear VF Enable
+                if new != cur:
+                    p = self.patch_engine.create_word_patch(
+                        ctrl_off,
+                        cur,
+                        new,
+                        safe_format(
+                            "Disable SR-IOV VF Enable at 0x{ctrl_off:02x}",
+                            ctrl_off=ctrl_off,
+                        ),
+                    )
+                    if p:
+                        patches.append(p)
+        except Exception as e:
+            log_error_safe(
+                logger, "Error creating SR-IOV patches: {e}", prefix="PCI_CAP", e=e
+            )
+        return patches
+
+    def _create_acs_patches(self, cap_info: CapabilityInfo) -> List:
+        """Keep ACS control structure but clear feature bits for safety."""
+        patches: List = []
+        try:
+            control_offset = cap_info.offset + 6
+            if self.config_space.has_data(control_offset, 2):
+                cur = self.config_space.read_word(control_offset)
+                if cur != 0:
+                    p = self.patch_engine.create_word_patch(
+                        control_offset,
+                        cur,
+                        0,
+                        safe_format(
+                            "Clear ACS Control at 0x{control_offset:02x}",
+                            control_offset=control_offset,
+                        ),
+                    )
+                    if p:
+                        patches.append(p)
+        except Exception as e:
+            log_error_safe(
+                logger, "Error creating ACS patches: {e}", prefix="PCI_CAP", e=e
+            )
+        return patches
+
+    def _create_ari_patches(self, cap_info: CapabilityInfo) -> List:
+        """Preserve ARI capability; optionally force ARI forwarding if requested."""
+        patches: List = []
+        try:
+            device_context = self._get_device_context()
+            force_ari = device_context.get("enable_ari_forwarding")
+            if force_ari is None:
+                return patches
+            ctrl_off = (
+                cap_info.offset + 4
+            )  # ARI Cap + Control in first dword after header
+            if self.config_space.has_data(ctrl_off, 2):
+                cur = self.config_space.read_word(ctrl_off)
+                new = (cur | 0x0001) if force_ari else (cur & ~0x0001)
+                if new != cur:
+                    p = self.patch_engine.create_word_patch(
+                        ctrl_off,
+                        cur,
+                        new,
+                        safe_format(
+                            "Set ARI forwarding to {val} at 0x{ctrl_off:02x}",
+                            val=int(bool(force_ari)),
+                            ctrl_off=ctrl_off,
+                        ),
+                    )
+                    if p:
+                        patches.append(p)
+        except Exception as e:
+            log_error_safe(
+                logger, "Error creating ARI patches: {e}", prefix="PCI_CAP", e=e
+            )
         return patches
 
     def _create_vf_resizable_bar_patches(self, cap_info: CapabilityInfo) -> List:
@@ -1937,8 +2224,7 @@ class CapabilityProcessor:
 
     def _create_generic_removal_patches(self, cap_info: CapabilityInfo) -> List:
         """Create generic patches to remove a capability from the capability chain."""
-        from .constants import (PCI_CAP_NEXT_PTR_OFFSET,
-                                PCI_CAPABILITIES_POINTER)
+        from .constants import PCI_CAP_NEXT_PTR_OFFSET, PCI_CAPABILITIES_POINTER
 
         patches = []
 

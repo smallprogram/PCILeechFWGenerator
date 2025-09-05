@@ -16,6 +16,9 @@ module pcileech_tlps128_bar_controller #(
     parameter MSIX_PBA_BIR = {{ msix_config.pba_bir | default(0) }},
     parameter MSIX_PBA_OFFSET = {{ msix_config.pba_offset | default('h2000') }},
     
+    // Unmapped region default read value (configurable)
+    parameter DEFAULT_UNMAPPED_VALUE = 32'h00000000,
+    
     // PCILeech Memory Layout
     parameter DEVICE_CTRL_BASE = 32'h00000000,  // Device Control Region
     parameter DEVICE_CTRL_SIZE = 32'h00000100,  // 256 bytes
@@ -672,7 +675,7 @@ module pcileech_tlps128_bar_controller #(
                 REGION_DATA_BUFFER: bar_rd_data = data_buffer_rdata;
                 REGION_MSIX_TABLE:  bar_rd_data = msix_table_data;
                 REGION_MSIX_PBA:    bar_rd_data = msix_pba_data;
-                default:            bar_rd_data = 32'hDEADBEEF;
+                default:            bar_rd_data = DEFAULT_UNMAPPED_VALUE;
             endcase
         end
     end
@@ -690,7 +693,7 @@ module pcileech_tlps128_bar_controller #(
             case (cfg_ext_register_number)
                 10'h000: cfg_ext_read_data = 32'h{{ get_device_id(device_config, device, config_space, device_id_int) }}{{ get_vendor_id(device_config, device, config_space, vendor_id_int) }};
                 10'h001: cfg_ext_read_data = 32'h{{ "%04X%04X" % ((config_space.status | default(0x0010) | int), (config_space.command | default(0x0000) | int)) }};
-                10'h002: cfg_ext_read_data = 32'h{{ "%06X%02X" % ((config_space.class_code | default(0x020000) | int), (config_space.revision_id | default(0x01) | int)) }};
+                10'h002: cfg_ext_read_data = 32'h{{ "%06X%02X" % ((config_space.class_code | int), (config_space.revision_id | int)) }};
                 10'h040: cfg_ext_read_data = pcileech_ctrl_reg; // PCILeech control register
                 10'h041: cfg_ext_read_data = pcileech_stat_reg; // PCILeech status register
                 10'h042: cfg_ext_read_data = error_status_reg;  // Error status register
@@ -791,7 +794,7 @@ module pcileech_tlps128_bar_controller #(
             REGION_STATUS_REG:  return status_reg_mem[offset[31:2]];
             REGION_DATA_BUFFER: return data_buffer_mem[offset[31:2]];
             REGION_CUSTOM_PIO:  return custom_region_mem[offset[31:2]];
-            default:            return 32'hDEADBEEF;
+            default:            return DEFAULT_UNMAPPED_VALUE;
         endcase
     endfunction
     
