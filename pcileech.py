@@ -272,9 +272,18 @@ def get_available_boards():
     """Get list of available board configurations."""
     try:
         from src.device_clone.board_config import list_supported_boards
+        from src.device_clone.constants import BOARD_FALLBACKS as _FALLBACKS
 
         boards = list_supported_boards()
-        if not boards:
+        return sorted(boards) if boards else _FALLBACKS
+    except Exception:
+        # Single fallback path (avoid re‑duplicating the list here)
+        try:
+            from src.device_clone.constants import \
+                BOARD_FALLBACKS as _FALLBACKS
+
+            return _FALLBACKS
+        except Exception:
             return [
                 "pcileech_35t325_x4",
                 "pcileech_35t325_x1",
@@ -285,18 +294,6 @@ def get_available_boards():
                 "pcileech_squirrel",
                 "pcileech_pciescreamer_xc7a35",
             ]
-        return sorted(boards)
-    except Exception:
-        return [
-            "pcileech_35t325_x4",
-            "pcileech_35t325_x1",
-            "pcileech_35t484_x1",
-            "pcileech_75t484_x1",
-            "pcileech_100t484_x1",
-            "pcileech_enigma_x1",
-            "pcileech_squirrel",
-            "pcileech_pciescreamer_xc7a35",
-        ]
 
 
 def check_sudo():

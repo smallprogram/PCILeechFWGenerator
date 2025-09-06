@@ -8,46 +8,29 @@ avoiding the dict vs attribute access issues.
 """
 
 import logging
-
 import secrets
-
 from dataclasses import asdict, dataclass, field
-
 from datetime import datetime
-
 from enum import Enum
-
 from functools import lru_cache
-
 from pathlib import Path
+from typing import (Any, Dict, Generic, List, Mapping, Optional, Set, TypeVar,
+                    Union)
 
-from typing import Any, Dict, Generic, List, Optional, Set, TypeVar, Union, Mapping
-
-from string_utils import (
-    log_debug_safe,
-    log_error_safe,
-    log_info_safe,
-    log_warning_safe,
-    safe_format,
-)
 from src.error_utils import extract_root_cause
-
 from src.utils.context_error_messages import (
-    MISSING_IDENTIFIERS,
-    STRICT_MODE_MISSING,
-    TEMPLATE_CONTEXT_VALIDATION_FAILED,
-)
+    MISSING_IDENTIFIERS, STRICT_MODE_MISSING,
+    TEMPLATE_CONTEXT_VALIDATION_FAILED)
+from string_utils import (log_debug_safe, log_error_safe, log_info_safe,
+                          log_warning_safe, safe_format)
 
-from .validation_constants import (
-    CRITICAL_TEMPLATE_CONTEXT_KEYS,
-    DEFAULT_COUNTER_WIDTH,
-    DEFAULT_PROCESS_VARIATION,
-    DEFAULT_TEMPERATURE_COEFFICIENT,
-    DEFAULT_VOLTAGE_VARIATION,
-    DEVICE_CLASS_MAPPINGS,
-    KNOWN_DEVICE_TYPES,
-    POWER_TRANSITION_CYCLES,
-)
+from .validation_constants import (CRITICAL_TEMPLATE_CONTEXT_KEYS,
+                                   DEFAULT_COUNTER_WIDTH,
+                                   DEFAULT_PROCESS_VARIATION,
+                                   DEFAULT_TEMPERATURE_COEFFICIENT,
+                                   DEFAULT_VOLTAGE_VARIATION,
+                                   DEVICE_CLASS_MAPPINGS, KNOWN_DEVICE_TYPES,
+                                   POWER_TRANSITION_CYCLES)
 
 # Type aliases for clarity
 HexString = str
@@ -555,13 +538,12 @@ class UnifiedContextBuilder:
         *,
         strict_identity: bool = False,
     ):
-        """Initialize the unified context builder.
+        """Initialize the context builder.
 
         Args:
-            logger: Logger instance
-            strict_identity: When True, fail fast on missing donor identity fields
+            logger: Optional logger instance
+            strict_identity: If True, require all device identifiers to be provided
                              and avoid static defaults for critical identifiers
-                             (subsystem IDs, class_code, revision_id, ROM_SIZE).
         """
         self.logger = logger or logging.getLogger(__name__)
         self.config = ContextBuilderConfig()
@@ -1490,6 +1472,28 @@ class UnifiedContextBuilder:
 
         # Add compatibility aliases
         self._add_compatibility_aliases(template_context._data, **kwargs)
+
+        # Always enrich context with kernel driver metadata.
+        # This will add a 'kernel_driver' section to the context,
+        # even if empty or partial.
+        try:
+            # Import from shared driver enrichment module to avoid cyclic dependency
+            from src.utils.context_driver_enrichment import \
+                enrich_context_with_driver
+
+            enrich_context_with_driver(
+                template_context,
+                vendor_id=vendor_id,
+                device_id=device_id,
+                ensure_sources=kwargs.get("include_kernel_sources", False),
+                max_sources=kwargs.get("kernel_source_limit", 40),
+            )
+        except Exception as e:  # pragma: no cover (defensive path)
+            log_warning_safe(
+                self.logger,
+                "Kernel driver enrichment skipped: {e}",
+                e=e,
+            )
 
         # Validate the context
         try:

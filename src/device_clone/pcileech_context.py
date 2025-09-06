@@ -18,71 +18,49 @@ from datetime import datetime
 from enum import Enum
 from functools import lru_cache
 from pathlib import Path
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    TypedDict,
-    Union,
-    cast,
-)
+from typing import (TYPE_CHECKING, Any, Dict, List, Optional, Tuple, TypedDict,
+                    Union, cast)
+
+from src.cli.vfio_constants import (VFIO_DEVICE_GET_REGION_INFO,
+                                    VFIO_REGION_INFO_FLAG_MMAP,
+                                    VFIO_REGION_INFO_FLAG_READ,
+                                    VFIO_REGION_INFO_FLAG_WRITE,
+                                    VfioRegionInfo)
+from src.device_clone.bar_size_converter import extract_bar_size
+from src.device_clone.behavior_profiler import BehaviorProfile
+from src.device_clone.board_config import get_pcileech_board_config
+from src.device_clone.config_space_manager import BarInfo, ConfigSpaceConstants
+from src.device_clone.constants import (BAR_SIZE_CONSTANTS,
+                                        BAR_TYPE_MEMORY_64BIT,
+                                        DEFAULT_CLASS_CODE,
+                                        DEFAULT_EXT_CFG_CAP_PTR,
+                                        DEFAULT_REVISION_ID,
+                                        DEVICE_ID_FALLBACK, MAX_32BIT_VALUE,
+                                        PCI_CLASS_AUDIO, PCI_CLASS_DISPLAY,
+                                        PCI_CLASS_NETWORK, PCI_CLASS_STORAGE,
+                                        POWER_STATE_D0)
+from src.device_clone.device_config import get_device_config
+from src.device_clone.fallback_manager import (FallbackManager,
+                                               get_global_fallback_manager)
+from src.device_clone.identifier_normalizer import IdentifierNormalizer
+from src.device_clone.overlay_mapper import OverlayMapper
+from src.error_utils import extract_root_cause
+from src.exceptions import ContextError
+from src.pci_capability.constants import PCI_CONFIG_SPACE_MIN_SIZE
+from src.string_utils import (log_error_safe, log_info_safe, log_warning_safe,
+                              safe_format)
+
+from ..utils.validation_constants import (DEVICE_IDENTIFICATION_FIELDS,
+                                          REQUIRED_CONTEXT_SECTIONS)
 
 # NOTE: Don't import VFIO helper callables at module import time. Tests
 # commonly patch the functions on the `src.cli.vfio_helpers` module. To
 # ensure those patches are observed we perform late imports inside methods
 # that call into VFIO helpers.
 
-from src.cli.vfio_constants import (
-    VFIO_DEVICE_GET_REGION_INFO,
-    VFIO_REGION_INFO_FLAG_MMAP,
-    VFIO_REGION_INFO_FLAG_READ,
-    VFIO_REGION_INFO_FLAG_WRITE,
-    VfioRegionInfo,
-)
-from src.pci_capability.constants import PCI_CONFIG_SPACE_MIN_SIZE
-from src.device_clone.behavior_profiler import BehaviorProfile
-from src.device_clone.config_space_manager import BarInfo, ConfigSpaceConstants
-from src.device_clone.bar_size_converter import extract_bar_size
-from src.device_clone.device_config import get_device_config
-from src.device_clone.board_config import get_pcileech_board_config
-from src.device_clone.constants import (
-    BAR_TYPE_MEMORY_64BIT,
-    BAR_SIZE_CONSTANTS,
-    DEFAULT_CLASS_CODE,
-    DEFAULT_EXT_CFG_CAP_PTR,
-    DEFAULT_REVISION_ID,
-    DEVICE_ID_FALLBACK,
-    MAX_32BIT_VALUE,
-    PCI_CLASS_AUDIO,
-    PCI_CLASS_DISPLAY,
-    PCI_CLASS_NETWORK,
-    PCI_CLASS_STORAGE,
-    POWER_STATE_D0,
-)
 
 
-from src.device_clone.fallback_manager import (
-    FallbackManager,
-    get_global_fallback_manager,
-)
-from src.device_clone.identifier_normalizer import IdentifierNormalizer
-from src.device_clone.overlay_mapper import OverlayMapper
-from src.error_utils import extract_root_cause
-from src.exceptions import ContextError
-from src.string_utils import (
-    log_error_safe,
-    log_info_safe,
-    log_warning_safe,
-    safe_format,
-)
 
-from ..utils.validation_constants import (
-    REQUIRED_CONTEXT_SECTIONS,
-    DEVICE_IDENTIFICATION_FIELDS,
-)
 
 
 def require(condition: bool, message: str, **context) -> None:
@@ -96,13 +74,70 @@ def require(condition: bool, message: str, **context) -> None:
         raise SystemExit(2)
 
 
-from src.utils.unified_context import (
-    TemplateObject,
-    ensure_template_compatibility,
-    UnifiedContextBuilder,
-)
-
+from src.utils.unified_context import (TemplateObject, UnifiedContextBuilder,
+                                       ensure_template_compatibility)
 from src.utils.validation_constants import SV_FILE_HEADER
+
+# ---------------------------------------------------------------------------
+# Shared MSI-X runtime flag defaults
+# Centralizes previously duplicated dict literals between disabled/enabled
+# msix_context construction to maintain DRY semantics. Any invariant field
+# changes (e.g. entry sizing, staging support) now require edits in one spot.
+# ---------------------------------------------------------------------------
+_MSIX_BASE_RUNTIME_FLAGS: Dict[str, Any] = {
+    # Clear table & PBA memories on reset
+    "reset_clear": True,
+    # Honor byte enables on writes to table structures
+    "use_byte_enables": True,
+    # Staging + atomic commit design indicators consumed by SV templates
+    "supports_staging": True,
+    "supports_atomic_commit": True,
+    # Entry sizing metadata (16B entries = 4 dwords)
+    "table_entry_dwords": 4,
+    "entry_size_bytes": 16,
+}
+
+
+def _build_msix_disabled_runtime_flags() -> Dict[str, Any]:
+    """Return runtime flag set for a disabled / unsupported MSI-X capability.
+
+    Always returns a fresh dict (avoid accidental shared mutations).
+    """
+    return {
+        **_MSIX_BASE_RUNTIME_FLAGS,
+        # Capability-level state flags
+        "function_mask": False,
+        # PBA writes remain ignored while disabled
+        "write_pba_allowed": False,
+        # Zero PBA storage requirement
+        "pba_size_dwords": 0,
+    }
+
+
+def _build_msix_enabled_runtime_flags(
+    pba_size_dwords: int,
+    *,
+    function_mask: bool = False,
+    write_pba_allowed: bool = False,
+) -> Dict[str, Any]:
+    """Return runtime flag set for an enabled MSI-X capability.
+
+    Parameters
+    ----------
+    pba_size_dwords: int
+        Computed dword length of PBA storage
+    function_mask: bool
+        Current function mask state from capability
+    write_pba_allowed: bool
+        Whether template logic should permit PBA writes (kept False for
+        spec-compliant read-only behavior unless explicitly changed later)
+    """
+    return {
+        **_MSIX_BASE_RUNTIME_FLAGS,
+        "function_mask": function_mask,
+        "write_pba_allowed": write_pba_allowed,
+        "pba_size_dwords": pba_size_dwords,
+    }
 
 
 class TemplateContext(TypedDict, total=False):
@@ -797,7 +832,8 @@ class PCILeechContextBuilder:
 
             # Try to use ConfigSpaceManager for missing fields
             try:
-                from src.device_clone.config_space_manager import ConfigSpaceManager
+                from src.device_clone.config_space_manager import \
+                    ConfigSpaceManager
 
                 manager = ConfigSpaceManager(self.device_bdf)
                 config_space = manager.read_vfio_config_space()
@@ -926,7 +962,8 @@ class PCILeechContextBuilder:
         if not all(
             k in data for k in ["config_space_hex", "config_space_size", "bars"]
         ):
-            from src.device_clone.config_space_manager import ConfigSpaceManager
+            from src.device_clone.config_space_manager import \
+                ConfigSpaceManager
 
             manager = ConfigSpaceManager(self.device_bdf)
             config_space = manager.read_vfio_config_space()
@@ -953,7 +990,7 @@ class PCILeechContextBuilder:
         """Build MSI-X context."""
         if not msix_data or not msix_data.get("capability_info"):
             # Return disabled MSI-X config
-            return {
+            disabled_ctx = {
                 "num_vectors": 0,
                 "table_bir": 0,
                 "table_offset": 0,
@@ -966,6 +1003,8 @@ class PCILeechContextBuilder:
                 "table_size_minus_one": 0,
                 "NUM_MSIX": 0,
             }
+            disabled_ctx.update(_build_msix_disabled_runtime_flags())
+            return disabled_ctx
 
         cap = msix_data["capability_info"]
         table_size = cap["table_size"]
@@ -987,7 +1026,6 @@ class PCILeechContextBuilder:
             "pba_bir": cap.get("pba_bir", cap["table_bir"]),
             "pba_offset": pba_offset,
             "enabled": cap.get("enabled", False),
-            "function_mask": cap.get("function_mask", False),
             "is_supported": table_size > 0,
             "validation_errors": msix_data.get("validation_errors", []),
             "is_valid": msix_data.get("is_valid", True),
@@ -1001,6 +1039,15 @@ class PCILeechContextBuilder:
             "MSIX_PBA_BIR": cap.get("pba_bir", cap["table_bir"]),
             "MSIX_PBA_OFFSET": f"32'h{pba_offset:08X}",
         }
+        # Merge standardized runtime flags
+        context.update(
+            _build_msix_enabled_runtime_flags(
+                pba_size_dwords=pba_size_dwords,
+                function_mask=cap.get("function_mask", False),
+                # Preserve existing behavior: keep PBA writes disabled by default
+                write_pba_allowed=False,
+            )
+        )
 
         # Add alignment warning if present
         if alignment_warning:

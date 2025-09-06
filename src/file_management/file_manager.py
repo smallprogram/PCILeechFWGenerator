@@ -14,16 +14,12 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List
 
-from ..device_clone.constants import PCILEECH_BUILD_SCRIPT, PCILEECH_PROJECT_SCRIPT
-from ..string_utils import (
-    log_debug_safe,
-    log_error_safe,
-    log_info_safe,
-    log_warning_safe,
-    safe_format,
-    safe_print_format,
-)
 from ..__version__ import __version__
+from ..device_clone.constants import (PCILEECH_BUILD_SCRIPT,
+                                      PCILEECH_PROJECT_SCRIPT)
+from ..string_utils import (get_project_name, log_debug_safe, log_error_safe,
+                            log_info_safe, log_warning_safe, safe_format,
+                            safe_print_format)
 
 logger = logging.getLogger(__name__)
 
@@ -505,7 +501,7 @@ class FileManager:
     ) -> Dict[str, Any]:
         """Generate project configuration file."""
         return {
-            "project_name": "pcileech_firmware",
+            "project_name": get_project_name(),
             "board": board,
             "device_info": device_info,
             "build_timestamp": time.time(),

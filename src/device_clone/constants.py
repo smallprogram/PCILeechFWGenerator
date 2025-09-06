@@ -10,7 +10,8 @@ from typing import Dict, Final, List, Optional, Union
 
 # Import the VendorID enum for use in fallback functions
 try:
-    from src.pci_capability.dynamic_functions import VendorID as ExternalVendorID
+    from src.pci_capability.dynamic_functions import \
+        VendorID as ExternalVendorID
 
     # Use the external VendorID enum values
     VENDOR_ID_INTEL = ExternalVendorID.INTEL
@@ -109,6 +110,18 @@ BOARD_PARTS = {
     "pcileech_squirrel": "xc7a35tfgg484-2",
     "pcileech_pciescreamer_xc7a35": "xc7a35tcsg324-2",
 }
+
+# Canonical fallback board list (used when dynamic discovery fails)
+BOARD_FALLBACKS: Final[List[str]] = [
+    "pcileech_35t325_x4",
+    "pcileech_35t325_x1",
+    "pcileech_35t484_x1",
+    "pcileech_75t484_x1",
+    "pcileech_100t484_x1",
+    "pcileech_enigma_x1",
+    "pcileech_squirrel",
+    "pcileech_pciescreamer_xc7a35",
+]
 
 # Default FPGA part for unknown boards
 DEFAULT_FPGA_PART = "xc7a35tcsg324-2"

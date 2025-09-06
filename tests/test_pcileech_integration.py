@@ -10,6 +10,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from src.file_management.board_discovery import (BoardDiscovery,
                                                  discover_all_boards)
 from src.file_management.repo_manager import RepoManager
@@ -18,6 +20,7 @@ from src.vivado_handling.pcileech_build_integration import \
     PCILeechBuildIntegration
 
 
+@pytest.mark.hardware  # Requires external repo; skip in CI unit runs.
 class TestPCILeechIntegration(unittest.TestCase):
     """Test suite for PCILeech integration components."""
 
@@ -327,6 +330,7 @@ class TestPCILeechIntegration(unittest.TestCase):
             self.assertIsInstance(info["is_recommended"], bool)
 
 
+@pytest.mark.hardware  # Depends on cloned repo; skip in CI.
 class TestBoardConfigIntegration(unittest.TestCase):
     """Test suite for board configuration with dynamic discovery."""
 

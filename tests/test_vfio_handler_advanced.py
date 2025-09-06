@@ -25,6 +25,7 @@ from src.cli.vfio_handler import (BindingState, DeviceInfo, VFIOBinder,
                                   _get_iommu_group)
 
 
+@pytest.mark.hardware
 @pytest.mark.skipif(sys.platform == "darwin", reason="VFIO tests require Linux")
 class TestVFIOBinderAdvancedErrorHandling:
     """Test advanced VFIO error handling scenarios."""
@@ -55,6 +56,7 @@ class TestVFIOBinderAdvancedErrorHandling:
                 binder = VFIOBinderImpl(valid_bdf)
 
                 # Simulate EBUSY errors during binding
+
                 def mock_write_sysfs(path, value):
                     if "bind" in str(path):
                         raise OSError(errno.EBUSY, "Device busy")
@@ -96,6 +98,7 @@ class TestVFIOBinderAdvancedErrorHandling:
                 binder = VFIOBinderImpl(valid_bdf)
 
                 # Simulate device disappearing during bind operation
+
                 def mock_wait_for_state_change(*args, **kwargs):
                     # Device path no longer exists
                     with patch("pathlib.Path.exists", return_value=False):
@@ -127,6 +130,7 @@ class TestVFIOBinderAdvancedErrorHandling:
                 binder = VFIOBinderImpl(valid_bdf)
 
                 # Simulate group becoming unavailable between checks
+
                 def mock_group_check(path):
                     if "/dev/vfio/42" in str(path):
                         # First call returns True, subsequent calls False
@@ -141,6 +145,7 @@ class TestVFIOBinderAdvancedErrorHandling:
                         binder._verify_vfio_binding()
 
 
+@pytest.mark.hardware
 @pytest.mark.skipif(sys.platform == "darwin", reason="VFIO tests require Linux")
 class TestVFIOResourceManagement:
     """Test VFIO resource management and cleanup scenarios."""
@@ -232,7 +237,9 @@ class TestVFIOResourceManagement:
                     binder = VFIOBinderImpl(valid_bdf, attach=True)
 
                     with patch.object(
-                        binder, "_open_vfio_device_fd", return_value=(100 + i, 200 + i)
+                        binder,
+                        "_open_vfio_device_fd",
+                        return_value=(100 + i, 200 + i),
                     ):
                         with patch("os.close") as mock_close:
                             result = binder.__enter__()
@@ -244,6 +251,7 @@ class TestVFIOResourceManagement:
                             mock_close.assert_called()
 
 
+@pytest.mark.hardware
 @pytest.mark.skipif(sys.platform == "darwin", reason="VFIO tests require Linux")
 class TestVFIOConcurrencyAndThreadSafety:
     """Test VFIO operations under concurrent access scenarios."""
@@ -297,7 +305,8 @@ class TestVFIOConcurrencyAndThreadSafety:
         def worker(thread_id):
             with patch("os.geteuid", return_value=0):
                 with patch(
-                    "src.cli.vfio_handler._get_iommu_group", return_value=str(thread_id)
+                    "src.cli.vfio_handler._get_iommu_group",
+                    return_value=str(thread_id),
                 ):
                     binder = VFIOBinderImpl(valid_bdf)
                     binder.group_id = str(thread_id)
@@ -319,6 +328,7 @@ class TestVFIOConcurrencyAndThreadSafety:
         assert thread_results[2] == "2"
 
 
+@pytest.mark.hardware
 @pytest.mark.skipif(sys.platform == "darwin", reason="VFIO tests require Linux")
 class TestVFIODeviceStateComplexity:
     """Test complex device state management scenarios."""
@@ -398,6 +408,7 @@ class TestVFIODeviceStateComplexity:
                     mock_write.assert_called()
 
 
+@pytest.mark.hardware
 @pytest.mark.skipif(sys.platform == "darwin", reason="VFIO tests require Linux")
 class TestVFIODiagnosticsAndDebugging:
     """Test VFIO diagnostics and debugging capabilities."""

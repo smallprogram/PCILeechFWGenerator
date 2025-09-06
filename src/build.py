@@ -23,31 +23,20 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple, Union
 
-# Import board functions from the correct module
-from .device_clone.board_config import (
-    get_pcileech_board_config,
-    validate_board,
-)
+from string_utils import (log_debug_safe, log_error_safe, log_info_safe,
+                          log_warning_safe, safe_format)
 
+# Import board functions from the correct module
+from .device_clone.board_config import (get_pcileech_board_config,
+                                        validate_board)
+from .device_clone.constants import PRODUCTION_DEFAULTS
 # Import msix_capability at the module level to avoid late imports
 from .device_clone.msix_capability import parse_msix_capability
-from .exceptions import (
-    ConfigurationError,
-    FileOperationError,
-    ModuleImportError,
-    MSIXPreloadError,
-    PCILeechBuildError,
-    PlatformCompatibilityError,
-    VivadoIntegrationError,
-)
+from .exceptions import (ConfigurationError, FileOperationError,
+                         ModuleImportError, MSIXPreloadError,
+                         PCILeechBuildError, PlatformCompatibilityError,
+                         VivadoIntegrationError)
 from .log_config import get_logger, setup_logging
-from string_utils import (
-    safe_format,
-    log_info_safe,
-    log_warning_safe,
-    log_error_safe,
-    log_debug_safe,
-)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Constants - Extracted magic numbers
@@ -691,12 +680,21 @@ class ConfigurationManager:
         """
         self._validate_args(args)
 
+        # Optional environment toggle to apply production defaults
+        use_prod = bool(os.environ.get("PCILEECH_PRODUCTION_DEFAULTS"))
+        enable_profiling = args.profile > 0
+        preload_msix = getattr(args, "preload_msix", True)
+        if use_prod:
+            # Map production flags when present
+            enable_profiling = PRODUCTION_DEFAULTS.get("BEHAVIOR_PROFILING", True)
+            preload_msix = PRODUCTION_DEFAULTS.get("MSIX_CAPABILITY", True)
+
         return BuildConfiguration(
             bdf=args.bdf,
             board=args.board,
             output_dir=Path(args.output).resolve(),
-            enable_profiling=args.profile > 0,
-            preload_msix=getattr(args, "preload_msix", True),
+            enable_profiling=enable_profiling,
+            preload_msix=preload_msix,
             profile_duration=args.profile,
             output_template=getattr(args, "output_template", None),
             donor_template=getattr(args, "donor_template", None),
@@ -993,10 +991,8 @@ class FirmwareBuilder:
         """Initialize PCILeech generator and other components."""
         from .device_clone.behavior_profiler import BehaviorProfiler
         from .device_clone.board_config import get_pcileech_board_config
-        from .device_clone.pcileech_generator import (
-            PCILeechGenerationConfig,
-            PCILeechGenerator,
-        )
+        from .device_clone.pcileech_generator import (PCILeechGenerationConfig,
+                                                      PCILeechGenerator)
         from .templating.tcl_builder import BuildContext, TCLBuilder
 
         self.gen = PCILeechGenerator(
@@ -1018,7 +1014,8 @@ class FirmwareBuilder:
     def _load_donor_template(self) -> Optional[Dict[str, Any]]:
         """Load donor template if provided."""
         if self.config.donor_template:
-            from .device_clone.donor_info_template import DonorInfoTemplateGenerator
+            from .device_clone.donor_info_template import \
+                DonorInfoTemplateGenerator
 
             log_info_safe(
                 self.logger,
@@ -1220,7 +1217,8 @@ class FirmwareBuilder:
 
     def _generate_donor_template(self, result: Dict[str, Any]) -> None:
         """Generate and save donor info template if requested."""
-        from .device_clone.donor_info_template import DonorInfoTemplateGenerator
+        from .device_clone.donor_info_template import \
+            DonorInfoTemplateGenerator
 
         # Get device info from the result
         device_info = result.get("config_space_data", {}).get("device_info", {})

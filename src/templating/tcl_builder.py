@@ -8,35 +8,25 @@ using the template system, integrating with constants and build helpers.
 
 import logging
 import shutil
-
 # Use absolute imports for better compatibility
 import sys
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, Union, runtime_checkable
+from typing import (Any, Dict, List, Optional, Protocol, Union,
+                    runtime_checkable)
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# String utilities (always use these)
-from src.string_utils import (
-    safe_format,
-    log_info_safe,
-    log_warning_safe,
-    log_error_safe,
-    log_debug_safe,
-    generate_tcl_header_comment,
-)
-
 from src.device_clone.fallback_manager import get_global_fallback_manager
-from src.exceptions import (
-    DeviceConfigError,
-    TCLBuilderError,
-    TemplateNotFoundError,
-    XDCConstraintError,
-)
+from src.exceptions import (DeviceConfigError, TCLBuilderError,
+                            TemplateNotFoundError, XDCConstraintError)
 from src.import_utils import safe_import, safe_import_class
+# String utilities (always use these)
+from src.string_utils import (generate_tcl_header_comment, get_project_name,
+                              log_debug_safe, log_error_safe, log_info_safe,
+                              log_warning_safe, safe_format)
 
 
 def format_hex_id(val: Union[int, str, None], width: int = 4) -> str:
@@ -102,7 +92,7 @@ class BuildContext:
     class_code: Optional[int] = None
     subsys_vendor_id: Optional[int] = None
     subsys_device_id: Optional[int] = None
-    project_name: str = "pcileech_firmware"
+    project_name: str = get_project_name()
     project_dir: str = "./vivado_project"
     output_dir: str = "."
     synthesis_strategy: str = "Vivado Synthesis Defaults"
@@ -348,10 +338,8 @@ class ConstraintManager:
         """
         try:
             # Import repo_manager functions directly
-            from file_management.repo_manager import (
-                get_xdc_files,
-                is_repository_accessible,
-            )
+            from file_management.repo_manager import (get_xdc_files,
+                                                      is_repository_accessible)
 
             if not is_repository_accessible(board_name):
                 raise XDCConstraintError("Repository is not accessible")
@@ -482,7 +470,7 @@ class TCLBuilder:
     # Class constants
     DEFAULT_BUILD_JOBS = 4
     DEFAULT_BUILD_TIMEOUT = 3600
-    DEFAULT_PROJECT_NAME = "pcileech_firmware"
+    DEFAULT_PROJECT_NAME = get_project_name()
     DEFAULT_PROJECT_DIR = "./vivado_project"
 
     def __init__(
@@ -570,11 +558,9 @@ class TCLBuilder:
     def _init_build_helpers(self):
         """Initialize build helpers with fallback handling."""
         try:
-            from build_helpers import (
-                batch_write_tcl_files,
-                create_fpga_strategy_selector,
-                validate_fpga_part,
-            )
+            from build_helpers import (batch_write_tcl_files,
+                                       create_fpga_strategy_selector,
+                                       validate_fpga_part)
 
             self.batch_write_tcl_files = batch_write_tcl_files
             self.fpga_strategy_selector = create_fpga_strategy_selector()
