@@ -18,6 +18,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from src.string_utils import log_debug_safe, safe_format
 
+from src.pci_capability.constants import AER_CAPABILITY_VALUES as _AER
+
 logger = logging.getLogger(__name__)
 
 
@@ -54,7 +56,10 @@ class PCIeRegisterDefinitions:
             0x08, 0x00000000, "Revision ID / Class Code", RegisterType.READ_ONLY
         ),
         0x0C: OverlayEntry(
-            0x0C, 0x0000FF00, "Cache Line / Latency / Header / BIST", RegisterType.MIXED
+            0x0C,
+            0x0000FF00,
+            "Cache Line / Latency / Header / BIST",
+            RegisterType.MIXED,
         ),
         0x10: OverlayEntry(
             0x10, 0xFFFFFFFF, "BAR0", RegisterType.SPECIAL
@@ -158,7 +163,10 @@ class PCIeRegisterDefinitions:
         ),
         0x04: OverlayEntry(0x04, 0xFFFFFFFC, "Message Address Low", RegisterType.MIXED),
         0x08: OverlayEntry(
-            0x08, 0xFFFFFFFF, "Message Address High (64-bit)", RegisterType.READ_WRITE
+            0x08,
+            0xFFFFFFFF,
+            "Message Address High (64-bit)",
+            RegisterType.READ_WRITE,
         ),
         0x0C: OverlayEntry(0x0C, 0x0000FFFF, "Message Data", RegisterType.READ_WRITE),
     }
@@ -215,7 +223,10 @@ class PCIeRegisterDefinitions:
             0x24, 0x00000000, "Device Capabilities 2", RegisterType.READ_ONLY
         ),
         0x28: OverlayEntry(
-            0x28, 0x0000741F, "Device Control 2 / Device Status 2", RegisterType.MIXED
+            0x28,
+            0x0000741F,
+            "Device Control 2 / Device Status 2",
+            RegisterType.MIXED,
         ),
     }
 
@@ -225,20 +236,33 @@ class PCIeRegisterDefinitions:
         0x04: OverlayEntry(
             0x04, 0xFFFFFFFF, "Uncorrectable Error Status", RegisterType.RW1C
         ),
+        # Masks and capability/control values aligned with AER_CAPABILITY_VALUES
         0x08: OverlayEntry(
-            0x08, 0x00462030, "Uncorrectable Error Mask", RegisterType.READ_WRITE
+            0x08,
+            _AER["uncorrectable_error_mask"],
+            "Uncorrectable Error Mask",
+            RegisterType.READ_WRITE,
         ),
         0x0C: OverlayEntry(
-            0x0C, 0x00462030, "Uncorrectable Error Severity", RegisterType.READ_WRITE
+            0x0C,
+            _AER["uncorrectable_error_severity"],
+            "Uncorrectable Error Severity",
+            RegisterType.READ_WRITE,
         ),
         0x10: OverlayEntry(
             0x10, 0xFFFFFFFF, "Correctable Error Status", RegisterType.RW1C
         ),
         0x14: OverlayEntry(
-            0x14, 0x00003F01, "Correctable Error Mask", RegisterType.READ_WRITE
+            0x14,
+            _AER["correctable_error_mask"],
+            "Correctable Error Mask",
+            RegisterType.READ_WRITE,
         ),
         0x18: OverlayEntry(
-            0x18, 0x00000060, "AER Capabilities and Control", RegisterType.MIXED
+            0x18,
+            _AER["advanced_error_capabilities"],
+            "AER Capabilities and Control",
+            RegisterType.MIXED,
         ),
         0x1C: OverlayEntry(0x1C, 0x00000000, "Header Log 1", RegisterType.READ_ONLY),
         0x20: OverlayEntry(0x20, 0x00000000, "Header Log 2", RegisterType.READ_ONLY),
@@ -296,7 +320,8 @@ class OverlayMapper:
                         log_debug_safe(
                             self.logger,
                             safe_format(
-                                "Added overlay for {desc} at 0x{offset:03X} with mask 0x{mask:08X}",
+                                "Added overlay for {desc} at 0x{offset:03X} "
+                                "mask=0x{mask:08X}",
                                 desc=entry.description,
                                 offset=offset,
                                 mask=mask,
@@ -317,7 +342,8 @@ class OverlayMapper:
                     log_debug_safe(
                         self.logger,
                         safe_format(
-                            "Added overlay for {desc} at 0x{offset:03X} with mask 0x{mask:08X}",
+                            "Added overlay for {desc} at 0x{offset:03X} "
+                            "mask=0x{mask:08X}",
                             desc=description,
                             offset=offset,
                             mask=mask,
@@ -386,7 +412,10 @@ class OverlayMapper:
 
         # Power Management
         if cap_id_int == 0x01:
-            for rel_offset, entry in self.definitions.PM_CAPABILITY_REGISTERS.items():
+            for (
+                rel_offset,
+                entry,
+            ) in self.definitions.PM_CAPABILITY_REGISTERS.items():
                 if entry.register_type in (RegisterType.MIXED, RegisterType.RW1C):
                     entries.append(
                         (cap_offset + rel_offset, entry.mask, entry.description)
@@ -394,7 +423,10 @@ class OverlayMapper:
 
         # MSI
         elif cap_id_int == 0x05:
-            for rel_offset, entry in self.definitions.MSI_CAPABILITY_REGISTERS.items():
+            for (
+                rel_offset,
+                entry,
+            ) in self.definitions.MSI_CAPABILITY_REGISTERS.items():
                 if entry.register_type in (RegisterType.MIXED, RegisterType.RW1C):
                     entries.append(
                         (cap_offset + rel_offset, entry.mask, entry.description)
@@ -402,7 +434,10 @@ class OverlayMapper:
 
         # MSI-X
         elif cap_id_int == 0x11:
-            for rel_offset, entry in self.definitions.MSIX_CAPABILITY_REGISTERS.items():
+            for (
+                rel_offset,
+                entry,
+            ) in self.definitions.MSIX_CAPABILITY_REGISTERS.items():
                 if entry.register_type in (RegisterType.MIXED, RegisterType.RW1C):
                     entries.append(
                         (cap_offset + rel_offset, entry.mask, entry.description)
@@ -410,7 +445,10 @@ class OverlayMapper:
 
         # PCIe
         elif cap_id_int == 0x10:
-            for rel_offset, entry in self.definitions.PCIE_CAPABILITY_REGISTERS.items():
+            for (
+                rel_offset,
+                entry,
+            ) in self.definitions.PCIE_CAPABILITY_REGISTERS.items():
                 if entry.register_type in (RegisterType.MIXED, RegisterType.RW1C):
                     entries.append(
                         (cap_offset + rel_offset, entry.mask, entry.description)
@@ -418,7 +456,10 @@ class OverlayMapper:
 
         # AER (Extended capability)
         elif cap_id == "0x0001":
-            for rel_offset, entry in self.definitions.AER_CAPABILITY_REGISTERS.items():
+            for (
+                rel_offset,
+                entry,
+            ) in self.definitions.AER_CAPABILITY_REGISTERS.items():
                 if entry.register_type in (RegisterType.MIXED, RegisterType.RW1C):
                     entries.append(
                         (cap_offset + rel_offset, entry.mask, entry.description)
